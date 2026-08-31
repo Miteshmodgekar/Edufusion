@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}My Attendance | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .att-gauge {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700;
+    background: conic-gradient(var(--gauge-color) calc(var(--pct) * 1%), var(--surface2) 0);
+    position: relative;
+  }
+  .att-gauge::before {
+    content: '';
+    position: absolute;
+    width: 86px; height: 86px;
+    border-radius: 50%;
+    background: var(--surface);
+  }
+  .att-gauge span { position: relative; z-index: 1; font-size: 18px; }
+
+  .sub-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    transition: border-color .2s, transform .2s;
+  }
+  .sub-card:hover { border-color: var(--accent2); transform: translateY(-2px); }
+  .sub-card.defaulter { border-color: rgba(248,81,73,.4); }
+  .sub-card.warning   { border-color: rgba(210,153,34,.4); }
+
+  .bar-track { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 4px; transition: width .6s ease; }
+  .bar-ok    { background: linear-gradient(90deg, #3fb950, #57d068); }
+  .bar-warn  { background: linear-gradient(90deg, #d29922, #f0b429); }
+  .bar-bad   { background: linear-gradient(90deg, #f85149, #ff6961); }
+
+  .stat-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .75rem 1.25rem;
+    text-align: center;
+  }
+  .stat-chip .val { font-size: 28px; font-weight: 700; color: var(--text); }
+  .stat-chip .lbl { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: .5px; margin-top: 2px; }
+
+  .empty-state { text-align: center; padding: 4rem 2rem; }
+  .empty-state .icon { font-size: 56px; margin-bottom: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">My Attendance</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Subject-wise breakdown — {{ current_user.name }}</p>
+    {% if live_info %}
+      {% if live_info.is_live %}
+      <p style="font-size:11px;color:var(--accent);margin:4px 0 0;font-family:'Space Mono',monospace">
+        <i class="bi bi-broadcast"></i> LIVE from Excel — synced {{ live_info.last_synced }}
+      </p>
+      {% elif live_info.message %}
+      <p style="font-size:11px;color:var(--muted);margin:4px 0 0">{{ live_info.message }}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+  <span class="badge-blue mono">STUDENT</span>
+</div>
+
+{% if summaries %}
+
+<!-- ── Overall Stats Row ──────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <!-- Gauge -->
+  <div class="col-md-3 d-flex align-items-center justify-content-center">
+    {% set gauge_color = '#3fb950' if overall >= 85 else ('#d29922' if overall >= 75 else '#f85149') %}
+    <div style="text-align:center">
+      <div class="att-gauge mx-auto mb-2"
+           style="--pct:{{ overall }};--gauge-color:{{ gauge_color }}">
+        <span>{{ overall }}%</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Overall Attendance</div>
+    </div>
+  </div>
+
+  <!-- Chips -->
+  <div class="col-md-9">
+    <div class="row g-3 h-100 align-items-center">
+      <div class="col-6 col-sm-3">
+        <div class="stat-chip">
+          <div class="val" style="color:var(--accent2)">{{ summaries|length }}</div>
+          <div class="lbl">SUBJECTS</div>
+        </div>
+      </div>
+      <div class="col-6 col-sm-3">
+        <div class="stat-chip">
+          <div class="val" style="color:var(--accent)">{{ summaries|selectattr('attendance_pct','ge',85)|list|length }}</div>
+          <div class="lbl">ON TRACK</div>
+        </div>
+      </div>
+      <div class="col-6 col-sm-3">
+        <div class="stat-chip">
+          <div class="val" style="color:var(--warn)">{{ summaries|selectattr('attendance_pct','lt',85)|selectattr('attendance_pct','ge',75)|list|length }}</div>
+          <div class="lbl">AT RISK</div>
+        </div>
+      </div>
+      <div class="col-6 col-sm-3">
+        <div class="stat-chip">
+          <div class="val" style="color:var(--danger)">{{ summaries|selectattr('is_defaulter')|list|length }}</div>
+          <div class="lbl">DEFAULTERS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Defaulter Banner ───────────────────────────────────────── -->
+{% set def_count = summaries|selectattr('is_defaulter')|list|length %}
+{% if def_count > 0 %}
+<div class="alert alert-danger mb-4 d-flex align-items-center gap-2" role="alert" style="font-size:13px">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <strong>Attention:</strong>&nbsp;You are a defaulter in {{ def_count }} subject{{ 's' if def_count > 1 else '' }}. Attend classes immediately to avoid debarment.
+</div>
+{% endif %}
+
+<!-- ── Subject Cards ──────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+{% for s in summaries %}
+  {% if s.attendance_pct < 75 %}
+    {% set cls = 'defaulter' %}{% set bar = 'bar-bad' %}{% set col = 'var(--danger)' %}{% set badge = 'badge-danger' %}{% set label = 'Defaulter' %}
+  {% elif s.attendance_pct < 85 %}
+    {% set cls = 'warning' %}{% set bar = 'bar-warn' %}{% set col = 'var(--warn)' %}{% set badge = 'badge-warn' %}{% set label = 'At Risk' %}
+  {% else %}
+    {% set cls = '' %}{% set bar = 'bar-ok' %}{% set col = 'var(--accent)' %}{% set badge = 'badge-accent' %}{% set label = 'Good' %}
+  {% endif %}
+
+  <div class="col-md-6">
+    <div class="sub-card {{ cls }}">
+      <div class="d-flex align-items-start justify-content-between mb-3">
+        <div>
+          <div style="font-weight:600;font-size:15px;color:var(--text)">{{ s.subject }}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">
+            SEM {{ s.semester }} &nbsp;|&nbsp; SEC {{ s.section }}
+          </div>
+        </div>
+        <span class="{{ badge }} mono" style="font-size:10px">{{ label }}</span>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="bar-track mb-2">
+        <div class="{{ bar }} bar-fill" style="width:{{ s.attendance_pct }}%"></div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center">
+        <div style="font-size:13px;color:var(--muted)">
+          {{ s.classes_attended }} / {{ s.total_classes }} classes
+        </div>
+        <div style="font-size:20px;font-weight:700;color:{{ col }}">{{ s.attendance_pct }}%</div>
+      </div>
+
+      {% if s.required_classes > 0 %}
+      <div class="mt-2 p-2 rounded" style="background:rgba(248,81,73,.08);font-size:12px;color:var(--danger)">
+        <i class="bi bi-arrow-up-circle me-1"></i>
+        Need <strong>{{ s.required_classes }} more classes</strong> to reach 85%
+      </div>
+      {% else %}
+      <div class="mt-2 p-2 rounded" style="background:rgba(63,185,80,.08);font-size:12px;color:var(--accent)">
+        <i class="bi bi-check-circle me-1"></i> You meet the 85% requirement
+      </div>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+<!-- ── What-If Simulator ───────────────────────────────────────── -->
+<div class="card p-4">
+  <div class="card-header rounded mb-3">WHAT-IF ATTENDANCE SIMULATOR</div>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">CLASSES ATTENDED</label>
+      <input type="number" class="form-control form-control-sm" id="simAtt" value="30" min="0" oninput="runSim()">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">TOTAL CLASSES</label>
+      <input type="number" class="form-control form-control-sm" id="simTot" value="40" min="1" oninput="runSim()">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">TARGET %</label>
+      <input type="number" class="form-control form-control-sm" id="simTgt" value="85" min="1" max="100" oninput="runSim()">
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+      <button class="btn btn-outline-secondary btn-sm w-100" onclick="runSim()">
+        <i class="bi bi-calculator me-1"></i> Calculate
+      </button>
+    </div>
+  </div>
+  <div class="row g-3 mt-2">
+    <div class="col-md-4">
+      <div class="stat-chip">
+        <div class="lbl">CURRENT %</div>
+        <div class="val mt-1" id="simCur" style="color:var(--accent2)">75.0%</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-chip">
+        <div class="lbl">CLASSES NEEDED</div>
+        <div class="val mt-1" id="simNeed" style="color:var(--danger)">14</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-chip">
+        <div class="lbl">SAFE TO SKIP</div>
+        <div class="val mt-1" id="simSkip" style="color:var(--accent)">0</div>
+      </div>
+    </div>
+  </div>
+  <div id="simMsg" class="alert alert-warning mt-3 mb-0 py-2" style="font-size:13px"></div>
+</div>
+
+{% else %}
+<!-- ── Empty State ────────────────────────────────────────────── -->
+<div class="card p-4">
+  <div class="empty-state">
+    <div class="icon">📊</div>
+    <h5 style="font-weight:600;margin-bottom:.5rem">No Attendance Data Yet</h5>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:1.5rem">
+      Your faculty hasn't uploaded any attendance sheets yet.<br>
+      Check back after your class teacher uploads the Excel file.
+    </p>
+    <a href="/attendance/simulator" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-calculator me-1"></i> Try the What-If Simulator
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function runSim() {
+  const a  = parseFloat(document.getElementById('simAtt').value) || 0;
+  const t  = parseFloat(document.getElementById('simTot').value) || 1;
+  const th = parseFloat(document.getElementById('simTgt').value) || 85;
+
+  const cur  = parseFloat(((a / t) * 100).toFixed(1));
+  const need = cur >= th ? 0 : Math.ceil((th * t - 100 * a) / (100 - th));
+
+  let skip = 0, tt = t;
+  while (((a) / (tt + 1)) * 100 >= th) { tt++; skip++; if (skip > 200) break; }
+
+  document.getElementById('simCur').textContent  = cur + '%';
+  document.getElementById('simNeed').textContent = need;
+  document.getElementById('simSkip').textContent = skip;
+
+  const msg = need === 0
+    ? `✓ You meet the ${th}% requirement. Safe to skip ${skip} more class${skip !== 1 ? 'es' : ''}.`
+    : `⚠ Attend the next ${need} consecutive class${need !== 1 ? 'es' : ''} to reach ${th}%.`;
+  const el  = document.getElementById('simMsg');
+  el.textContent = msg;
+  el.className   = `alert ${need === 0 ? 'alert-success' : 'alert-warning'} mt-3 mb-0 py-2`;
+}
+runSim();
+</script>
+{% endblock %}

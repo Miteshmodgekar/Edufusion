@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Missed Classes | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .info-card .id-badge {
+    background: var(--accent2);
+    color: #fff;
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .9rem 1.4rem;
+    text-align: center;
+    min-width: 110px;
+  }
+  .stat-box .num { font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-box .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .stat-present .num { color: #3fb950; }
+  .stat-absent  .num { color: var(--danger); }
+  .stat-partial .num { color: #d29922; }
+
+  .filter-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.5rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .filter-row .field label {
+    font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace;
+    display: block; margin-bottom: 4px;
+  }
+  .filter-row select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px; min-width: 130px;
+  }
+
+  table.att-table { width: 100%; border-collapse: collapse; }
+  table.att-table thead th {
+    background: var(--accent2); color: #fff; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .04em;
+    padding: 12px 14px; text-align: left; font-family: 'Space Mono', monospace;
+  }
+  table.att-table tbody td {
+    padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--border);
+    vertical-align: middle; color: var(--text);
+  }
+  table.att-table tbody tr:hover { background: rgba(255,255,255,.02); }
+  .day-num { font-weight: 700; color: var(--text); }
+  .subj-list { display: flex; flex-wrap: wrap; gap: 5px; }
+  .subj-pill {
+    font-size: 11px; padding: 2px 9px; border-radius: 12px; font-weight: 600;
+  }
+  .subj-pill.miss { background: rgba(248,81,73,.12); border: 1px solid rgba(248,81,73,.3); color: var(--danger); }
+  .subj-pill.ok   { background: rgba(63,185,80,.1); border: 1px solid rgba(63,185,80,.3); color: #3fb950; }
+  .status-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 22px; border-radius: 6px; font-size: 11px; font-weight: 700;
+    font-family: 'Space Mono', monospace;
+  }
+  .status-badge.P  { background: rgba(63,185,80,.15); color: #3fb950; }
+  .status-badge.A  { background: rgba(248,81,73,.15); color: var(--danger); }
+  .status-badge.PARTIAL { background: rgba(210,153,34,.15); color: #d29922; }
+  .status-badge.NC { background: rgba(255,255,255,.06); color: var(--muted); }
+  .muted-cell { color: var(--muted); font-size: 12px; }
+  .empty-state { text-align: center; padding: 4rem 2rem; }
+  .empty-state .icon { font-size: 56px; margin-bottom: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Missed Classes</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Month-wise attendance breakdown, pulled from the attendance sheet</p>
+  </div>
+  <span class="badge-blue mono">STUDENT</span>
+</div>
+
+<div class="info-card">
+  <div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+      Roll No / USN: <span class="id-badge">{{ current_user.roll_number or '—' }}</span>
+    </div>
+    <div style="font-weight:600;font-size:15px;color:var(--text)">{{ current_user.name }}</div>
+    <div style="font-size:12px;color:var(--muted)">{{ current_user.department or '' }}{% if current_user.section %} · Section {{ current_user.section }}{% endif %}</div>
+  </div>
+  <div class="d-flex gap-3 flex-wrap" id="statBoxes">
+    <div class="stat-box stat-present"><div class="num" id="statPresent">–</div><div class="lbl">Days Present</div></div>
+    <div class="stat-box stat-partial"><div class="num" id="statPartial">–</div><div class="lbl">Partial Days</div></div>
+    <div class="stat-box stat-absent"><div class="num" id="statAbsent">–</div><div class="lbl">Days Absent</div></div>
+  </div>
+</div>
+
+<div class="filter-row">
+  <div class="field">
+    <label>MONTH</label>
+    <select id="monthSelect" onchange="loadMonth()">
+      <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
+      <option value="4">Apr</option><option value="5">May</option><option value="6">Jun</option>
+      <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
+      <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>YEAR</label>
+    <select id="yearSelect" onchange="loadMonth()"></select>
+  </div>
+  <div class="ms-auto">
+    <button class="btn btn-primary btn-sm" onclick="loadMonth()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+  </div>
+</div>
+
+<div id="tableArea">
+  <div class="card p-4">
+    <div class="empty-state">
+      <div class="spinner-border" role="status" style="color:var(--accent2)"></div>
+      <p class="mt-3" style="color:var(--muted);font-size:13px">Loading this month's attendance...</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const monthSelect = document.getElementById('monthSelect');
+const yearSelect = document.getElementById('yearSelect');
+const now = new Date();
+
+// Populate years: current year and 2 years back
+for (let y = now.getFullYear(); y >= now.getFullYear() - 2; y--) {
+  const opt = document.createElement('option');
+  opt.value = y; opt.textContent = y;
+  yearSelect.appendChild(opt);
+}
+monthSelect.value = now.getMonth() + 1;
+yearSelect.value = now.getFullYear();
+
+function statusLabel(s) {
+  return { P: 'PRESENT', A: 'ABSENT', PARTIAL: 'PARTIAL', NC: '—' }[s] || s;
+}
+
+async function loadMonth() {
+  const month = monthSelect.value;
+  const year = yearSelect.value;
+  const area = document.getElementById('tableArea');
+
+  area.innerHTML = `
+    <div class="card p-4">
+      <div class="empty-state">
+        <div class="spinner-border" role="status" style="color:var(--accent2)"></div>
+        <p class="mt-3" style="color:var(--muted);font-size:13px">Loading ${monthSelect.options[monthSelect.selectedIndex].text} ${year}...</p>
+      </div>
+    </div>`;
+
+  try {
+    const res = await fetch(`/attendance/api/missed-month?month=${month}&year=${year}`);
+    const data = await res.json();
+
+    if (!data.success) {
+      area.innerHTML = `
+        <div class="alert alert-danger" style="font-size:13px">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i> ${data.message || 'Could not load this month.'}
+        </div>`;
+      document.getElementById('statPresent').textContent = '–';
+      document.getElementById('statPartial').textContent = '–';
+      document.getElementById('statAbsent').textContent = '–';
+      return;
+    }
+
+    const summary = data.summary || {};
+    document.getElementById('statPresent').textContent = summary.days_present ?? 0;
+    document.getElementById('statPartial').textContent = summary.days_partial ?? 0;
+    document.getElementById('statAbsent').textContent = summary.days_absent ?? 0;
+
+    const days = data.days || [];
+    if (days.length === 0) {
+      area.innerHTML = `
+        <div class="card p-4">
+          <div class="empty-state">
+            <div class="icon">📭</div>
+            <h5 style="font-weight:600;margin-bottom:.5rem">No Data For This Month</h5>
+            <p style="color:var(--muted);font-size:14px;margin:0">
+              ${data.message || "No attendance was recorded for this month, or it hasn't been uploaded yet."}
+            </p>
+          </div>
+        </div>`;
+      return;
+    }
+
+    let rows = '';
+    days.forEach(d => {
+      if (d.status === 'NC') {
+        rows += `
+          <tr>
+            <td class="day-num">${d.day}</td>
+            <td class="muted-cell" colspan="2">No class recorded</td>
+            <td><span class="status-badge NC">–</span></td>
+          </tr>`;
+        return;
+      }
+      const absentPills = d.absent.map(s => `<span class="subj-pill miss">${s}</span>`).join('');
+      const presentPills = d.present.map(s => `<span class="subj-pill ok">${s}</span>`).join('');
+      rows += `
+        <tr>
+          <td class="day-num">${d.day}</td>
+          <td><div class="subj-list">${presentPills || '<span class="muted-cell">—</span>'}</div></td>
+          <td><div class="subj-list">${absentPills || '<span class="muted-cell">—</span>'}</div></td>
+          <td><span class="status-badge ${d.status}">${d.status === 'PARTIAL' ? '½' : d.status}</span></td>
+        </tr>`;
+    });
+
+    area.innerHTML = `
+      <div class="card p-0" style="overflow:hidden">
+        <table class="att-table">
+          <thead>
+            <tr>
+              <th style="width:60px">DAY</th>
+              <th>ATTENDED</th>
+              <th>MISSED</th>
+              <th style="width:70px">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch (e) {
+    area.innerHTML = `
+      <div class="alert alert-danger" style="font-size:13px">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i> Could not connect to the server. Please try again.
+      </div>`;
+  }
+}
+
+loadMonth();
+</script>
+{% endblock %}

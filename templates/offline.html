@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline | EduFusion</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      background:#0d1117;color:#e6edf3;
+      font-family:'Segoe UI',system-ui,sans-serif;
+      display:flex;flex-direction:column;align-items:center;
+      justify-content:center;min-height:100vh;text-align:center;padding:2rem;
+    }
+    .icon{font-size:72px;margin-bottom:1.5rem;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    h1{font-size:2rem;font-weight:700;margin-bottom:.5rem;
+       background:linear-gradient(135deg,#3fb950,#58a6ff);
+       -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    p{color:#8b949e;font-size:1rem;margin-bottom:2rem;max-width:340px;line-height:1.6}
+    .card{background:#161b22;border:1px solid #30363d;border-radius:16px;
+          padding:1.5rem 2rem;margin-bottom:1.5rem;max-width:380px;width:100%}
+    .card h3{font-size:.85rem;color:#8b949e;letter-spacing:.06em;margin-bottom:1rem;text-transform:uppercase}
+    .link{display:flex;align-items:center;gap:.75rem;padding:.6rem .5rem;
+          border-radius:8px;color:#e6edf3;text-decoration:none;font-size:.9rem;
+          transition:background .15s}
+    .link:hover{background:rgba(88,166,255,.1)}
+    .link .ico{font-size:1.2rem;width:28px;text-align:center}
+    .btn{display:inline-flex;align-items:center;gap:.5rem;
+         background:linear-gradient(135deg,#3fb950,#2ea043);
+         color:#fff;border:none;border-radius:10px;padding:.75rem 1.5rem;
+         font-size:.95rem;font-weight:600;cursor:pointer;text-decoration:none;
+         transition:opacity .2s}
+    .btn:hover{opacity:.85}
+    .status{font-size:.75rem;color:#8b949e;margin-top:1rem}
+  </style>
+</head>
+<body>
+  <div class="icon">📡</div>
+  <h1>You're Offline</h1>
+  <p>No internet connection. Some cached pages are still available below.</p>
+
+  <div class="card">
+    <h3>Cached Pages</h3>
+    <a href="/dashboard/" class="link"><span class="ico">🏠</span> Dashboard</a>
+    <a href="/attendance/my" class="link"><span class="ico">📅</span> My Attendance</a>
+    <a href="/leave/apply" class="link"><span class="ico">📝</span> Apply Leave</a>
+    <a href="/attendance/mark" class="link"><span class="ico">✅</span> Mark Attendance</a>
+  </div>
+
+  <a href="javascript:location.reload()" class="btn">🔄 Try Again</a>
+  <p class="status" id="status">Waiting for connection…</p>
+
+  <script>
+    // Auto-reload when connection restores
+    window.addEventListener('online', () => {
+      document.getElementById('status').textContent = '✅ Back online! Reloading…';
+      setTimeout(() => location.reload(), 1000);
+    });
+
+    // Check connection periodically
+    setInterval(() => {
+      fetch('/static/icons/icon-72.png', { cache: 'no-store' })
+        .then(() => {
+          document.getElementById('status').textContent = '✅ Connection restored! Reloading…';
+          setTimeout(() => location.reload(), 800);
+        })
+        .catch(() => {});
+    }, 5000);
+  </script>
+</body>
+</html>

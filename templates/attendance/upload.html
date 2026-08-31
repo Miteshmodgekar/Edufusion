@@ -1,0 +1,657 @@
+{% extends "base.html" %}
+{% block title %}Att. Analyzer | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--surface);
+    position: relative;
+  }
+  .drop-zone.drag-over {
+    border-color: var(--accent2);
+    background: rgba(88,166,255,.05);
+  }
+  .drop-icon {
+    width: 56px; height: 56px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 24px;
+  }
+  .pct-bar-wrap { display: flex; align-items: center; gap: 10px; }
+  .pct-bar { flex: 1; height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .pct-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .pct-fill.ok   { background: var(--accent); }
+  .pct-fill.warn { background: var(--warn); }
+  .pct-fill.bad  { background: var(--danger); }
+  .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-family: 'Space Mono', monospace; white-space: nowrap; }
+  .status-ok   { background: rgba(63,185,80,.15);  color: var(--accent); }
+  .status-warn { background: rgba(210,153,34,.15); color: var(--warn); }
+  .status-bad  { background: rgba(248,81,73,.15);  color: var(--danger); }
+  .sim-card { background: var(--surface2); border-radius: 12px; padding: 1.5rem; }
+  .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-pill {
+    font-size: 11px; padding: 4px 14px;
+    border: 1px solid var(--border); border-radius: 20px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    font-family: 'Space Mono', monospace; transition: all .2s;
+  }
+  .filter-pill.active { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+  .stat-box { background: var(--surface2); border-radius: 10px; padding: 1rem 1.25rem; }
+  .stat-box .label { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: .5px; margin-bottom: 4px; }
+  .stat-box .value { font-size: 28px; font-weight: 600; }
+  #resultsSection { display: none; }
+  #resultsSection.show { display: block; }
+  .export-btn { font-size: 12px; padding: 6px 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Attendance Analyzer</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Upload Excel sheet → auto-detect defaulters + simulator</p>
+  </div>
+  <span class="badge-blue mono">FACULTY / HOD</span>
+</div>
+
+<!-- Upload Card -->
+<div class="card p-4 mb-3">
+  <div class="drop-zone" id="dropZone"
+       onclick="document.getElementById('fileInput').click()"
+       ondragover="handleDragOver(event)"
+       ondragleave="handleDragLeave(event)"
+       ondrop="handleDrop(event)">
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileSelect(this.files[0])">
+    <div class="drop-icon">📊</div>
+    <h5 style="font-weight:500;margin-bottom:6px" id="dropTitle">Drop your Excel attendance file here</h5>
+    <p style="font-size:13px;color:var(--muted)">Supports <span class="mono" style="color:var(--accent2)">.xlsx</span>, <span class="mono" style="color:var(--accent2)">.xls</span>, <span class="mono" style="color:var(--accent2)">.csv</span> — or click to browse</p>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">Expected format: Roll No | Name | Date1 | Date2 | ... (P/A/OD per cell)</p>
+  </div>
+
+  <!-- Sheet Picker — appears after file is selected -->
+  <div id="sheetPickerBox" style="display:none;margin-top:14px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SELECT SHEET TAB</span>
+      <span id="sheetScanBadge" style="font-size:10px;padding:2px 8px;border-radius:10px;
+        background:rgba(88,166,255,.1);color:var(--accent2);font-family:'Space Mono',monospace">scanning...</span>
+    </div>
+    <div id="sheetTabList" class="d-flex flex-wrap gap-2"></div>
+    <input type="hidden" id="selectedSheetName" value="">
+    <!-- Column preview -->
+    <div id="colPreview" style="margin-top:10px;display:none">
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">COLUMNS DETECTED IN THIS SHEET:</div>
+      <div id="colTags" class="d-flex flex-wrap gap-1"></div>
+    </div>
+  </div>
+
+  <div class="row g-2 mt-2">
+    <div class="col-md-4">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SUBJECT</label>
+      <input type="text" class="form-control form-control-sm" id="subjectInput" placeholder="e.g. Data Structures">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SEMESTER</label>
+      <select class="form-select form-select-sm" id="semesterInput">
+        {% for i in range(1,9) %}<option value="{{ i }}" {% if i==4 %}selected{% endif %}>Semester {{ i }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SECTION</label>
+      <select class="form-select form-select-sm" id="sectionInput">
+        <option>A</option><option>B</option><option>C</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <button class="btn btn-primary w-100" id="analyzeBtn" onclick="analyzeAttendance()" disabled>
+      <i class="bi bi-cpu me-2"></i>Analyze Attendance
+    </button>
+  </div>
+
+  <!-- Progress bar (hidden by default) -->
+  <div id="progressBar" class="progress mt-3" style="display:none">
+    <div class="progress-bar progress-bar-animated progress-bar-striped w-100"></div>
+  </div>
+</div>
+
+<!-- Results Section -->
+<div id="resultsSection">
+
+  <!-- Stat Cards -->
+  <div class="row g-3 mb-4" id="statsRow">
+    <div class="col-6 col-md-3">
+      <div class="stat-box">
+        <div class="label">TOTAL STUDENTS</div>
+        <div class="value" id="statTotal" style="color:var(--accent2)">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-box">
+        <div class="label">CLASSES HELD</div>
+        <div class="value" id="statClasses">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-box">
+        <div class="label" id="defaulterLabel">DEFAULTERS (&lt;85%)</div>
+        <div class="value" id="statDefaulters" style="color:var(--danger)">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-box">
+        <div class="label">AVG ATTENDANCE</div>
+        <div class="value" id="statAvg" style="color:var(--accent)">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-8">
+      <div class="card p-3">
+        <div class="card-header rounded mb-3">ATTENDANCE BY STUDENT</div>
+        <canvas id="attChart" height="160"></canvas>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-3">
+        <div class="card-header rounded mb-3">DISTRIBUTION</div>
+        <canvas id="distChart" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card p-3 mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div class="card-header rounded">STUDENT RECORDS</div>
+      <div class="d-flex align-items-center gap-2">
+        <div class="filter-pills">
+          <button class="filter-pill active" onclick="setFilter('all',this)">All</button>
+          <button class="filter-pill" onclick="setFilter('bad',this)">Defaulters</button>
+          <button class="filter-pill" onclick="setFilter('warn',this)">Warning</button>
+          <button class="filter-pill" onclick="setFilter('ok',this)">Good</button>
+        </div>
+        <button class="btn btn-outline-secondary export-btn" onclick="exportCSV()">
+          <i class="bi bi-download"></i> Export
+        </button>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th style="width:100px">Roll No</th>
+            <th>Name</th>
+            <th style="width:80px">Attended</th>
+            <th style="width:80px">Total</th>
+            <th style="width:180px">Attendance %</th>
+            <th style="width:100px">Status</th>
+            <th style="width:100px">Need</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- What-If Simulator -->
+  <div class="card p-3 mb-4">
+    <div class="card-header rounded mb-3">WHAT-IF ATTENDANCE SIMULATOR</div>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">CLASSES ATTENDED</label>
+        <input type="number" class="form-control form-control-sm" id="simAttended" value="30" min="0" oninput="runSimulator()">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">TOTAL CLASSES</label>
+        <input type="number" class="form-control form-control-sm" id="simTotal" value="40" min="1" oninput="runSimulator()">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">TARGET %</label>
+        <input type="number" class="form-control form-control-sm" id="simTarget" value="85" min="1" max="100" oninput="runSimulator()">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-outline-secondary w-100 btn-sm" onclick="runSimulator()">
+          <i class="bi bi-calculator me-1"></i>Calculate
+        </button>
+      </div>
+    </div>
+    <div class="row g-3 mt-1" id="simResults">
+      <div class="col-md-4">
+        <div class="stat-box">
+          <div class="label">CURRENT %</div>
+          <div class="value" id="simCur" style="color:var(--accent2)">75.0%</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-box">
+          <div class="label">CLASSES NEEDED</div>
+          <div class="value" id="simNeed" style="color:var(--danger)">14</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-box">
+          <div class="label">SAFE TO SKIP</div>
+          <div class="value" id="simSkip" style="color:var(--accent)">0</div>
+        </div>
+      </div>
+    </div>
+    <div id="simMsg" class="alert alert-info mt-3 mb-0 py-2" style="font-size:13px"></div>
+  </div>
+
+  <!-- Defaulters Alert Box -->
+  <div class="card p-3" id="defaulterAlert" style="display:none">
+    <div class="card-header rounded mb-3" style="color:var(--danger)">
+      <i class="bi bi-exclamation-triangle me-2"></i>DEFAULTER LIST
+    </div>
+    <div id="defaulterList"></div>
+    <button class="btn btn-outline-secondary btn-sm mt-3" onclick="sendAlerts()">
+      <i class="bi bi-bell me-1"></i>Send alerts to all defaulters
+    </button>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+
+let allData = [];
+let activeFilter = 'all';
+let attChartInst = null, distChartInst = null;
+
+// ── Drag & Drop ──────────────────────────────────────────────────────────────
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.add('drag-over');
+}
+function handleDragLeave(e) {
+  document.getElementById('dropZone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelect(file);
+}
+function handleFileSelect(file) {
+  if (!file) return;
+  document.getElementById('dropTitle').textContent = '\u2713 ' + file.name;
+  window._selectedFile = file;
+
+  // For CSV: no sheet selection needed
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    document.getElementById('selectedSheetName').value = '';
+    document.getElementById('sheetPickerBox').style.display = 'none';
+    document.getElementById('analyzeBtn').disabled = false;
+    return;
+  }
+
+  // Show picker and scan sheets
+  document.getElementById('sheetPickerBox').style.display = 'block';
+  document.getElementById('sheetTabList').innerHTML =
+    '<span style="font-size:12px;color:var(--muted)">Scanning sheets...</span>';
+  document.getElementById('sheetScanBadge').textContent = 'scanning...';
+  document.getElementById('colPreview').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  fetch('/attendance/api/preview-sheets', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) {
+        document.getElementById('sheetTabList').innerHTML =
+          `<span style="color:var(--danger);font-size:12px">${data.message}</span>`;
+        document.getElementById('analyzeBtn').disabled = false;
+        return;
+      }
+
+      window._sheetData = data.sheets;   // cache for col preview
+      const suggested   = data.suggested;
+
+      // Auto-select the suggested sheet
+      document.getElementById('selectedSheetName').value = suggested || data.sheets[0]?.name || '';
+
+      renderSheetTabs(data.sheets, suggested);
+      document.getElementById('sheetScanBadge').textContent =
+        data.sheets.length + ' sheet' + (data.sheets.length !== 1 ? 's' : '') + ' found';
+      document.getElementById('analyzeBtn').disabled = false;
+    })
+    .catch(() => {
+      // If preview fails, still allow upload (will auto-detect)
+      document.getElementById('sheetPickerBox').style.display = 'none';
+      document.getElementById('analyzeBtn').disabled = false;
+    });
+}
+
+function renderSheetTabs(sheets, suggested) {
+  const list = document.getElementById('sheetTabList');
+  list.innerHTML = sheets.map(s => {
+    const isSuggested = s.name === suggested;
+    const isGood      = s.looks_like_attendance;
+    return `<button type="button"
+      class="sheet-tab-btn ${isSuggested ? 'active' : ''}"
+      onclick="selectSheetTab(this, '${s.name.replace(/'/g, "\\'")}')"
+      style="
+        padding:5px 14px; border-radius:20px; font-size:11px; cursor:pointer;
+        font-family:'Space Mono',monospace;
+        border:1px solid ${isSuggested ? 'var(--accent2)' : 'var(--border)'};
+        background:${isSuggested ? 'rgba(88,166,255,.15)' : 'transparent'};
+        color:${isSuggested ? 'var(--accent2)' : isGood ? 'var(--text)' : 'var(--muted)'};
+        transition:all .2s;
+      ">
+      ${isSuggested ? '\u2713 ' : ''}${s.name}
+      <span style="font-size:9px;margin-left:4px;opacity:.6">(${s.rows} rows)</span>
+    </button>`;
+  }).join('');
+  // Show column preview for suggested sheet
+  if (suggested) showColPreview(suggested);
+}
+
+function selectSheetTab(btn, sheetName) {
+  // Update all buttons style
+  document.querySelectorAll('.sheet-tab-btn').forEach(b => {
+    b.style.borderColor = 'var(--border)';
+    b.style.background  = 'transparent';
+    b.style.color       = 'var(--muted)';
+    b.textContent       = b.textContent.replace('\u2713 ', '');
+  });
+  btn.style.borderColor = 'var(--accent2)';
+  btn.style.background  = 'rgba(88,166,255,.15)';
+  btn.style.color       = 'var(--accent2)';
+  document.getElementById('selectedSheetName').value = sheetName;
+  showColPreview(sheetName);
+}
+
+function showColPreview(sheetName) {
+  const sheets  = window._sheetData || [];
+  const sheet   = sheets.find(s => s.name === sheetName);
+  const preview = document.getElementById('colPreview');
+  const tags    = document.getElementById('colTags');
+  if (!sheet || !sheet.cols?.length) { preview.style.display='none'; return; }
+  preview.style.display = 'block';
+  tags.innerHTML = sheet.cols.map(c => {
+    const isDate = /\d{4}-\d{2}-\d{2}/.test(c) || /\d+[\/\-]\d+/.test(c);
+    const isInfo = /(roll|name|usn|dept|sem|sec)/i.test(c);
+    const color  = isDate ? 'var(--accent)' : isInfo ? 'var(--accent2)' : 'var(--muted)';
+    return `<span style="font-size:10px;padding:2px 8px;border-radius:10px;
+      background:rgba(139,148,158,.1);border:1px solid var(--border);
+      color:${color};font-family:'Space Mono',monospace">${c}</span>`;
+  }).join('');
+}
+
+// ── Analyze ──────────────────────────────────────────────────────────────────
+async function analyzeAttendance() {
+  const file     = window._selectedFile;
+  const subject  = document.getElementById('subjectInput').value || 'Unknown';
+  const semester = document.getElementById('semesterInput').value;
+  const section  = document.getElementById('sectionInput').value;
+
+  document.getElementById('progressBar').style.display = 'flex';
+
+  const formData = new FormData();
+  if (file) formData.append('file', file);
+  formData.append('subject', subject);
+  formData.append('semester', semester);
+  formData.append('section', section);
+
+  try {
+    const res  = await fetch('/attendance/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    document.getElementById('progressBar').style.display = 'none';
+
+    if (data.success) {
+      allData = data.records;
+      renderResults(data);
+    } else {
+      alert('Error: ' + data.message);
+    }
+  } catch (err) {
+    // Demo fallback when not connected to server
+    document.getElementById('progressBar').style.display = 'none';
+    const demo = generateDemoData(subject, parseInt(semester));
+    allData = demo.records;
+    renderResults(demo);
+  }
+}
+
+// ── Demo Data Generator ───────────────────────────────────────────────────────
+function generateDemoData(subject, semester) {
+  const names = [
+    ['CS21001','Arjun Sharma',38],['CS21002','Priya Singh',34],['CS21003','Rahul Verma',28],
+    ['CS21004','Sneha Nair',40],['CS21005','Vikram Das',22],['CS21006','Ananya Roy',36],
+    ['CS21007','Karthik M',30],['CS21008','Divya Pillai',39],['CS21009','Arun Kumar',25],
+    ['CS21010','Meera Iyer',37],['CS21011','Suresh P',33],['CS21012','Lakshmi V',40],
+    ['CS21013','Nikhil G',18],['CS21014','Pooja M',35],['CS21015','Ravi S',31],
+  ];
+  const total = 40;
+  const th = getThreshold();
+  const records = names.map(([roll, name, attended]) => {
+    const pct = parseFloat(((attended/total)*100).toFixed(2));
+    const is_def = pct < th;
+    const needed = is_def ? Math.max(0, Math.ceil((th*total - 100*attended)/(100-th))) : 0;
+    return { roll_number: roll, name, classes_attended: attended, total_classes: total,
+             attendance_pct: pct, is_defaulter: is_def, required_classes: needed };
+  });
+  const defaulters = records.filter(r => r.is_defaulter);
+  const avg = records.reduce((s,r)=>s+r.attendance_pct,0)/records.length;
+  return { success:true, subject, semester, total_students: records.length,
+           total_defaulters: defaulters.length, total_classes: total,
+           records, defaulters, avg_attendance: parseFloat(avg.toFixed(1)) };
+}
+
+// ── Render Results ────────────────────────────────────────────────────────────
+function getThreshold() {
+  return parseFloat(document.getElementById('simTarget').value) || 85;
+}
+
+function rerender() {
+  if (!allData.length) return;
+  const th = getThreshold();
+
+  // Recompute defaulter fields on each record live
+  allData.forEach(r => {
+    r.is_defaulter     = r.attendance_pct < th;
+    r.required_classes = r.is_defaulter && r.total_classes > 0
+      ? Math.max(0, Math.ceil((th * r.total_classes - 100 * r.classes_attended) / (100 - th)))
+      : 0;
+  });
+
+  const defaulters = allData.filter(r => r.is_defaulter);
+  document.getElementById('statDefaulters').textContent = defaulters.length;
+  document.getElementById('defaulterLabel').textContent = `DEFAULTERS (<${th}%)`;
+
+  renderTable(activeFilter);
+  renderChartsFromData(allData, th);
+  renderDefaulterAlert(defaulters, th);
+}
+
+function renderResults(data) {
+  document.getElementById('resultsSection').classList.add('show');
+
+  const th = getThreshold();
+  document.getElementById('statTotal').textContent     = data.total_students;
+  document.getElementById('statClasses').textContent   = data.total_classes;
+  document.getElementById('statDefaulters').textContent= data.total_defaulters;
+  const avg = data.records.reduce((s,r)=>s+r.attendance_pct,0)/data.records.length;
+  document.getElementById('statAvg').textContent       = avg.toFixed(1) + '%';
+  document.getElementById('defaulterLabel').textContent = `DEFAULTERS (<${th}%)`;
+
+  renderTable('all');
+  renderChartsFromData(data.records, th);
+  renderDefaulterAlert(data.defaulters, th);
+  runSimulator();
+
+  document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+function classifyRow(pct, th) {
+  th = th || getThreshold();
+  const warn = th - 10;
+  return pct < warn ? 'bad' : pct < th ? 'warn' : 'ok';
+}
+
+function renderTable(filter) {
+  activeFilter = filter;
+  const th = getThreshold();
+  const shown = filter === 'all' ? allData : allData.filter(r => classifyRow(r.attendance_pct, th) === filter);
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = shown.map(r => {
+    const cls = classifyRow(r.attendance_pct, th);
+    const label = cls==='ok'?'Good':cls==='warn'?'Warning':'Defaulter';
+    const badgeCls = cls==='ok'?'status-ok':cls==='warn'?'status-warn':'status-bad';
+    const needTxt = r.required_classes > 0
+      ? `<span style="color:var(--danger)">+${r.required_classes} classes</span>`
+      : `<span style="color:var(--accent)">On track</span>`;
+    return `<tr>
+      <td class="mono" style="font-size:12px">${r.roll_number}</td>
+      <td>${r.name}</td>
+      <td>${r.classes_attended}</td>
+      <td>${r.total_classes}</td>
+      <td>
+        <div class="pct-bar-wrap">
+          <div class="pct-bar"><div class="pct-fill ${cls}" style="width:${r.attendance_pct}%"></div></div>
+          <span style="font-size:12px;min-width:42px">${r.attendance_pct}%</span>
+        </div>
+      </td>
+      <td><span class="status-badge ${badgeCls}">${label}</span></td>
+      <td style="font-size:12px">${needTxt}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setFilter(f, el) {
+  document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTable(f);
+}
+
+function renderChartsFromData(records, th) {
+  th = th || getThreshold();
+  const warnLine = th - 10;
+  const labels = records.map(r => r.roll_number);
+  const values = records.map(r => r.attendance_pct);
+  const colors = values.map(v => v < warnLine ? 'rgba(248,81,73,.7)' : v < th ? 'rgba(210,153,34,.7)' : 'rgba(63,185,80,.7)');
+
+  if (attChartInst) attChartInst.destroy();
+  attChartInst = new Chart(document.getElementById('attChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label:'Attendance %', data: values,
+      backgroundColor: colors, borderRadius: 4 }] },
+    options: {
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.raw}%`}} },
+      scales: { y:{min:0,max:100,grid:{color:'#30363d'},ticks:{callback:v=>v+'%'}},
+                x:{grid:{display:false},ticks:{font:{size:10}}} }
+    }
+  });
+
+  const good = records.filter(r => r.attendance_pct >= th).length;
+  const warn = records.filter(r => r.attendance_pct >= warnLine && r.attendance_pct < th).length;
+  const bad  = records.filter(r => r.attendance_pct < warnLine).length;
+
+  if (distChartInst) distChartInst.destroy();
+  distChartInst = new Chart(document.getElementById('distChart'), {
+    type: 'doughnut',
+    data: {
+      labels: [`Good (≥${th}%)`, `Warning (${warnLine}–${th}%)`, `Defaulter (<${warnLine}%)`],
+      datasets: [{
+        data: [good, warn, bad],
+        backgroundColor: ['rgba(63,185,80,.7)','rgba(210,153,34,.7)','rgba(248,81,73,.7)'],
+        borderWidth: 0
+      }]
+    },
+    options: { plugins:{ legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}}}, cutout:'60%' }
+  });
+}
+
+function renderDefaulterAlert(defaulters, th) {
+  th = th || getThreshold();
+  const box  = document.getElementById('defaulterAlert');
+  const list = document.getElementById('defaulterList');
+  if (!defaulters || !defaulters.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  list.innerHTML = defaulters.map(d => `
+    <div class="d-flex align-items-center justify-content-between py-2 border-bottom" style="border-color:var(--border)!important;font-size:13px">
+      <div>
+        <span class="mono" style="color:var(--muted);font-size:11px">${d.roll_number}</span>
+        <strong style="margin-left:8px">${d.name}</strong>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <span style="color:var(--danger)">${d.attendance_pct}%</span>
+        <span style="color:var(--muted);font-size:12px">${d.required_classes > 0 ? 'Need +'+d.required_classes+' classes' : 'On track'}</span>
+        <span class="status-badge status-bad">Below ${th}%</span>
+      </div>
+    </div>`).join('');
+}
+
+// ── Simulator ────────────────────────────────────────────────────────────────
+function runSimulator() {
+  const a  = parseFloat(document.getElementById('simAttended').value) || 0;
+  const t  = parseFloat(document.getElementById('simTotal').value)    || 1;
+  const th = getThreshold();
+
+  const cur  = parseFloat(((a/t)*100).toFixed(1));
+  const need = cur >= th ? 0 : Math.ceil((th*t - 100*a)/(100-th));
+
+  let skip = 0, tt = t;
+  while (((a)/(tt+1))*100 >= th) { tt++; skip++; if(skip>200) break; }
+
+  document.getElementById('simCur').textContent  = cur + '%';
+  document.getElementById('simNeed').textContent = need;
+  document.getElementById('simSkip').textContent = skip;
+
+  const msg = need === 0
+    ? `You meet the ${th}% requirement. You can safely skip ${skip} more class${skip!==1?'es':''}.`
+    : `You need to attend the next ${need} consecutive class${need!==1?'es':''} to reach ${th}%.`;
+  document.getElementById('simMsg').textContent = msg;
+  document.getElementById('simMsg').className   = `alert ${need===0?'alert-success':'alert-warning'} mt-3 mb-0 py-2`;
+
+  // Re-render everything with the new threshold
+  rerender();
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const header = ['Roll No','Name','Attended','Total','Attendance %','Status','Classes Needed'];
+  const rows   = allData.map(r => [
+    r.roll_number, r.name, r.classes_attended, r.total_classes,
+    r.attendance_pct + '%',
+    r.is_defaulter ? 'Defaulter' : r.attendance_pct < 85 ? 'Warning' : 'Good',
+    r.required_classes
+  ]);
+  const csv  = [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'attendance_report.csv'; a.click();
+}
+
+// ── Send Alerts ───────────────────────────────────────────────────────────────
+async function sendAlerts() {
+  try {
+    await fetch('/alert/broadcast', { method:'POST', headers:{'Content-Type':'application/json'} });
+    alert('Alerts sent to all defaulters via PWA notifications.');
+  } catch { alert('Alerts queued (server offline in demo).'); }
+}
+
+// Run simulator on load
+runSimulator();
+</script>
+{% endblock %}

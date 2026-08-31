@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Eligibility | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-box { background: var(--surface2); border-radius: 10px; padding: 1rem 1.25rem; }
+  .stat-box .label { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: .5px; margin-bottom: 4px; }
+  .stat-box .value { font-size: 26px; font-weight: 600; color: var(--text); }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .filter-row select, .filter-row input {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-family: 'Sora', sans-serif;
+  }
+  table.elig-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.elig-table th {
+    text-align: left; font-size: 10.5px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .5px; font-family: 'Space Mono', monospace; padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.elig-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+  table.elig-table td.usn-cell  { color: var(--accent2); font-weight: 700; letter-spacing: .3px; }
+  table.elig-table td.name-cell { color: var(--text); font-weight: 600; }
+  table.elig-table tr:hover td { background: rgba(255,255,255,.02); }
+  .yn-chip {
+    font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 6px;
+  }
+  .yn-yes { background: rgba(63,185,80,.15); color: var(--accent); }
+  .yn-no  { background: rgba(248,81,73,.15); color: var(--danger); }
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+  .toggle-tabs { display:flex; gap:6px; }
+  .toggle-tab {
+    font-size: 12px; padding: 6px 16px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    font-family: 'Sora', sans-serif;
+  }
+  .toggle-tab.active { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Placement Eligibility</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">
+      Live-recomputed against CGPA ≥ 6.0 and 0 active backlogs
+    </p>
+  </div>
+  <span class="badge-blue mono">● LIVE</span>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">TOTAL PROFILES</div>
+      <div class="value" id="statTotal">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">ELIGIBLE</div>
+      <div class="value" id="statEligible" style="color:var(--accent)">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">NOT ELIGIBLE</div>
+      <div class="value" id="statNotEligible" style="color:var(--danger)">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">AVG READINESS</div>
+      <div class="value" id="statReadiness">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <div class="filter-row">
+    <div class="toggle-tabs">
+      <button class="toggle-tab active" id="tabEligible" onclick="setView('eligible')">Eligible Only</button>
+      <button class="toggle-tab" id="tabAll" onclick="setView('all')">All Profiles</button>
+    </div>
+    <input type="text" id="fSearch" placeholder="Search name or USN..." oninput="renderTable()" style="margin-left:auto;min-width:200px">
+  </div>
+</div>
+
+<div class="card p-0">
+  <div id="tableWrap" style="overflow-x:auto">
+    <div class="empty-state" id="loadingState">Loading…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let eligibleOnly = [];
+let allProfiles  = [];
+let currentView  = 'eligible';
+
+async function loadEligible() {
+  document.getElementById('tableWrap').innerHTML = '<div class="empty-state">Loading…</div>';
+  try {
+    const res  = await fetch('/placement/api/eligible', { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+    if (!data.success) {
+      document.getElementById('tableWrap').innerHTML =
+        `<div class="empty-state">${data.message || 'Could not load eligibility data.'}</div>`;
+      return;
+    }
+    eligibleOnly = data.students;
+    allProfiles  = data.all_students;
+    renderStats();
+    renderTable();
+  } catch (e) {
+    document.getElementById('tableWrap').innerHTML =
+      '<div class="empty-state">Network error — could not load eligibility data.</div>';
+  }
+}
+
+function setView(view) {
+  currentView = view;
+  document.getElementById('tabEligible').classList.toggle('active', view === 'eligible');
+  document.getElementById('tabAll').classList.toggle('active', view === 'all');
+  renderTable();
+}
+
+function renderStats() {
+  const total       = allProfiles.length;
+  const eligCount   = eligibleOnly.length;
+  const notEligible = total - eligCount;
+  const avgReady    = total
+    ? (allProfiles.reduce((s, p) => s + (p.readiness_score || 0), 0) / total).toFixed(1)
+    : '—';
+
+  document.getElementById('statTotal').textContent       = total;
+  document.getElementById('statEligible').textContent    = eligCount;
+  document.getElementById('statNotEligible').textContent = notEligible;
+  document.getElementById('statReadiness').textContent   = total ? avgReady + '%' : '—';
+}
+
+function renderTable() {
+  const search = document.getElementById('fSearch').value.trim().toLowerCase();
+  const source = currentView === 'eligible' ? eligibleOnly : allProfiles;
+  const rows = source.filter(p =>
+    !search ||
+    (p.name || '').toLowerCase().includes(search) ||
+    (p.roll_number || '').toLowerCase().includes(search)
+  );
+
+  const wrap = document.getElementById('tableWrap');
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty-state">
+      <p class="mb-0">No ${currentView === 'eligible' ? 'eligible ' : ''}students found${search ? ' matching your search' : ''}.</p>
+    </div>`;
+    return;
+  }
+
+  rows.sort((a, b) => (b.readiness_score || 0) - (a.readiness_score || 0));
+
+  wrap.innerHTML = `
+    <table class="elig-table">
+      <thead><tr>
+        <th>USN</th><th>Name</th><th>Sem / Sec</th><th>CGPA</th>
+        <th>Backlogs</th><th>Attendance</th><th>Readiness</th><th>Eligible</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(p => `
+          <tr>
+            <td class="mono usn-cell">${p.roll_number || '—'}</td>
+            <td class="name-cell">${p.name}</td>
+            <td class="mono">${p.semester ?? '—'} / ${p.section ?? '—'}</td>
+            <td class="mono">${p.cgpa ?? '—'}</td>
+            <td class="mono">${p.backlogs ?? 0}</td>
+            <td class="mono">${p.attendance_pct}%</td>
+            <td class="mono">${p.readiness_score}%</td>
+            <td><span class="yn-chip ${p.is_eligible ? 'yn-yes' : 'yn-no'}">${p.is_eligible ? 'YES' : 'NO'}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+loadEligible();
+</script>
+{% endblock %}

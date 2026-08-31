@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#3fb950"/>
+<link rel="manifest" href="/static/manifest.json"/>
+<title>EduFusion</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<style>
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --accent:#3fb950;--accent2:#58a6ff;--text:#e6edf3;--muted:#8b949e;
+  --danger:#f85149;--warn:#d29922;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;cursor:default;}
+::selection{background:rgba(63,185,80,.3);}
+
+#preloader{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;
+           align-items:center;justify-content:center;transition:opacity .6s ease,visibility .6s;}
+#preloader.hide{opacity:0;visibility:hidden;pointer-events:none;}
+.pre-mark{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:28px;color:var(--text);
+          opacity:0;animation:preIn .9s ease forwards;}
+.pre-mark b{color:var(--accent);}
+.pre-bar{position:absolute;bottom:calc(50% - 46px);left:50%;transform:translateX(-50%);
+         width:120px;height:2px;background:var(--border);border-radius:2px;overflow:hidden;}
+.pre-bar::after{content:'';position:absolute;left:-40%;top:0;height:100%;width:40%;
+                background:linear-gradient(90deg,var(--accent),var(--accent2));
+                animation:preSlide 1s ease-in-out infinite;}
+@keyframes preIn{from{opacity:0;transform:translateY(8px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
+@keyframes preSlide{0%{left:-40%;}100%{left:100%;}}
+
+#scrollbar{position:fixed;top:0;left:0;height:2px;width:0%;
+           background:linear-gradient(90deg,var(--accent),var(--accent2));z-index:100;
+           transition:width .08s linear;}
+
+#cursorGlow{position:fixed;width:420px;height:420px;border-radius:50%;pointer-events:none;z-index:1;
+            background:radial-gradient(circle,rgba(63,185,80,.10),rgba(88,166,255,.06) 45%,transparent 70%);
+            transform:translate(-50%,-50%);transition:opacity .3s;opacity:0;will-change:transform;}
+
+#starfield{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.6;}
+
+.topbar{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;
+        justify-content:space-between;padding:16px 32px;background:rgba(13,17,23,.7);
+        backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
+.logo{font-family:'Space Mono',monospace;font-size:14px;letter-spacing:.5px;}
+.logo b{color:var(--accent);font-weight:700;}
+.topbar-right{display:flex;align-items:center;gap:18px;}
+.tb-link{font-size:12.5px;color:var(--muted);text-decoration:none;transition:color .2s;position:relative;}
+.tb-link::after{content:'';position:absolute;left:0;bottom:-4px;width:0;height:1px;background:var(--accent2);
+                transition:width .25s;}
+.tb-link:hover{color:var(--text);}
+.tb-link:hover::after{width:100%;}
+.btn-signin{position:relative;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#0d1117;
+            background:var(--accent);padding:8px 18px;border-radius:7px;text-decoration:none;
+            transition:background .2s,transform .15s;display:inline-block;}
+.btn-signin:hover{background:#57d068;}
+
+.hero{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;padding:110px 6vw 60px;
+      max-width:1440px;margin:0 auto;}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;width:100%;}
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1);}
+.reveal.in{opacity:1;transform:translateY(0);}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:'Space Mono',monospace;
+         font-size:11px;letter-spacing:1.2px;color:var(--accent2);background:rgba(88,166,255,.08);
+         border:1px solid rgba(88,166,255,.25);border-radius:20px;padding:6px 14px;margin-bottom:22px;}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+              box-shadow:0 0 0 0 rgba(63,185,80,.6);animation:pulse 1.8s infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.55);}70%{box-shadow:0 0 0 7px rgba(63,185,80,0);}100%{box-shadow:0 0 0 0 rgba(63,185,80,0);}}
+h1.hero-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:clamp(34px,4.6vw,58px);
+              line-height:1.06;letter-spacing:-.5px;margin-bottom:20px;}
+h1.hero-title .grad{background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
+                     background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
+                     animation:shine 5s linear infinite;}
+@keyframes shine{to{background-position:200% center;}}
+.hero-sub{font-size:16px;color:var(--muted);line-height:1.65;max-width:480px;margin-bottom:32px;}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:38px;}
+.magnetic{position:relative;transition:transform .15s ease;}
+.btn-primary{font-family:'Sora',sans-serif;font-weight:600;font-size:14.5px;color:#0d1117;
+             background:var(--accent);padding:13px 26px;border-radius:8px;text-decoration:none;
+             display:inline-flex;align-items:center;gap:8px;transition:background .2s,box-shadow .3s;}
+.btn-primary:hover{background:#57d068;box-shadow:0 8px 24px rgba(63,185,80,.35);}
+.btn-ghost{font-family:'Sora',sans-serif;font-weight:500;font-size:14.5px;color:var(--text);
+           background:transparent;border:1px solid var(--border);padding:13px 26px;border-radius:8px;
+           text-decoration:none;transition:border-color .2s,background .2s;}
+.btn-ghost:hover{border-color:var(--muted);background:rgba(255,255,255,.03);}
+.hero-meta{display:flex;gap:28px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+.hero-meta b{color:var(--text);font-size:15px;display:block;font-family:'Space Grotesk',sans-serif;}
+
+.scene-wrap{position:relative;height:520px;}
+#scene-canvas{width:100%;height:100%;}
+.scene-caption{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
+               font-family:'Space Mono',monospace;font-size:10.5px;color:var(--muted);
+               text-align:center;letter-spacing:.5px;}
+
+.ticker{position:relative;z-index:1;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+        background:var(--surface);padding:14px 0;overflow:hidden;white-space:nowrap;}
+.ticker-track{display:inline-block;animation:scroll-left 28s linear infinite;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);}
+.ticker-track span{margin:0 28px;}
+.ticker-track span b{color:var(--accent);}
+@keyframes scroll-left{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+.section{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:100px 6vw;}
+.section-head{max-width:620px;margin-bottom:56px;}
+.section-eyebrow{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1.5px;
+                  color:var(--accent);margin-bottom:14px;text-transform:uppercase;}
+.section-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(26px,3vw,36px);
+                margin-bottom:14px;letter-spacing:-.3px;}
+.section-sub{color:var(--muted);font-size:15px;line-height:1.6;}
+
+.module-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;perspective:1000px;}
+.module-card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:14px;
+             padding:26px 24px;transition:border-color .25s,transform .1s ease;transform-style:preserve-3d;
+             overflow:hidden;}
+.module-card::before{content:'';position:absolute;inset:0;border-radius:14px;opacity:0;transition:opacity .3s;
+             background:radial-gradient(220px circle at var(--mx,50%) var(--my,50%),rgba(88,166,255,.12),transparent 60%);
+             pointer-events:none;}
+.module-card:hover::before{opacity:1;}
+.module-card:hover{border-color:var(--accent2);}
+.module-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+             font-size:19px;margin-bottom:16px;transition:transform .3s;}
+.module-card:hover .module-icon{transform:scale(1.1) rotate(-4deg);}
+.module-card h3{font-size:15.5px;font-weight:600;margin-bottom:8px;}
+.module-card p{font-size:13px;color:var(--muted);line-height:1.55;}
+
+.flow-wrap{display:grid;grid-template-columns:repeat(3,1fr);gap:0;position:relative;}
+.flow-step{position:relative;padding:0 24px;}
+.flow-step:not(:last-child)::after{content:'';position:absolute;top:20px;right:-10px;width:20px;height:1px;
+                                    background:var(--border);}
+.flow-num{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent2);
+          border:1px solid rgba(88,166,255,.3);background:rgba(88,166,255,.08);
+          width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+          margin-bottom:18px;transition:box-shadow .4s,transform .4s;}
+.flow-step.in .flow-num{box-shadow:0 0 0 6px rgba(88,166,255,.08);}
+.flow-step h4{font-size:15.5px;font-weight:600;margin-bottom:8px;}
+.flow-step p{font-size:13px;color:var(--muted);line-height:1.6;}
+
+.cta-band{position:relative;z-index:1;background:var(--surface);border-top:1px solid var(--border);
+          border-bottom:1px solid var(--border);padding:70px 6vw;text-align:center;}
+.cta-band h2{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(24px,3vw,32px);
+              margin-bottom:14px;}
+.cta-band p{color:var(--muted);font-size:14.5px;margin-bottom:30px;}
+.role-pills{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;}
+.role-pill{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);
+           background:var(--surface2);border:1px solid var(--border);border-radius:9px;
+           padding:11px 20px;text-decoration:none;transition:border-color .2s,color .2s,box-shadow .3s;}
+.role-pill:hover{border-color:var(--accent2);color:var(--accent2);box-shadow:0 6px 18px rgba(88,166,255,.18);}
+
+footer{position:relative;z-index:1;padding:26px 6vw;display:flex;justify-content:space-between;
+       align-items:center;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted);
+       flex-wrap:wrap;gap:10px;}
+footer .fmono{font-family:'Space Mono',monospace;}
+
+@media (max-width:880px){
+  .hero-grid{grid-template-columns:1fr;}
+  .scene-wrap{height:340px;order:-1;}
+  .flow-wrap{grid-template-columns:1fr;gap:28px;}
+  .flow-step:not(:last-child)::after{display:none;}
+  #cursorGlow{display:none;}
+}
+@media (hover:none){ #cursorGlow{display:none;} }
+@media (prefers-reduced-motion:reduce){
+  .ticker-track{animation:none;}
+  .eyebrow .dot{animation:none;}
+  h1.hero-title .grad{animation:none;}
+  .reveal{opacity:1;transform:none;transition:none;}
+}
+</style>
+</head>
+<body>
+
+<div id="preloader"><div class="pre-bar"></div><div class="pre-mark">Edu<b>Fusion</b></div></div>
+<div id="scrollbar"></div>
+<div id="cursorGlow"></div>
+<canvas id="starfield"></canvas>
+
+<div class="topbar">
+  <div class="logo"><b>Edu</b>Fusion<span style="color:var(--accent2)">.</span></div>
+  <div class="topbar-right">
+    <a class="tb-link" href="#modules">Modules</a>
+    <a class="tb-link" href="#how">How it works</a>
+    <a class="btn-signin magnetic" href="/auth/login">Sign In</a>
+  </div>
+</div>
+
+<section class="hero">
+  <div class="hero-grid">
+    <div>
+      <div class="eyebrow reveal"><span class="dot"></span> LIVE ATTENDANCE SYNC · CSE DEPARTMENT</div>
+      <h1 class="hero-title reveal">One system for<br>everything <span class="grad">academic.</span></h1>
+      <p class="hero-sub reveal">
+        EduFusion reads attendance straight from the register faculty already keep,
+        scores placement eligibility and academic risk in real time, and routes leave
+        and alerts to the right person automatically — no spreadsheets emailed around,
+        no manual re-entry.
+      </p>
+      <div class="hero-cta reveal">
+        <a class="btn-primary magnetic" href="/auth/login">Sign in to your portal <i class="bi bi-arrow-right"></i></a>
+        <a class="btn-ghost magnetic" href="#modules">See what's inside</a>
+      </div>
+      <div class="hero-meta reveal">
+        <div><b class="counter" data-target="5">0</b>core modules</div>
+        <div><b>Live</b>Excel-synced attendance</div>
+        <div><b>24/7</b>AI risk monitoring</div>
+      </div>
+    </div>
+    <div class="scene-wrap reveal">
+      <canvas id="scene-canvas"></canvas>
+      <div class="scene-caption">EDUFUSION CORE — 5 connected modules, one live sync</div>
+    </div>
+  </div>
+</section>
+
+<div class="ticker">
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<section class="section" id="modules">
+  <div class="section-head reveal">
+    <div class="section-eyebrow">// Modules</div>
+    <h2 class="section-title">Everything the department runs on, connected.</h2>
+    <p class="section-sub">Five modules, one shared source of truth — a change in one shows up everywhere else instantly.</p>
+  </div>
+  <div class="module-grid">
+    <div class="module-card reveal">
+      <div class="module-icon" style="background:rgba(63,185,80,.12);color:var(--accent)"><i class="bi bi-calendar-check"></i></div>
+      <h3>Live Attendance</h3>
+      <p>Reads directly from the Excel register faculty update — students see their real percentage the moment the sheet changes.</p>
+    </div>
+    <div class="module-card reveal">
+      <div class="module-icon" style="background:rgba(88,166,255,.12);color:var(--accent2)"><i class="bi bi-cpu"></i></div>
+      <h3>AI Risk Prediction</h3>
+      <p>Scores every student's academic risk from attendance and marks trends, flagging who needs support before it's too late.</p>
+    </div>
+    <div class="module-card reveal">
+      <div class="module-icon" style="background:rgba(210,153,34,.12);color:var(--warn)"><i class="bi bi-briefcase"></i></div>
+      <h3>Placement Eligibility</h3>
+      <p>Checks CGPA, backlogs and live attendance against each drive's criteria, and matches students to roles by skill overlap.</p>
+    </div>
+    <div class="module-card reveal">
+      <div class="module-icon" style="background:rgba(248,81,73,.12);color:var(--danger)"><i class="bi bi-file-earmark-text"></i></div>
+      <h3>Leave Workflow</h3>
+      <p>Routes a request from mentor to HOD automatically, with status visible to the student at every step.</p>
+    </div>
+    <div class="module-card reveal">
+      <div class="module-icon" style="background:rgba(63,185,80,.12);color:var(--accent)"><i class="bi bi-bell"></i></div>
+      <h3>Notifications</h3>
+      <p>Low-attendance and risk alerts land in-app and by email the moment they're detected — nothing sits in a spreadsheet unseen.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <div class="section-head reveal">
+    <div class="section-eyebrow">// How it works</div>
+    <h2 class="section-title">From register to dashboard, in one sync.</h2>
+    <p class="section-sub">The same sequence runs every time faculty update the sheet.</p>
+  </div>
+  <div class="flow-wrap">
+    <div class="flow-step reveal">
+      <div class="flow-num">01</div>
+      <h4>Faculty update the sheet</h4>
+      <p>One shared Excel workbook, one tab per subject — the same register faculty already keep, no new format to learn.</p>
+    </div>
+    <div class="flow-step reveal">
+      <div class="flow-num">02</div>
+      <h4>EduFusion syncs live</h4>
+      <p>Every student's row is matched by USN and re-read the moment they open their dashboard — nothing is cached or stale.</p>
+    </div>
+    <div class="flow-step reveal">
+      <div class="flow-num">03</div>
+      <h4>Everyone sees it instantly</h4>
+      <p>Students see their real percentage, HOD sees defaulters department-wide, and placement eligibility updates on its own.</p>
+    </div>
+  </div>
+</section>
+
+<div class="cta-band">
+  <h2 class="reveal">Sign in to your portal</h2>
+  <p class="reveal">Pick your role — the same system, tuned to what you need to see.</p>
+  <div class="role-pills reveal">
+    <a class="role-pill magnetic" href="/auth/login"><i class="bi bi-mortarboard"></i> Student</a>
+    <a class="role-pill magnetic" href="/auth/login"><i class="bi bi-clipboard-data"></i> Faculty</a>
+    <a class="role-pill magnetic" href="/auth/login"><i class="bi bi-bank"></i> HOD</a>
+    <a class="role-pill magnetic" href="/auth/login"><i class="bi bi-gear"></i> Admin</a>
+  </div>
+</div>
+
+<footer>
+  <span>CSE Dept. Academic Management System</span>
+  <span class="fmono">Flask + ML + PWA</span>
+</footer>
+
+<script>
+window.addEventListener('load', () => {
+  setTimeout(() => document.getElementById('preloader').classList.add('hide'), 500);
+});
+setTimeout(() => document.getElementById('preloader')?.classList.add('hide'), 2200);
+
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const pct = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+  document.getElementById('scrollbar').style.width = pct + '%';
+}, { passive: true });
+
+const glow = document.getElementById('cursorGlow');
+if (window.matchMedia('(hover:hover)').matches) {
+  let gx = 0, gy = 0, cx = 0, cy = 0;
+  document.addEventListener('mousemove', e => {
+    gx = e.clientX; gy = e.clientY;
+    glow.style.opacity = '1';
+  });
+  (function loop(){
+    cx += (gx - cx) * 0.08; cy += (gy - cy) * 0.08;
+    glow.style.transform = `translate(${cx}px,${cy}px) translate(-50%,-50%)`;
+    requestAnimationFrame(loop);
+  })();
+}
+
+const revealEls = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('in'), i * 60);
+      io.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+revealEls.forEach(el => io.observe(el));
+
+const flowSteps = document.querySelectorAll('.flow-step');
+const io2 = new IntersectionObserver((entries) => {
+  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('in'); });
+}, { threshold: 0.3 });
+flowSteps.forEach(el => io2.observe(el));
+
+document.querySelectorAll('.counter').forEach(el => {
+  const target = parseInt(el.dataset.target, 10);
+  const io3 = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      let cur = 0;
+      const step = Math.max(1, Math.round(target / 24));
+      const tick = () => {
+        cur = Math.min(target, cur + step);
+        el.textContent = cur;
+        if (cur < target) requestAnimationFrame(tick);
+      };
+      tick();
+      io3.unobserve(entry.target);
+    });
+  }, { threshold: 0.6 });
+  io3.observe(el);
+});
+
+if (window.matchMedia('(hover:hover)').matches) {
+  document.querySelectorAll('.magnetic').forEach(btn => {
+    btn.addEventListener('mousemove', e => {
+      const r = btn.getBoundingClientRect();
+      const mx = e.clientX - r.left - r.width / 2;
+      const my = e.clientY - r.top - r.height / 2;
+      btn.style.transform = `translate(${mx * 0.18}px, ${my * 0.3}px)`;
+    });
+    btn.addEventListener('mouseleave', () => { btn.style.transform = 'translate(0,0)'; });
+  });
+}
+
+if (window.matchMedia('(hover:hover)').matches) {
+  document.querySelectorAll('.module-card').forEach(card => {
+    card.addEventListener('mousemove', e => {
+      const r = card.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width;
+      const py = (e.clientY - r.top) / r.height;
+      const rx = (py - 0.5) * -8, ry = (px - 0.5) * 10;
+      card.style.transform = `perspective(700px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-2px)`;
+      card.style.setProperty('--mx', (px * 100) + '%');
+      card.style.setProperty('--my', (py * 100) + '%');
+    });
+    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+  });
+}
+
+const tickerItems = [
+  'LIVE ATTENDANCE SYNC', 'AI RISK SCORING', 'PLACEMENT ELIGIBILITY ENGINE',
+  '5 CORE MODULES', 'ZERO MANUAL RE-ENTRY', 'REAL-TIME DEFAULTER ALERTS',
+];
+document.getElementById('tickerTrack').innerHTML =
+  [...tickerItems, ...tickerItems].map(t => `<span><b>◆</b> ${t}</span>`).join('');
+
+(function initStarfield(){
+  const canvas = document.getElementById('starfield');
+  const ctx = canvas.getContext('2d');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let w, h, stars = [];
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    const count = Math.floor((w * h) / 9000);
+    stars = Array.from({ length: count }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      r: Math.random() * 1.2 + 0.2,
+      a: Math.random(), speed: Math.random() * 0.015 + 0.003,
+    }));
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    stars.forEach(s => {
+      s.a += s.speed;
+      const alpha = (Math.sin(s.a) + 1) / 2 * 0.6 + 0.1;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(230,237,243,${alpha})`;
+      ctx.fill();
+    });
+    if (!reduceMotion) requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+(function initScene(){
+  const canvas = document.getElementById('scene-canvas');
+  const wrap   = canvas.parentElement;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+  camera.position.set(0, 0.6, 9);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const key = new THREE.PointLight(0x58a6ff, 1.6, 30); key.position.set(4, 5, 6); scene.add(key);
+  const rim = new THREE.PointLight(0x3fb950, 1.3, 30); rim.position.set(-5, -3, 4); scene.add(rim);
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const coreGeo = new THREE.IcosahedronGeometry(1.15, 1);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: 0x1a2230, metalness: 0.4, roughness: 0.3,
+    emissive: 0x1a3a24, emissiveIntensity: 0.6, flatShading: true,
+  });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  group.add(core);
+
+  const wireGeo = new THREE.IcosahedronGeometry(1.16, 1);
+  const wireMat = new THREE.MeshBasicMaterial({ color: 0x3fb950, wireframe: true, transparent: true, opacity: 0.4 });
+  group.add(new THREE.Mesh(wireGeo, wireMat));
+
+  const nodeColors = [0x3fb950, 0x58a6ff, 0xd29922, 0xf85149, 0x58a6ff];
+  const orbitRadius = 3.1;
+  const nodes = [];
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x3a4250, transparent: true, opacity: 0.7 });
+
+  for (let i = 0; i < 5; i++) {
+    const angle = (i / 5) * Math.PI * 2;
+    const nodeGeo = new THREE.OctahedronGeometry(0.26, 0);
+    const nodeMat = new THREE.MeshStandardMaterial({
+      color: nodeColors[i], emissive: nodeColors[i], emissiveIntensity: 0.9,
+      metalness: 0.2, roughness: 0.4,
+    });
+    const node = new THREE.Mesh(nodeGeo, nodeMat);
+    const tilt = (i % 2 === 0) ? 0.35 : -0.35;
+    node.position.set(Math.cos(angle) * orbitRadius, Math.sin(angle * 1.3) * tilt * 2, Math.sin(angle) * orbitRadius);
+    group.add(node);
+    nodes.push({ mesh: node, angle, tilt, speed: 0.15 + i * 0.02 });
+
+    const points = [new THREE.Vector3(0,0,0), node.position.clone()];
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(lineGeo, lineMat);
+    group.add(line);
+    nodes[nodes.length - 1].line = line;
+  }
+
+  const dustCount = 140;
+  const dustGeo = new THREE.BufferGeometry();
+  const dustPos = new Float32Array(dustCount * 3);
+  for (let i = 0; i < dustCount; i++) {
+    const r = 4 + Math.random() * 3;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos((Math.random() * 2) - 1);
+    dustPos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    dustPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta) * 0.6;
+    dustPos[i*3+2] = r * Math.cos(phi);
+  }
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  const dustMat = new THREE.PointsMaterial({ color: 0x58a6ff, size: 0.025, transparent: true, opacity: 0.45 });
+  const dust = new THREE.Points(dustGeo, dustMat);
+  group.add(dust);
+
+  let composer = null;
+  try {
+    if (THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass) {
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      const bloom = new THREE.UnrealBloomPass(
+        new THREE.Vector2(wrap.clientWidth, wrap.clientHeight), 0.85, 0.6, 0.25
+      );
+      composer.addPass(bloom);
+    }
+  } catch (e) { composer = null; }
+
+  let mouseX = 0, mouseY = 0;
+  wrap.addEventListener('mousemove', (e) => {
+    const r = wrap.getBoundingClientRect();
+    mouseX = ((e.clientX - r.left) / r.width - 0.5) * 2;
+    mouseY = ((e.clientY - r.top) / r.height - 0.5) * 2;
+  });
+
+  function onResize() {
+    camera.aspect = wrap.clientWidth / wrap.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+    if (composer) composer.setSize(wrap.clientWidth, wrap.clientHeight);
+  }
+  window.addEventListener('resize', onResize);
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!reduceMotion) {
+      t += 0.006;
+      core.rotation.y += 0.003;
+      core.rotation.x += 0.001;
+      dust.rotation.y += 0.0006;
+
+      nodes.forEach(n => {
+        const a = n.angle + t * n.speed;
+        n.mesh.position.set(
+          Math.cos(a) * orbitRadius,
+          Math.sin(a * 1.3) * n.tilt * 2,
+          Math.sin(a) * orbitRadius
+        );
+        n.mesh.rotation.y += 0.02;
+        const pts = [new THREE.Vector3(0,0,0), n.mesh.position.clone()];
+        n.line.geometry.setFromPoints(pts);
+      });
+
+      group.rotation.y += (mouseX * 0.4 - group.rotation.y) * 0.03;
+      group.rotation.x += (mouseY * 0.2 - group.rotation.x) * 0.03;
+    }
+    if (composer) composer.render(); else renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

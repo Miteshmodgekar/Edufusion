@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Defaulters | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-box { background: var(--surface2); border-radius: 10px; padding: 1rem 1.25rem; }
+  .stat-box .label { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: .5px; margin-bottom: 4px; }
+  .stat-box .value { font-size: 26px; font-weight: 600; }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .filter-row select, .filter-row input {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-family: 'Sora', sans-serif;
+  }
+  table.def-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.def-table th {
+    text-align: left; font-size: 10.5px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .5px; font-family: 'Space Mono', monospace; padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.def-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+  table.def-table td.usn-cell  { color: var(--accent2); font-weight: 700; letter-spacing: .3px; }
+  table.def-table td.name-cell { color: var(--text); font-weight: 600; }
+  table.def-table tr:hover td { background: rgba(255,255,255,.02); }
+  .pct-chip {
+    font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 600;
+    padding: 2px 8px; border-radius: 6px; background: rgba(248,81,73,.15); color: var(--danger);
+  }
+  .src-badge {
+    font-size: 10px; font-family: 'Space Mono', monospace; padding: 3px 10px;
+    border-radius: 6px; letter-spacing: .5px;
+  }
+  .src-live { background: rgba(63,185,80,.15); color: var(--accent); }
+  .src-db   { background: rgba(139,148,158,.15); color: var(--muted); }
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Attendance Defaulters</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">
+      Students below the <span class="mono">{{ "%.0f"|format(config.ATTENDANCE_THRESHOLD) if config else 85 }}%</span> threshold
+    </p>
+  </div>
+  <span class="badge-blue mono" id="sourceBadge"></span>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">TOTAL DEFAULTER ROWS</div>
+      <div class="value" id="statTotal" style="color:var(--danger)">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">UNIQUE STUDENTS</div>
+      <div class="value" id="statStudents">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">SUBJECTS AFFECTED</div>
+      <div class="value" id="statSubjects">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box">
+      <div class="label">LOWEST ATTENDANCE</div>
+      <div class="value" id="statLowest" style="color:var(--danger)">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <div class="filter-row">
+    <select id="fSemester" onchange="loadDefaulters()">
+      <option value="">All Semesters</option>
+      {% for s in range(1,9) %}<option value="{{ s }}">Semester {{ s }}</option>{% endfor %}
+    </select>
+    <select id="fSection" onchange="loadDefaulters()">
+      <option value="">All Sections</option>
+      <option value="A">Section A</option>
+      <option value="B">Section B</option>
+      <option value="C">Section C</option>
+    </select>
+    <input type="text" id="fSubject" placeholder="Filter by subject..." oninput="debouncedLoad()">
+    <input type="text" id="fSearch" placeholder="Search name or USN..." oninput="renderTable()" style="margin-left:auto;min-width:200px">
+  </div>
+</div>
+
+<div class="card p-0">
+  <div id="tableWrap" style="overflow-x:auto">
+    <div class="empty-state" id="loadingState">Loading…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allDefaulters = [];
+let dataSource = null;
+let debounceTimer = null;
+
+function debouncedLoad() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(loadDefaulters, 350);
+}
+
+async function loadDefaulters() {
+  const sem = document.getElementById('fSemester').value;
+  const sec = document.getElementById('fSection').value;
+  const sub = document.getElementById('fSubject').value.trim();
+
+  const params = new URLSearchParams();
+  if (sem) params.set('semester', sem);
+  if (sec) params.set('section', sec);
+  if (sub) params.set('subject', sub);
+
+  document.getElementById('tableWrap').innerHTML = '<div class="empty-state" id="loadingState">Loading…</div>';
+
+  try {
+    const res  = await fetch(`/attendance/api/defaulters?${params.toString()}`);
+    const data = await res.json();
+    if (!data.success) {
+      document.getElementById('tableWrap').innerHTML =
+        `<div class="empty-state">${data.message || 'Could not load defaulters.'}</div>`;
+      return;
+    }
+    allDefaulters = data.defaulters || [];
+    dataSource    = data.source;
+
+    const badge = document.getElementById('sourceBadge');
+    badge.textContent = dataSource === 'live' ? '● LIVE FROM EXCEL' : 'FROM PROCESSED UPLOADS';
+    badge.className = 'mono ' + (dataSource === 'live' ? 'src-live' : 'src-db');
+    badge.style.padding = '4px 12px';
+    badge.style.borderRadius = '6px';
+    badge.style.fontSize = '10.5px';
+
+    renderStats();
+    renderTable();
+  } catch (e) {
+    document.getElementById('tableWrap').innerHTML =
+      '<div class="empty-state">Network error — could not load defaulters. Please try again.</div>';
+  }
+}
+
+function renderStats() {
+  const uniqueStudents = new Set(allDefaulters.map(d => d.roll_number)).size;
+  const uniqueSubjects  = new Set(allDefaulters.map(d => d.subject)).size;
+  const lowest = allDefaulters.length
+    ? Math.min(...allDefaulters.map(d => d.attendance_pct)).toFixed(1) + '%'
+    : '—';
+
+  document.getElementById('statTotal').textContent    = allDefaulters.length;
+  document.getElementById('statStudents').textContent = uniqueStudents;
+  document.getElementById('statSubjects').textContent = uniqueSubjects;
+  document.getElementById('statLowest').textContent   = lowest;
+}
+
+function renderTable() {
+  const search = document.getElementById('fSearch').value.trim().toLowerCase();
+  const rows = allDefaulters.filter(d =>
+    !search ||
+    (d.name || '').toLowerCase().includes(search) ||
+    (d.roll_number || '').toLowerCase().includes(search)
+  );
+
+  const wrap = document.getElementById('tableWrap');
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty-state">
+      <i class="bi bi-emoji-smile" style="font-size:28px"></i>
+      <p class="mt-2 mb-0">No defaulters found${search ? ' matching your search' : ' for these filters'}.</p>
+    </div>`;
+    return;
+  }
+
+  // Sort worst attendance first
+  rows.sort((a, b) => a.attendance_pct - b.attendance_pct);
+
+  wrap.innerHTML = `
+    <table class="def-table">
+      <thead><tr>
+        <th>USN</th><th>Name</th><th>Subject</th><th>Sem / Sec</th>
+        <th>Attended</th><th>Attendance %</th><th>Classes Needed</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(d => `
+          <tr>
+            <td class="mono usn-cell">${d.roll_number}</td>
+            <td class="name-cell">${d.name || '—'}</td>
+            <td>${d.subject}</td>
+            <td class="mono">${d.semester ?? '—'} / ${d.section ?? '—'}</td>
+            <td class="mono">${d.classes_attended}/${d.total_classes}</td>
+            <td><span class="pct-chip">${d.attendance_pct}%</span></td>
+            <td class="mono">${d.required_classes > 0 ? '+' + d.required_classes : '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+loadDefaulters();
+</script>
+{% endblock %}

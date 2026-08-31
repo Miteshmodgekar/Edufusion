@@ -1,0 +1,554 @@
+{% extends "base.html" %}
+{% block title %}ML Prediction | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .result-box { border-radius: 12px; padding: 1.25rem; border: 1px solid; transition: all .3s; }
+  .result-pass { background: rgba(63,185,80,.08); border-color: rgba(63,185,80,.3); }
+  .result-fail { background: rgba(248,81,73,.08); border-color: rgba(248,81,73,.3); }
+  .result-label { font-size: 36px; font-weight: 700; letter-spacing: -1px; }
+  .result-label.pass { color: var(--accent); }
+  .result-label.fail { color: var(--danger); }
+  .conf-track { height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin: 8px 0; }
+  .conf-fill   { height: 100%; border-radius: 3px; transition: width .6s ease; }
+  .conf-pass   { background: var(--accent); }
+  .conf-fail   { background: var(--danger); }
+  .risk-arc-wrap { text-align: center; margin: .5rem 0; }
+  .risk-badge { display: inline-block; padding: 5px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; font-family: 'Space Mono', monospace; }
+  .risk-low  { background: rgba(63,185,80,.15);  color: var(--accent); }
+  .risk-med  { background: rgba(210,153,34,.15); color: var(--warn); }
+  .risk-high { background: rgba(248,81,73,.15);  color: var(--danger); }
+  .reason-item { font-size: 12px; padding: 7px 10px; border-radius: 8px; background: var(--surface2); margin-bottom: 6px; border-left: 2px solid var(--warn); }
+  .reason-item.danger { border-left-color: var(--danger); }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .slider-row label { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; min-width: 160px; }
+  .slider-row input[type=range] { flex: 1; }
+  .student-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 8px; cursor: pointer; transition: background .15s; }
+  .student-row:hover { background: var(--surface2); }
+  .av { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .av-low  { background: rgba(63,185,80,.15);  color: var(--accent); }
+  .av-med  { background: rgba(210,153,34,.15); color: var(--warn); }
+  .av-high { background: rgba(248,81,73,.15);  color: var(--danger); }
+  .mini-bar { height: 4px; border-radius: 2px; background: var(--surface2); overflow: hidden; margin-top: 4px; width: 80px; }
+  .mini-fill { height: 100%; border-radius: 2px; }
+  .fill-ok  { background: var(--accent); }
+  .fill-warn { background: var(--warn); }
+  .fill-bad  { background: var(--danger); }
+  .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-family: 'Space Mono', monospace; }
+  .tag-low  { background: rgba(63,185,80,.15);  color: var(--accent); }
+  .tag-med  { background: rgba(210,153,34,.15); color: var(--warn); }
+  .tag-high { background: rgba(248,81,73,.15);  color: var(--danger); }
+  .tag-pass { background: rgba(63,185,80,.15);  color: var(--accent); }
+  .tag-fail { background: rgba(248,81,73,.15);  color: var(--danger); }
+  .stat-box { background: var(--surface2); border-radius: 10px; padding: 1rem 1.25rem; }
+  .stat-box .label { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; margin-bottom: 4px; }
+  .stat-box .value { font-size: 26px; font-weight: 600; color: var(--text); }
+  /* slider value readout */
+  .slider-row .val { font-size: 13px; font-weight: 500; min-width: 40px; text-align: right; color: var(--text) !important; }
+  /* risk reason list items */
+  .reason-item { font-size: 12px; padding: 7px 10px; border-radius: 8px; background: var(--surface2); margin-bottom: 6px; border-left: 2px solid var(--warn); color: var(--text) !important; }
+  .reason-item.danger { border-left-color: var(--danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">ML Performance Prediction</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Logistic Regression · PASS/FAIL · Risk Classification</p>
+  </div>
+  <span class="badge-blue mono">AI MODULE</span>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" style="border-color:var(--border)">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-predict">Predict Student</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-risk">Risk Analysis</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-class">Class Overview</a></li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- ── Tab 1: Predict ─────────────────────────────────────────────────── -->
+  <div class="tab-pane fade show active" id="tab-predict">
+    <div class="row g-3">
+      <div class="col-md-5">
+        <div class="card p-4">
+          <h6 style="font-weight:500;margin-bottom:1.25rem">Input parameters</h6>
+
+          <div class="mb-3">
+            <div class="slider-row">
+              <label>ATTENDANCE %</label>
+              <input type="range" class="form-range" id="sl_att" min="0" max="100" value="78" step="1" oninput="updateVal('att',this.value);runPredict()">
+              <span class="val" id="v_att">78%</span>
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="slider-row">
+              <label>INTERNAL MARKS /50</label>
+              <input type="range" class="form-range" id="sl_int" min="0" max="50" value="28" step="1" oninput="updateVal('int',this.value);runPredict()">
+              <span class="val" id="v_int">28</span>
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="slider-row">
+              <label>EXTERNAL MARKS /100</label>
+              <input type="range" class="form-range" id="sl_ext" min="0" max="100" value="42" step="1" oninput="updateVal('ext',this.value);runPredict()">
+              <span class="val" id="v_ext">42</span>
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="slider-row">
+              <label>PROJECT PROGRESS %</label>
+              <input type="range" class="form-range" id="sl_proj" min="0" max="100" value="45" step="1" oninput="updateVal('proj',this.value);runPredict()">
+              <span class="val" id="v_proj">45%</span>
+            </div>
+          </div>
+
+          <!-- Or fetch from API -->
+          <div class="mb-3">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">OR FETCH STUDENT DATA</label>
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control" id="studentIdInput"
+                placeholder="e.g. 2Jr24cs401"
+                value="{{ my_usn }}">
+              <button class="btn btn-outline-secondary" onclick="fetchStudent()">Load</button>
+            </div>
+            {% if my_usn %}
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">
+              <i class="bi bi-person-fill me-1"></i>Logged in as <strong style="color:var(--text)">{{ my_usn }}</strong> — click Load to fetch your real data
+            </div>
+            {% endif %}
+          </div>
+
+          <button class="btn btn-primary w-100" onclick="runPredict()">
+            <i class="bi bi-cpu me-2"></i>Run prediction
+          </button>
+        </div>
+      </div>
+
+      <div class="col-md-7">
+        <!-- Prediction result -->
+        <div class="card p-4 mb-3" id="predCard">
+          <h6 style="font-weight:500;margin-bottom:1rem">Prediction result</h6>
+          <div id="predResult">
+            <p style="font-size:13px;color:var(--muted)">Adjust sliders to see prediction.</p>
+          </div>
+        </div>
+
+        <!-- Risk result -->
+        <div class="card p-4">
+          <h6 style="font-weight:500;margin-bottom:1rem">Risk profile</h6>
+          <div class="row g-3 align-items-center">
+            <div class="col-md-5">
+              <div class="risk-arc-wrap">
+                <svg width="180" height="100" viewBox="0 0 200 110">
+                  <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="#E24B4A" stroke-width="12" stroke-linecap="round" opacity="0.15"/>
+                  <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="#BA7517" stroke-width="12" stroke-linecap="round" opacity="0.15" stroke-dasharray="167" stroke-dashoffset="84"/>
+                  <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="#3B6D11" stroke-width="12" stroke-linecap="round" opacity="0.15" stroke-dasharray="167" stroke-dashoffset="140"/>
+                  <path id="riskArcFill" d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="#BA7517" stroke-width="12" stroke-linecap="round" stroke-dasharray="167" stroke-dashoffset="90"/>
+                  <text id="riskScore" x="100" y="85" text-anchor="middle" font-size="28" font-weight="600" fill="#BA7517">4</text>
+                  <text x="100" y="102" text-anchor="middle" font-size="10" fill="#8b949e">risk score</text>
+                </svg>
+                <div><span class="risk-badge" id="riskBadge">MEDIUM RISK</span></div>
+              </div>
+            </div>
+            <div class="col-md-7">
+              <div id="riskReasons" class="mb-2"></div>
+              <div id="riskAction" class="p-2 rounded" style="font-size:12px;color:var(--muted);background:var(--surface2)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab 2: Risk Analysis ────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-risk">
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="label">HIGH RISK</div><div class="value" style="color:var(--danger)" id="rHigh">—</div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="label">MEDIUM RISK</div><div class="value" style="color:var(--warn)" id="rMed">—</div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="label">LOW RISK</div><div class="value" style="color:var(--accent)" id="rLow">—</div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-box"><div class="label">PREDICTED FAIL</div><div class="value" style="color:var(--danger)" id="rFail">—</div></div>
+      </div>
+    </div>
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="card-header rounded">STUDENT RISK CLASSIFICATION</div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary btn-sm active" onclick="filterRisk('all',this)">All</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="filterRisk('HIGH',this)">High</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="filterRisk('MEDIUM',this)">Medium</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="filterRisk('LOW',this)">Low</button>
+        </div>
+      </div>
+      <div id="riskTable"></div>
+    </div>
+  </div>
+
+  <!-- ── Tab 3: Class Overview ──────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-class">
+
+    <!-- ── Filter Bar ── -->
+    <div class="card p-3 mb-3">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">FILTER CLASS VIEW</span>
+        <div class="d-flex align-items-center gap-2">
+          <label style="font-size:11px;color:var(--muted);margin:0">SEMESTER</label>
+          <select class="form-select form-select-sm" id="filterSem" style="width:auto;min-width:100px" onchange="applyClassFilter()">
+            <option value="">All Sems</option>
+            <option value="1">Sem 1</option>
+            <option value="2">Sem 2</option>
+            <option value="3">Sem 3</option>
+            <option value="4">Sem 4</option>
+            <option value="5">Sem 5</option>
+            <option value="6">Sem 6</option>
+            <option value="7">Sem 7</option>
+            <option value="8">Sem 8</option>
+          </select>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <label style="font-size:11px;color:var(--muted);margin:0">SECTION</label>
+          <select class="form-select form-select-sm" id="filterSec" style="width:auto;min-width:100px" onchange="applyClassFilter()">
+            <option value="">All Sections</option>
+            <option value="A">Section A</option>
+            <option value="B">Section B</option>
+            <option value="C">Section C</option>
+          </select>
+        </div>
+        <span id="classFilterLabel" style="font-size:11px;color:var(--accent);font-family:'Space Mono',monospace"></span>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <div class="card p-3">
+          <div class="card-header rounded mb-3">PASS / FAIL SPLIT</div>
+          <canvas id="pfChart" height="200"></canvas>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card p-3">
+          <div class="card-header rounded mb-3">RISK DISTRIBUTION</div>
+          <canvas id="rdChart" height="200"></canvas>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card p-3">
+          <div class="card-header rounded mb-3">CONFIDENCE LEVELS</div>
+          <canvas id="cfChart" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">ATTENDANCE vs TOTAL MARKS</div>
+      <canvas id="scChart" height="160"></canvas>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+
+// ── Live DB data (replaces hardcoded demo) ────────────────────────────────
+let enriched = [];  // populated from /ml/class-data API
+let _loadingClassData = false;
+
+// ── ML Logic ─────────────────────────────────────────────────────────────
+function predictPF(att, int_m, ext_m) {
+  const pass = att >= 75 && int_m >= 20 && ext_m >= 35 && (int_m + ext_m) >= 50;
+  const conf = pass
+    ? Math.min(99, 60 + Math.round((att - 75) * 0.4 + (int_m - 20) * 0.5))
+    : Math.min(99, 60 + Math.round((75 - att) * 0.4 + (20 - int_m) * 0.5));
+  return { result: pass ? 'PASS' : 'FAIL', confidence: conf };
+}
+
+function predictRisk(att, int_m, proj) {
+  let score = 0, reasons = [];
+  if (att < 75)      { score += 3; reasons.push({ t: `Critical attendance (${att}%)`, cls: 'danger' }); }
+  else if (att < 85) { score += 2; reasons.push({ t: `Low attendance (${att}%)`, cls: '' }); }
+  if (int_m < 15)      { score += 3; reasons.push({ t: `Very low internal marks (${int_m}/50)`, cls: 'danger' }); }
+  else if (int_m < 25) { score += 2; reasons.push({ t: `Below average internal marks (${int_m}/50)`, cls: '' }); }
+  if (proj < 30)      { score += 2; reasons.push({ t: `Poor project progress (${proj}%)`, cls: 'danger' }); }
+  else if (proj < 60) { score += 1; reasons.push({ t: `Moderate project progress (${proj}%)`, cls: '' }); }
+  const level  = score >= 5 ? 'HIGH' : score >= 2 ? 'MEDIUM' : 'LOW';
+  const action = score >= 5
+    ? 'Immediate intervention required. Contact parents & HOD.'
+    : score >= 2 ? 'Monitor closely. Counselling recommended.'
+    : 'Performing well. Keep it up!';
+  return { level, score, reasons, action };
+}
+
+// ── Slider helpers ─────────────────────────────────────────────────────────
+function updateVal(id, v) {
+  const suffix = (id === 'att' || id === 'proj') ? '%' : '';
+  document.getElementById('v_' + id).textContent = v + suffix;
+}
+
+// ── Run Prediction (slider) ────────────────────────────────────────────────
+function runPredict() {
+  const att   = parseInt(document.getElementById('sl_att').value);
+  const int_m = parseInt(document.getElementById('sl_int').value);
+  const ext_m = parseInt(document.getElementById('sl_ext').value);
+  const proj  = parseInt(document.getElementById('sl_proj').value);
+
+  const pf   = predictPF(att, int_m, ext_m);
+  const risk = predictRisk(att, int_m, proj);
+  renderPredResult(pf, int_m, ext_m);
+  renderRiskResult(risk);
+}
+
+function renderPredResult(pf, int_m, ext_m) {
+  const isPass = pf.result === 'PASS';
+  document.getElementById('predResult').innerHTML = `
+    <div class="result-box ${isPass ? 'result-pass' : 'result-fail'}">
+      <div class="result-label ${isPass ? 'pass' : 'fail'}">${pf.result}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+        Confidence: <strong>${pf.confidence}%</strong> · Method: rule-based
+      </div>
+      <div class="conf-track">
+        <div class="conf-fill ${isPass ? 'conf-pass' : 'conf-fail'}" style="width:${pf.confidence}%"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">
+        Total marks: <strong>${int_m + ext_m}/150</strong> ·
+        Pass threshold: 50/150 ·
+        Internal min: 20/50 ·
+        External min: 35/100
+      </div>
+    </div>
+  `;
+}
+
+function renderRiskResult(risk) {
+  const colors = { LOW:'#3B6D11', MEDIUM:'#BA7517', HIGH:'#E24B4A' };
+  const offsets = { LOW: 10, MEDIUM: 60, HIGH: 120 };
+  document.getElementById('riskArcFill').setAttribute('stroke', colors[risk.level]);
+  document.getElementById('riskArcFill').setAttribute('stroke-dashoffset', offsets[risk.level]);
+  document.getElementById('riskScore').textContent = risk.score;
+  document.getElementById('riskScore').setAttribute('fill', colors[risk.level]);
+
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = risk.level + ' RISK';
+  badge.className = 'risk-badge risk-' + risk.level.toLowerCase();
+
+  document.getElementById('riskReasons').innerHTML = risk.reasons.length
+    ? risk.reasons.map(r => `<div class="reason-item ${r.cls}"><i class="bi bi-exclamation-circle me-1"></i>${r.t}</div>`).join('')
+    : '<div style="font-size:12px;color:var(--accent)"><i class="bi bi-check-circle me-1"></i>No risk factors detected.</div>';
+  document.getElementById('riskAction').innerHTML =
+    `<i class="bi bi-info-circle me-1"></i>${risk.action}`;
+}
+
+// ── Fetch from API ─────────────────────────────────────────────────────────
+async function fetchStudent() {
+  const sid = document.getElementById('studentIdInput').value.trim();
+  if (!sid) return;
+  try {
+    const res  = await fetch(`/ml/analyze/${encodeURIComponent(sid)}`);
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('sl_att').value  = data.avg_attendance;
+      document.getElementById('sl_int').value  = data.avg_internal;
+      document.getElementById('sl_ext').value  = data.avg_external;
+      updateVal('att',  data.avg_attendance);
+      updateVal('int',  data.avg_internal);
+      updateVal('ext',  data.avg_external);
+      runPredict();
+    } else {
+      alert(data.message || 'Student not found. Check the USN/roll number and try again.');
+    }
+  } catch (e) {
+    alert('Could not reach server. Please check your connection.');
+    console.error(e);
+  }
+}
+
+// ── Risk Table ─────────────────────────────────────────────────────────────
+let riskFilter = 'all';
+
+// ── Load class data from DB ────────────────────────────────────────────────
+async function loadClassData(sem='', sec='') {
+  if (_loadingClassData) return;
+  _loadingClassData = true;
+
+  // Show loading in risk table
+  const el = document.getElementById('riskTable');
+  if (el) el.innerHTML = '<div style="text-align:center;padding:2rem;font-size:12px;color:var(--muted)"><i class="bi bi-hourglass-split me-2"></i>Loading real student data from database...</div>';
+
+  try {
+    const params = new URLSearchParams();
+    if (sem) params.append('sem', sem);
+    if (sec) params.append('sec', sec);
+    const res  = await fetch(`/ml/class-data?${params}`);
+    const data = await res.json();
+    if (data.success) {
+      enriched = data.students;
+      renderRiskTable(riskFilter);
+      renderCharts(enriched);
+      // Update filter label
+      const label = document.getElementById('classFilterLabel');
+      if (label) {
+        label.textContent = `${enriched.length} student${enriched.length!==1?'s':''} from database` +
+          (sem ? ` · Sem ${sem}` : '') + (sec ? ` / Sec ${sec}` : '');
+      }
+    } else {
+      if (el) el.innerHTML = `<div style="text-align:center;padding:2rem;font-size:12px;color:var(--danger)"><i class="bi bi-exclamation-circle me-2"></i>${data.message || 'Failed to load data.'}</div>`;
+    }
+  } catch (e) {
+    console.error('loadClassData failed:', e);
+    if (el) el.innerHTML = '<div style="text-align:center;padding:2rem;font-size:12px;color:var(--danger)"><i class="bi bi-wifi-off me-2"></i>Could not reach server.</div>';
+  }
+  _loadingClassData = false;
+}
+
+function renderRiskTable(filter) {
+  riskFilter = filter;
+  const show = filter === 'all' ? enriched : enriched.filter(s => s.level === filter);
+  const el   = document.getElementById('riskTable');
+  const attCls = att => att < 75 ? 'fill-bad' : att < 85 ? 'fill-warn' : 'fill-ok';
+
+  if (!show.length) {
+    el.innerHTML = '<div style="text-align:center;padding:2rem;font-size:12px;color:var(--muted)"><i class="bi bi-inbox me-2"></i>No students found for this filter.</div>';
+  } else {
+    el.innerHTML = show.map(s => `
+      <div class="student-row">
+        <div class="av av-${s.level.toLowerCase()}">${s.name.split(' ').map(w=>w[0]).join('')}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.name}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">${s.roll} ${s.sem?'· Sem '+s.sem:''} ${s.sec?'· Sec '+s.sec:''}</div>
+        </div>
+        <div style="text-align:center;min-width:70px">
+          <div style="font-size:11px;color:var(--muted)">Att</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.att}%</div>
+          <div class="mini-bar"><div class="mini-fill ${attCls(s.att)}" style="width:${s.att}%"></div></div>
+        </div>
+        <div style="text-align:center;min-width:70px">
+          <div style="font-size:11px;color:var(--muted)">Internal</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.int_m}/50</div>
+        </div>
+        <div style="text-align:center;min-width:70px">
+          <div style="font-size:11px;color:var(--muted)">External</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.ext_m}/100</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:80px">
+          <span class="tag tag-${s.level.toLowerCase()}">${s.level}</span>
+          <span class="tag tag-${s.result === 'PASS' ? 'pass' : 'fail'}">${s.result}</span>
+        </div>
+      </div>`).join('');
+  }
+
+  document.getElementById('rHigh').textContent = enriched.filter(s => s.level === 'HIGH').length;
+  document.getElementById('rMed').textContent  = enriched.filter(s => s.level === 'MEDIUM').length;
+  document.getElementById('rLow').textContent  = enriched.filter(s => s.level === 'LOW').length;
+  document.getElementById('rFail').textContent = enriched.filter(s => s.result === 'FAIL').length;
+}
+
+function filterRisk(f, el) {
+  document.querySelectorAll('#tab-risk .btn-outline-secondary').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderRiskTable(f);
+}
+
+// ── Chart instances (kept for destroy/re-render) ───────────────────────────
+let _charts = {};
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+function renderCharts(data) {
+  data = data || enriched;
+
+  // Destroy old charts before re-rendering
+  ['pfChart','rdChart','cfChart','scChart'].forEach(id => {
+    if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; }
+  });
+
+  if (!data.length) {
+    ['pfChart','rdChart','cfChart','scChart'].forEach(id => {
+      const ctx = document.getElementById(id);
+      if (ctx) { const c = ctx.getContext('2d'); c.clearRect(0,0,ctx.width,ctx.height); }
+    });
+    return;
+  }
+
+  const pass = data.filter(s => s.result === 'PASS').length;
+  const fail = data.filter(s => s.result === 'FAIL').length;
+  _charts.pfChart = new Chart(document.getElementById('pfChart'), {
+    type: 'doughnut',
+    data: { labels: ['Pass', 'Fail'],
+      datasets: [{ data: [pass, fail],
+        backgroundColor: ['rgba(63,185,80,.7)', 'rgba(248,81,73,.7)'], borderWidth: 0 }] },
+    options: { plugins: { legend: { position: 'bottom', labels: { font:{size:11}, boxWidth:12 } } }, cutout: '60%' }
+  });
+
+  const h = data.filter(s=>s.level==='HIGH').length;
+  const m = data.filter(s=>s.level==='MEDIUM').length;
+  const l = data.filter(s=>s.level==='LOW').length;
+  _charts.rdChart = new Chart(document.getElementById('rdChart'), {
+    type: 'bar',
+    data: { labels: ['Low', 'Medium', 'High'],
+      datasets: [{ data: [l, m, h],
+        backgroundColor: ['rgba(63,185,80,.7)', 'rgba(210,153,34,.7)', 'rgba(248,81,73,.7)'],
+        borderRadius: 4 }] },
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { grid:{color:'#30363d'}, ticks:{stepSize:1} }, x: { grid:{display:false} } } }
+  });
+
+  _charts.cfChart = new Chart(document.getElementById('cfChart'), {
+    type: 'bar',
+    data: { labels: data.map(s => s.roll),
+      datasets: [{ label: 'Confidence %', data: data.map(s => s.confidence),
+        backgroundColor: data.map(s => s.result==='PASS'?'rgba(63,185,80,.6)':'rgba(248,81,73,.6)'),
+        borderRadius: 3 }] },
+    options: { plugins: { legend:{display:false} },
+      scales: { y: { min:0, max:100, grid:{color:'#30363d'}, ticks:{callback:v=>v+'%'} },
+                x: { grid:{display:false}, ticks:{font:{size:10}} } } }
+  });
+
+  _charts.scChart = new Chart(document.getElementById('scChart'), {
+    type: 'scatter',
+    data: { datasets: [{ label: 'Students',
+      data: data.map(s => ({ x: s.att, y: s.int_m + s.ext_m })),
+      backgroundColor: data.map(s => s.result==='PASS'?'rgba(63,185,80,.7)':'rgba(248,81,73,.7)'),
+      pointRadius: 7 }] },
+    options: {
+      plugins: { legend:{display:false},
+        tooltip: { callbacks: { label: c => {
+          const s = data[c.dataIndex];
+          return `${s.name} — Att:${s.att}% Marks:${s.int_m+s.ext_m}/150`;
+        }}} },
+      scales: {
+        x: { title:{display:true,text:'Attendance %',font:{size:11}}, grid:{color:'#30363d'}, min:0, max:100 },
+        y: { title:{display:true,text:'Total marks (Internal + External)',font:{size:11}}, grid:{color:'#30363d'}, min:0, max:150 }
+      }
+    }
+  });
+}
+
+// ── Class filter (Sem + Section dropdowns) — now server-side ─────────────────
+function applyClassFilter() {
+  const sem = document.getElementById('filterSem').value;
+  const sec = document.getElementById('filterSec').value;
+  loadClassData(sem, sec);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+runPredict();         // init sliders
+loadClassData();      // fetch ALL students from DB on page load
+
+// Auto-load logged-in student's data if USN is available
+(function autoLoadStudent() {
+  const input = document.getElementById('studentIdInput');
+  if (input && input.value.trim()) {
+    fetchStudent();
+  }
+})();
+</script>
+{% endblock %}

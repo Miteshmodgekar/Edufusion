@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+{% block title %}Notifications | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .notif-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:14px 16px;margin-bottom:8px;display:flex;gap:14px;align-items:flex-start;
+              transition:border-color .2s, box-shadow .2s; cursor:pointer;}
+  .notif-card:hover{border-color:var(--accent2); box-shadow:0 0 12px rgba(88,166,255,.1);}
+  .notif-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;
+              justify-content:center;font-size:16px;flex-shrink:0;}
+  .ic-danger {background:rgba(248,81,73,.15); color:var(--danger);}
+  .ic-warning{background:rgba(210,153,34,.15);color:var(--warn);}
+  .ic-success{background:rgba(63,185,80,.15); color:var(--accent);}
+  .ic-info   {background:rgba(88,166,255,.15);color:var(--accent2);}
+  .notif-title{font-size:13px;font-weight:500;margin-bottom:3px;color:var(--text);}
+  .notif-body {font-size:12px;color:var(--muted);}
+  .notif-time {font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;
+               white-space:nowrap;margin-left:auto;padding-left:8px;}
+  .channel-pill{font-size:9px;padding:2px 7px;border-radius:8px;
+                font-family:'Space Mono',monospace;display:inline-block;margin-top:4px;}
+  .cp-email{background:rgba(88,166,255,.15);color:var(--accent2);}
+  .cp-push {background:rgba(63,185,80,.15); color:var(--accent);}
+  .cp-both {background:rgba(210,153,34,.15);color:var(--warn);}
+  .push-banner{background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);
+               border-radius:10px;padding:14px 16px;margin-bottom:1.5rem;
+               display:flex;align-items:center;gap:14px;}
+  .stat-box{background:var(--surface2);border-radius:10px;padding:1rem 1.25rem;}
+  .stat-box .label{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px;}
+  .stat-box .value{font-size:24px;font-weight:600;color:var(--text);}
+  .send-section{background:var(--surface2);border-radius:10px;padding:1.25rem;margin-bottom:1rem;}
+
+  /* Notification detail modal */
+  .notif-modal-backdrop {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.65);
+    z-index:1060; align-items:center; justify-content:center;
+  }
+  .notif-modal-backdrop.open { display:flex; animation:nmFade .15s ease; }
+  @keyframes nmFade { from{opacity:0} to{opacity:1} }
+  .notif-modal {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:16px; padding:1.75rem; max-width:480px; width:90%;
+    box-shadow:0 20px 60px rgba(0,0,0,.4); animation:nmSlide .2s ease;
+  }
+  @keyframes nmSlide { from{transform:translateY(20px);opacity:0} to{transform:none;opacity:1} }
+  .modal-close-btn {
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:8px; width:32px; height:32px; display:flex;
+    align-items:center; justify-content:center; cursor:pointer;
+    color:var(--muted); font-size:16px; flex-shrink:0;
+    transition:background .15s, color .15s;
+  }
+  .modal-close-btn:hover { background:rgba(248,81,73,.15); color:var(--danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Notification Centre</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Email alerts · PWA push · Broadcast tools</p>
+  </div>
+  <span class="badge-blue mono">{{ current_user.role | upper }}</span>
+</div>
+
+<!-- PWA Push banner -->
+<div class="push-banner" id="pushBanner">
+  <div style="width:36px;height:36px;background:rgba(88,166,255,.15);border-radius:50%;
+              display:flex;align-items:center;justify-content:center;flex-shrink:0">
+    <i class="bi bi-bell" style="color:var(--accent2)"></i>
+  </div>
+  <div style="flex:1">
+    <div style="font-size:13px;font-weight:500;margin-bottom:2px;color:var(--text)">Enable push notifications</div>
+    <div style="font-size:12px;color:var(--muted)">
+      Get instant alerts for attendance, leave decisions, and risk warnings on this device.
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <button class="btn btn-outline-secondary btn-sm" id="subscribeBtn" onclick="subscribePush()">
+      <i class="bi bi-bell-fill me-1"></i>Enable
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('pushBanner').style.display='none'">
+      Dismiss
+    </button>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Left: stats (students only) + send controls -->
+  <div class="{% if current_user.role == 'student' %}col-md-5{% else %}col-md-12{% endif %}">
+
+    {% if current_user.role == 'student' %}
+    <div class="row g-2 mb-3">
+      <div class="col-6"><div class="stat-box"><div class="label">TOTAL SENT</div>
+        <div class="value" style="color:var(--accent2)" id="sTotal">—</div></div></div>
+      <div class="col-6"><div class="stat-box"><div class="label">THIS WEEK</div>
+        <div class="value" style="color:var(--accent)" id="sWeek">—</div></div></div>
+    </div>
+    {% endif %}
+
+    <!-- Faculty/HOD/Admin send tools -->
+    {% if current_user.role in ['faculty', 'hod', 'admin'] %}
+    <div class="card p-3 mb-3">
+      <div class="card-header rounded mb-3">SEND NOTIFICATIONS</div>
+
+      <div class="send-section">
+        <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:var(--text)">
+          <i class="bi bi-exclamation-triangle me-2" style="color:var(--danger)"></i>
+          Low Attendance Alert
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          Email + push to all students below 85% threshold.
+        </div>
+        <button class="btn btn-outline-secondary btn-sm w-100" onclick="sendAttendanceAlerts()">
+          Send to all defaulters
+        </button>
+      </div>
+
+      <div class="send-section">
+        <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:var(--text)">
+          <i class="bi bi-cpu me-2" style="color:var(--warn)"></i>
+          Risk Analysis Alert
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          Run ML scan and alert high/medium-risk students.
+        </div>
+        <button class="btn btn-outline-secondary btn-sm w-100" onclick="sendRiskAlerts()">
+          Run scan and notify
+        </button>
+      </div>
+
+      <div class="send-section">
+        <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:var(--text)">
+          <i class="bi bi-megaphone me-2" style="color:var(--accent2)"></i>
+          Custom Broadcast
+        </div>
+        <div class="mb-2">
+          <input type="text" class="form-control form-control-sm" id="bTitle"
+                 placeholder="Notification title">
+        </div>
+        <div class="mb-2">
+          <textarea class="form-control form-control-sm" id="bBody" rows="2"
+                    placeholder="Message body..."></textarea>
+        </div>
+        <div class="mb-2">
+          <select class="form-select form-select-sm" id="bTargets">
+            <option value="all">All students</option>
+            <option value="defaulters">Defaulters only</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm w-100" onclick="sendBroadcast()">
+          <i class="bi bi-send me-1"></i>Broadcast
+        </button>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Student: push test -->
+    {% if current_user.role == 'student' %}
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">PUSH STATUS</div>
+      <div id="pushStatus" style="font-size:13px;color:var(--muted)">Checking...</div>
+      <button class="btn btn-outline-secondary btn-sm w-100 mt-3" onclick="testPush()">
+        <i class="bi bi-bell me-1"></i>Send test notification
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: notification history (students only) -->
+  {% if current_user.role == 'student' %}
+  <div class="col-md-7">
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="card-header rounded">NOTIFICATION HISTORY</div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary btn-sm" onclick="loadLogs()" title="Refresh">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm" onclick="deleteHistory()"
+            style="background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);color:var(--danger)" title="Clear history">
+            <i class="bi bi-trash me-1"></i>Clear
+          </button>
+        </div>
+      </div>
+      <div id="logList"><p style="font-size:13px;color:var(--muted)">Loading...</p></div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Notification detail modal -->
+<div class="notif-modal-backdrop" id="notifModal" onclick="closeModalBackdrop(event)">
+  <div class="notif-modal">
+    <div class="d-flex align-items-start justify-content-between mb-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="notif-icon" id="mIcon" style="width:44px;height:44px;font-size:20px"></div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--text)" id="mTitle"></div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:2px" id="mMeta"></div>
+        </div>
+      </div>
+      <div class="modal-close-btn" onclick="closeModal()"><i class="bi bi-x-lg"></i></div>
+    </div>
+    <hr style="border-color:var(--border);margin:0 0 1rem">
+    <div style="font-size:13px;color:var(--text);line-height:1.8;white-space:pre-wrap" id="mBody"></div>
+    <div class="mt-3" id="mChannel"></div>
+  </div>
+</div>
+
+<!-- Active alerts section for students -->
+{% if current_user.role == 'student' %}
+<div class="card p-3 mt-3" id="activeAlertsCard" style="display:none">
+  <div class="card-header rounded mb-3" style="color:var(--danger)">
+    <i class="bi bi-exclamation-triangle me-2"></i>ACTIVE ALERTS
+  </div>
+  <div id="activeAlerts"></div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const role = "{{ current_user.role }}";
+
+// ── PWA Push ──────────────────────────────────────────────────────────────
+let swRegistration = null;
+
+async function initPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    document.getElementById('pushBanner').style.display = 'none';
+    if (document.getElementById('pushStatus'))
+      document.getElementById('pushStatus').textContent = 'Push not supported on this browser.';
+    return;
+  }
+
+  swRegistration = await navigator.serviceWorker.ready;
+  const existing = await swRegistration.pushManager.getSubscription();
+
+  if (existing) {
+    document.getElementById('pushBanner').style.display = 'none';
+    if (document.getElementById('pushStatus'))
+      document.getElementById('pushStatus').innerHTML =
+        '<span style="color:var(--accent)"><i class="bi bi-check-circle me-1"></i>Push notifications enabled on this device.</span>';
+  }
+}
+
+async function subscribePush() {
+  if (!swRegistration) return;
+  const btn = document.getElementById('subscribeBtn');
+  btn.textContent = 'Enabling...'; btn.disabled = true;
+
+  try {
+    // Fetch VAPID public key
+    const keyRes = await fetch('/alert/push/vapid-public');
+    const keyData = await keyRes.json();
+    const vapidKey = keyData.vapid_public_key;
+
+    let subscription;
+    if (vapidKey) {
+      subscription = await swRegistration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+    } else {
+      // No VAPID key configured — store a mock subscription for demo
+      subscription = { endpoint: 'demo', keys: {} };
+    }
+
+    await fetch('/alert/push/subscribe', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(subscription),
+    });
+
+    document.getElementById('pushBanner').style.display = 'none';
+    showToast('Push notifications enabled!', 'success');
+    if (document.getElementById('pushStatus'))
+      document.getElementById('pushStatus').innerHTML =
+        '<span style="color:var(--accent)"><i class="bi bi-check-circle me-1"></i>Push notifications enabled.</span>';
+  } catch (e) {
+    showToast('Could not enable push: ' + e.message, 'warning');
+    btn.textContent = 'Enable'; btn.disabled = false;
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = window.atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function testPush() {
+  showToast('Sending test notification...', 'info');
+  // Trigger a browser notification directly (works without VAPID for local test)
+  if ('Notification' in window) {
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      new Notification('CSE Smart System', {
+        body: 'Push notifications are working correctly!',
+        icon: '/static/manifest.json',
+      });
+    }
+  }
+}
+
+// ── Send helpers ──────────────────────────────────────────────────────────
+async function sendAttendanceAlerts() {
+  const btn = event.target;
+  btn.textContent = 'Sending...'; btn.disabled = true;
+  try {
+    const res  = await fetch('/alert/send/attendance', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message, data.success ? 'success' : 'danger');
+    loadLogs();
+  } catch { showToast('Server error.', 'danger'); }
+  btn.textContent = 'Send to all defaulters'; btn.disabled = false;
+}
+
+async function sendRiskAlerts() {
+  const btn = event.target;
+  btn.textContent = 'Scanning...'; btn.disabled = true;
+  try {
+    const res  = await fetch('/alert/send/risk', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message, data.success ? 'success' : 'danger');
+    loadLogs();
+  } catch { showToast('Server error.', 'danger'); }
+  btn.textContent = 'Run scan and notify'; btn.disabled = false;
+}
+
+async function sendBroadcast() {
+  const title   = document.getElementById('bTitle').value.trim();
+  const body    = document.getElementById('bBody').value.trim();
+  const targets = document.getElementById('bTargets').value;
+  if (!title || !body) { showToast('Title and body required.', 'warning'); return; }
+
+  const res  = await fetch('/alert/broadcast', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ title, body, targets }),
+  });
+  const data = await res.json();
+  showToast(data.message, data.success ? 'success' : 'danger');
+  document.getElementById('bTitle').value = '';
+  document.getElementById('bBody').value  = '';
+  loadLogs();
+}
+
+// ── Load logs ─────────────────────────────────────────────────────────────
+const iconMap = {
+  low_attendance: { cls:'ic-danger',  icon:'exclamation-triangle' },
+  leave_approved: { cls:'ic-success', icon:'check-circle' },
+  leave_rejected: { cls:'ic-danger',  icon:'x-circle' },
+  risk_alert:     { cls:'ic-warning', icon:'cpu' },
+  broadcast:      { cls:'ic-info',    icon:'megaphone' },
+  placement:      { cls:'ic-info',    icon:'briefcase' },
+};
+
+async function loadLogs() {
+  try {
+    const res  = await fetch('/alert/logs');
+    const data = await res.json();
+    const logs = (data.success && data.logs) ? data.logs : [];
+    renderLogs(logs);
+    const sTotal = document.getElementById('sTotal');
+    const sWeek  = document.getElementById('sWeek');
+    if (sTotal) sTotal.textContent = logs.length;
+    if (sWeek)  sWeek.textContent  = logs.length;
+  } catch {
+    renderLogs([]);
+  }
+}
+
+// Store logs globally so modal can access full body
+let _allLogs = [];
+
+function renderLogs(logs) {
+  _allLogs = logs;
+  const el = document.getElementById('logList');
+  if (!logs.length) { el.innerHTML = '<p style="font-size:13px;color:var(--muted)">No notifications yet.</p>'; return; }
+  el.innerHTML = logs.map((l, idx) => {
+    const ic   = iconMap[l.event_type] || { cls:'ic-info', icon:'bell' };
+    const time = new Date(l.created_at).toLocaleString('en-IN',
+      { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    const cpCls = l.channel === 'email' ? 'cp-email' : l.channel === 'push' ? 'cp-push' : 'cp-both';
+    const preview = (l.body||'').length > 55 ? (l.body||'').slice(0,55)+'\u2026' : (l.body||'');
+    return `<div class="notif-card" onclick="openNotif(${idx})">
+      <div class="notif-icon ${ic.cls}"><i class="bi bi-${ic.icon}" style="font-size:14px"></i></div>
+      <div style="flex:1;min-width:0">
+        <div class="notif-title">${l.title}</div>
+        <div class="notif-body">${preview}</div>
+        <span class="channel-pill ${cpCls}">${l.channel.toUpperCase()}</span>
+      </div>
+      <div class="notif-time">${time}</div>
+    </div>`;
+  }).join('');
+}
+
+function openNotif(idx) {
+  const l    = _allLogs[idx];
+  const ic   = iconMap[l.event_type] || { cls:'ic-info', icon:'bell' };
+  const time = new Date(l.created_at).toLocaleString('en-IN',
+    { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const cpCls = l.channel === 'email' ? 'cp-email' : l.channel === 'push' ? 'cp-push' : 'cp-both';
+
+  document.getElementById('mIcon').className = `notif-icon ${ic.cls}`;
+  document.getElementById('mIcon').innerHTML = `<i class="bi bi-${ic.icon}" style="font-size:20px"></i>`;
+  document.getElementById('mTitle').textContent = l.title;
+  document.getElementById('mMeta').textContent  = time + '  ·  ' + l.channel.toUpperCase();
+  document.getElementById('mBody').textContent  = l.body || 'No additional details.';
+  document.getElementById('mChannel').innerHTML = `<span class="channel-pill ${cpCls}">${l.channel.toUpperCase()}</span>`;
+  document.getElementById('notifModal').classList.add('open');
+}
+function closeModal() { document.getElementById('notifModal').classList.remove('open'); }
+function closeModalBackdrop(e) { if (e.target.id === 'notifModal') closeModal(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+async function deleteHistory() {
+  if (!confirm('Clear your entire notification history? This cannot be undone.')) return;
+  try {
+    const res  = await fetch('/alert/logs/clear', { method: 'DELETE' });
+    const data = await res.json();
+    showToast(data.message || 'History cleared.', data.success ? 'success' : 'danger');
+    if (data.success) {
+      loadLogs();
+      document.getElementById('sTotal').textContent = '0';
+      document.getElementById('sWeek').textContent  = '0';
+    }
+  } catch { showToast('Server error.', 'danger'); }
+}
+
+// Load active alerts for students
+async function loadActiveAlerts() {
+  if (role !== 'student') return;
+  try {
+    const res  = await fetch('/alert/my');
+    const data = await res.json();
+    if (data.alerts && data.alerts.length > 0) {
+      document.getElementById('activeAlertsCard').style.display = 'block';
+      document.getElementById('activeAlerts').innerHTML = data.alerts.map(a => `
+        <div class="alert alert-${a.type} py-2 px-3 mb-2" style="font-size:13px">
+          <i class="bi bi-${a.icon} me-2"></i>
+          <strong>${a.title}:</strong> ${a.message}
+        </div>`).join('');
+    }
+  } catch {}
+}
+
+function showToast(msg, type) {
+  const el = document.createElement('div');
+  el.className = `alert alert-${type} alert-dismissible fade show`;
+  el.style.cssText = 'position:fixed;top:70px;right:20px;z-index:9999;min-width:300px;font-size:13px';
+  el.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+initPush();
+loadLogs();
+loadActiveAlerts();
+</script>
+{% endblock %}

@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<script>
+  // Apply saved theme immediately, before first paint, to avoid a flash of the wrong theme.
+  (function(){
+    try {
+      const saved = localStorage.getItem('edufusion-theme');
+      if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch(e) {}
+  })();
+</script>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}EduFusion{% endblock %}</title>
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#3fb950" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="EduFusion" />
+  <meta name="application-name" content="EduFusion" />
+  <meta name="description" content="AI-Driven Academic, Attendance &amp; Placement Management System" />
+  <meta name="msapplication-TileColor" content="#0d1117" />
+  <meta name="msapplication-TileImage" content="/static/icons/icon-144.png" />
+  <!-- Apple Touch Icons -->
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/static/icons/icon-152.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192.png" />
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="96x96" href="/static/icons/icon-96.png" />
+  <link rel="shortcut icon" href="/static/icons/icon-96.png" />
+  <!-- Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root{--bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+          --accent:#3fb950;--accent2:#58a6ff;--text:#e6edf3;--muted:#8b949e;
+          --danger:#f85149;--warn:#d29922;--heading:#e6edf3;--hover-tint:rgba(255,255,255,.03);
+          --shadow-soft:rgba(0,0,0,.35);--navbar-bg:rgba(22,27,34,.85);--toast-bg:rgba(22,27,34,.92);
+          /* Override Bootstrap 5 defaults so its components inherit our theme */
+          --bs-body-color:#e6edf3;--bs-body-bg:#0d1117;
+          --bs-secondary-color:#8b949e;--bs-link-color:#58a6ff;}
+    [data-theme="light"]{
+      --bg:#f6f8fa;--surface:#ffffff;--surface2:#eef1f5;--border:#d0d7de;
+      --accent:#2da44e;--accent2:#0969da;--text:#1f2328;--muted:#59636e;
+      --danger:#cf222e;--warn:#9a6700;--heading:#24292f;--hover-tint:rgba(0,0,0,.025);
+      --shadow-soft:rgba(140,149,159,.25);--navbar-bg:rgba(255,255,255,.85);--toast-bg:rgba(255,255,255,.95);
+      /* Override Bootstrap 5 defaults for light theme */
+      --bs-body-color:#1f2328;--bs-body-bg:#f6f8fa;
+      --bs-secondary-color:#59636e;--bs-link-color:#0969da;
+    }
+    *{box-sizing:border-box;}
+    html{transition:background-color .25s ease;}
+    body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+         transition:background-color .25s ease,color .25s ease;}
+
+    /* Theme toggle */
+    .theme-toggle{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);
+                  background:var(--surface2);color:var(--muted);display:flex;align-items:center;
+                  justify-content:center;cursor:pointer;transition:all .2s;font-size:14px;}
+    .theme-toggle:hover{color:var(--text);border-color:var(--muted);}
+
+    /* Navbar */
+    .navbar{background:var(--navbar-bg)!important;backdrop-filter:blur(10px);
+            border-bottom:1px solid var(--border);padding:0 1rem;
+            box-shadow:0 1px 0 rgba(0,0,0,.2);}
+    .navbar-brand{font-family:'Space Mono',monospace;font-size:14px;color:var(--accent)!important;letter-spacing:.5px;}
+    .nav-link{color:var(--muted)!important;font-size:13px;}
+    .nav-link:hover,.nav-link.active{color:var(--text)!important;}
+
+    /* Sidebar */
+    .sidebar{background:var(--surface);border-right:1px solid var(--border);
+             min-height:calc(100vh - 56px);padding:1rem 0;
+             width:210px;position:fixed;top:56px;left:0;overflow-y:auto;}
+    .sidebar .nav-link{padding:8px 18px;border-radius:0;font-size:13px;
+                        display:flex;align-items:center;gap:8px;color:var(--muted)!important;
+                        transition:background .18s,color .18s,border-color .18s;}
+    .sidebar .nav-link:hover{background:var(--surface2);color:var(--text)!important;}
+    .sidebar .nav-link.active{background:rgba(63,185,80,.08);color:var(--accent)!important;
+                               border-right:2px solid var(--accent);}
+    .sidebar .nav-link i{width:16px;text-align:center;font-size:14px;}
+    .sidebar hr{border-color:var(--border);margin:6px 14px;}
+    .sidebar-section{font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;
+                      letter-spacing:1px;padding:8px 18px 2px;}
+
+    /* Main content */
+    .main-content{margin-left:210px;padding:1.5rem;min-height:calc(100vh - 56px);padding-top:calc(56px + 1.5rem);
+                  animation:contentIn .5s cubic-bezier(.16,1,.3,1);}
+    @keyframes contentIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+    /* Cards */
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+          transition:border-color .25s,box-shadow .25s;}
+    .card-header{background:var(--surface2);border-bottom:1px solid var(--border);
+                 font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);
+                 letter-spacing:.5px;padding:8px 12px;}
+
+    /* Bootstrap overrides */
+    .btn-primary{background:var(--accent);border-color:var(--accent);color:#0d1117;font-weight:600;
+                 transition:background .2s,box-shadow .25s,transform .15s;}
+    .btn-primary:hover{background:#57d068;border-color:#57d068;color:#0d1117;
+                       box-shadow:0 6px 20px rgba(63,185,80,.3);transform:translateY(-1px);}
+    .btn-outline-secondary{border-color:var(--border);color:var(--muted);transition:all .2s;}
+    .btn-outline-secondary:hover{background:var(--surface2);color:var(--text);border-color:var(--muted);}
+    .btn-outline-secondary.active{background:var(--surface2);color:var(--text);border-color:var(--muted);}
+    .form-control,.form-select{background:var(--surface2);border-color:var(--border);color:var(--text);}
+    .form-control:focus,.form-select:focus{background:var(--surface2);border-color:var(--accent2);
+                                            color:var(--text);box-shadow:0 0 0 2px rgba(88,166,255,.15);}
+    .form-control::placeholder{color:var(--muted);}
+    .form-select option{background:var(--surface2);color:var(--text);}
+    select{color:var(--text);}
+    select option{background:var(--surface2);color:var(--text);}
+    .table{color:var(--text);--bs-table-color:var(--text);--bs-table-bg:transparent;
+           --bs-table-striped-color:var(--text);--bs-table-hover-color:var(--text);
+           --bs-table-border-color:var(--border);}
+    .table>:not(caption)>*>*{color:var(--text)!important;background-color:transparent;}
+    .table>:not(caption)>*>th{background:var(--surface2);border-color:var(--border)!important;
+                    font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)!important;letter-spacing:.5px;}
+    .table td{border-color:var(--border);font-size:13px;vertical-align:middle;}
+    .table tbody tr:hover{background:var(--surface2);}
+    .progress{background:var(--surface2);height:6px;border-radius:4px;}
+    .progress-bar{background:var(--accent);}
+    .alert-info{background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.3);color:var(--accent2);}
+    .alert-success{background:rgba(63,185,80,.1);border-color:rgba(63,185,80,.3);color:var(--accent);}
+    .alert-warning{background:rgba(210,153,34,.1);border-color:rgba(210,153,34,.3);color:var(--warn);}
+    .alert-danger{background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.3);color:var(--danger);}
+    .nav-tabs{border-color:var(--border);}
+    .nav-tabs .nav-link{color:var(--muted);border:none;border-bottom:2px solid transparent;border-radius:0;}
+    .nav-tabs .nav-link.active{color:var(--text);border-bottom-color:var(--text);background:transparent;}
+
+    /* ── Global dark-mode safety net ────────────────────────────────────────
+       Several stat-box/stat-chip components across pages set font-size/
+       font-weight but omit color, causing invisible text on the dark bg.
+       Bootstrap 5's --bs-body-color can bleed through innerHTML insertions.
+       These rules provide a safe var(--text) fallback for every theme.    */
+    .stat-box .value,
+    .stat-box .num,
+    .stat-chip .val,
+    .reason-item,
+    .subj-name,
+    .log-msg,
+    .sys-row { color: var(--text) !important; }
+    /* Colored tiles (danger/accent/warn) override via inline style which wins over !important */
+
+    /* Badges */
+    .mono{font-family:'Space Mono',monospace;}
+    .badge-accent{background:rgba(63,185,80,.15);color:var(--accent);font-size:10px;
+                   padding:3px 10px;border-radius:10px;font-family:'Space Mono',monospace;}
+    .badge-blue{background:rgba(88,166,255,.15);color:var(--accent2);font-size:10px;
+                 padding:3px 10px;border-radius:10px;font-family:'Space Mono',monospace;}
+    .badge-warn{background:rgba(210,153,34,.15);color:var(--warn);font-size:10px;
+                 padding:3px 10px;border-radius:10px;font-family:'Space Mono',monospace;}
+    .badge-danger{background:rgba(248,81,73,.15);color:var(--danger);font-size:10px;
+                   padding:3px 10px;border-radius:10px;font-family:'Space Mono',monospace;}
+
+    /* Global heading typography — distinctive display face, consistent with landing/login */
+    h1,h2,h3,h4,h5,h6{color:var(--heading) !important;font-family:'Space Grotesk',sans-serif;letter-spacing:-.2px;}
+    h4,h5{font-weight:600 !important;}
+
+    @media(max-width:768px){
+      .sidebar{display:none;}
+      .main-content{margin-left:0;padding:1rem;padding-top:calc(56px + 1rem);}
+    }
+    @media (prefers-reduced-motion:reduce){
+      .main-content{animation:none;}
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       PREMIUM DESIGN SYSTEM — foundation (cursor, glass, toasts)
+       ══════════════════════════════════════════════════════════ */
+
+    /* Custom cursor (desktop only) */
+    #cursorDot,#cursorRing{position:fixed;top:0;left:0;pointer-events:none;z-index:9999;
+                            border-radius:50%;transform:translate(-50%,-50%);}
+    #cursorDot{width:6px;height:6px;background:var(--accent);opacity:0;transition:opacity .2s;}
+    #cursorRing{width:32px;height:32px;border:1.5px solid rgba(63,185,80,.5);opacity:0;
+                transition:opacity .2s,width .2s,height .2s,border-color .2s,background .2s;}
+    #cursorRing.hovering{width:46px;height:46px;background:rgba(63,185,80,.08);border-color:var(--accent2);}
+    body.cursor-ready,body.cursor-ready a,body.cursor-ready button,body.cursor-ready .btn,
+    body.cursor-ready input,body.cursor-ready select,body.cursor-ready [role="button"]{cursor:none!important;}
+    @media (hover:none){ #cursorDot,#cursorRing{display:none!important;} body.cursor-ready{cursor:auto!important;} }
+
+    /* Magnetic buttons (opt-in via .magnetic class) */
+    .magnetic{transition:transform .15s ease;display:inline-block;}
+
+    /* Glass card variant (opt-in via .glass-card) */
+    .glass-card{background:rgba(22,27,34,.7);backdrop-filter:blur(14px);
+                border:1px solid var(--border);border-radius:14px;
+                transition:border-color .3s,box-shadow .3s,transform .2s;}
+    .glass-card:hover{border-color:rgba(88,166,255,.35);box-shadow:0 12px 32px rgba(0,0,0,.35);}
+    .tilt-card{transform-style:preserve-3d;transition:transform .1s ease;}
+
+    /* Skeleton shimmer (for future loading states) */
+    .skeleton{position:relative;overflow:hidden;background:var(--surface2);border-radius:8px;}
+    .skeleton::after{content:'';position:absolute;inset:0;
+                      background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
+                      transform:translateX(-100%);animation:shimmer 1.6s infinite;}
+    @keyframes shimmer{100%{transform:translateX(100%);}}
+
+    /* Premium toast notifications */
+    #toastStack{position:fixed;top:70px;right:20px;z-index:9998;display:flex;flex-direction:column;gap:10px;
+                max-width:360px;}
+    .toast-premium{background:var(--toast-bg);backdrop-filter:blur(14px);
+                    border:1px solid var(--border);border-left:3px solid var(--accent2);
+                    border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;
+                    box-shadow:0 12px 32px rgba(0,0,0,.4);
+                    opacity:0;transform:translateX(30px);
+                    animation:toastIn .35s cubic-bezier(.16,1,.3,1) forwards;position:relative;overflow:hidden;}
+    .toast-premium.leaving{animation:toastOut .3s ease forwards;}
+    @keyframes toastIn{to{opacity:1;transform:translateX(0);}}
+    @keyframes toastOut{to{opacity:0;transform:translateX(30px);}}
+    .toast-premium.success{border-left-color:var(--accent);}
+    .toast-premium.danger{border-left-color:var(--danger);}
+    .toast-premium.warning{border-left-color:var(--warn);}
+    .toast-premium .t-icon{font-size:16px;margin-top:1px;}
+    .toast-premium.success .t-icon{color:var(--accent);}
+    .toast-premium.danger .t-icon{color:var(--danger);}
+    .toast-premium.warning .t-icon{color:var(--warn);}
+    .toast-premium.info .t-icon{color:var(--accent2);}
+    .toast-premium .t-title{font-size:13px;font-weight:600;margin-bottom:2px;}
+    .toast-premium .t-msg{font-size:12px;color:var(--muted);line-height:1.4;}
+    .toast-premium .t-close{position:absolute;top:8px;right:10px;background:none;border:none;
+                             color:var(--muted);font-size:14px;cursor:pointer;line-height:1;}
+    .toast-premium .t-bar{position:absolute;bottom:0;left:0;height:2px;background:var(--accent2);
+                          animation:toastBar 4s linear forwards;}
+    @keyframes toastBar{from{width:100%;}to{width:0%;}}
+
+    /* Premium preloader (authenticated pages) */
+    #appPreloader{position:fixed;inset:0;z-index:10000;background:var(--bg);display:flex;
+                  align-items:center;justify-content:center;transition:opacity .5s ease,visibility .5s;}
+    #appPreloader.hide{opacity:0;visibility:hidden;pointer-events:none;}
+    #appPreloader .pre-mark{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;
+                            color:var(--text);opacity:0;animation:preIn .7s ease forwards;}
+    #appPreloader .pre-mark b{color:var(--accent);}
+    #appPreloader .pre-bar{position:absolute;bottom:calc(50% - 38px);left:50%;transform:translateX(-50%);
+                           width:90px;height:2px;background:var(--border);border-radius:2px;overflow:hidden;}
+    #appPreloader .pre-bar::after{content:'';position:absolute;left:-40%;top:0;height:100%;width:40%;
+                                  background:linear-gradient(90deg,var(--accent),var(--accent2));
+                                  animation:preSlide .9s ease-in-out infinite;}
+    @keyframes preIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+    @keyframes preSlide{0%{left:-40%;}100%{left:100%;}}
+
+    @media (prefers-reduced-motion:reduce){
+      .toast-premium{animation:none;opacity:1;transform:none;}
+      #appPreloader{display:none;}
+      .skeleton::after{animation:none;}
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div id="appPreloader"><div class="pre-bar"></div><div class="pre-mark">Edu<b>Fusion</b></div></div>
+<div id="cursorRing"></div>
+<div id="cursorDot"></div>
+<div id="toastStack"></div>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg fixed-top">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/dashboard/">CSE<span style="color:#58a6ff">.</span>SMART</a>
+    <div class="d-flex align-items-center gap-3 ms-auto">
+      <span style="font-size:12px;color:var(--muted)">{{ current_user.name }}</span>
+      <span class="badge-blue">{{ current_user.role | upper }}</span>
+      <button class="theme-toggle magnetic" id="themeToggle" onclick="toggleTheme()" title="Switch theme">
+        <i class="bi bi-moon-stars" id="themeIcon"></i>
+      </button>
+
+      <!-- PWA Install Button (shown only when installable) -->
+      <button id="pwaInstallBtn" onclick="pwaInstall()"
+        title="Install EduFusion App"
+        style="display:none;background:linear-gradient(135deg,#3fb950,#2ea043);
+               border:none;color:#fff;border-radius:8px;padding:5px 12px;
+               font-size:12px;font-weight:600;cursor:pointer;transition:opacity .2s;
+               display:none;align-items:center;gap:5px">
+        <i class="bi bi-download"></i> Install App
+      </button>
+
+      <!-- ── Notification Bell ─────────────────────────────────────────── -->
+      <div class="dropdown" id="notifDropdown">
+        <button class="btn btn-outline-secondary btn-sm position-relative magnetic" id="bellBtn"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                onclick="loadNotifications()" title="Notifications">
+          <i class="bi bi-bell"></i>
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
+                style="background:#f85149;font-size:9px;padding:2px 5px;display:none"
+                id="bellBadge">0</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end p-0"
+             style="width:340px;max-height:420px;overflow-y:auto;
+                    background:var(--surface);border:1px solid var(--border);
+                    border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);
+                      display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;font-weight:600">Notifications</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-outline-secondary btn-sm" style="font-size:10px"
+                      onclick="markAllRead()">Mark all read</button>
+              <button class="btn btn-sm" style="font-size:10px;
+                      background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);color:#f85149"
+                      onclick="clearBellNotifs()">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div id="notifList" style="padding:8px 0">
+            <div style="text-align:center;padding:1.5rem;font-size:12px;color:var(--muted)">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <a href="/auth/logout" class="btn btn-outline-secondary btn-sm magnetic" title="Logout">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <nav class="nav flex-column">
+
+    <!-- Common -->
+    {% if current_user.role == 'admin' %}
+    <a class="nav-link {% if request.path == '/admin/dashboard' or request.path == '/admin/' %}active{% endif %}" href="/admin/dashboard">
+      <i class="bi bi-grid-1x2"></i> Dashboard
+    </a>
+    {% else %}
+    <a class="nav-link {% if request.path.startswith('/dashboard') %}active{% endif %}" href="/dashboard/">
+      <i class="bi bi-grid-1x2"></i> Dashboard
+    </a>
+    {% endif %}
+
+    <!-- Student links -->
+    {% if current_user.role == 'student' %}
+    <div class="sidebar-section">ACADEMICS</div>
+    <a class="nav-link {% if request.path == '/attendance/my' %}active{% endif %}" href="/attendance/my">
+      <i class="bi bi-calendar-check"></i> My Attendance
+    </a>
+    <a class="nav-link {% if request.path == '/attendance/missed' %}active{% endif %}" href="/attendance/missed">
+      <i class="bi bi-calendar-x"></i> Missed Classes
+    </a>
+    <a class="nav-link {% if request.path.startswith('/attendance/simulator') %}active{% endif %}" href="/attendance/simulator">
+      <i class="bi bi-calculator"></i> Att. Simulator
+    </a>
+    <a class="nav-link {% if request.path.startswith('/leave/apply') %}active{% endif %}" href="/leave/apply">
+      <i class="bi bi-file-earmark-text"></i> Apply Leave
+    </a>
+
+    <div class="sidebar-section">AI & ML</div>
+    <a class="nav-link {% if request.path.startswith('/ml/predict') %}active{% endif %}" href="/ml/predict">
+      <i class="bi bi-cpu"></i> AI Prediction
+    </a>
+
+    <div class="sidebar-section">CAREER</div>
+    <a class="nav-link {% if request.path.startswith('/placement') and not request.path.startswith('/placement/career-assistant') %}active{% endif %}" href="/placement/profile">
+      <i class="bi bi-briefcase"></i> Placement
+    </a>
+    <a class="nav-link {% if request.path.startswith('/placement/career-assistant') %}active{% endif %}" href="/placement/career-assistant">
+      <i class="bi bi-stars"></i> Career Assistant
+    </a>
+    <a class="nav-link {% if request.path.startswith('/drives') %}active{% endif %}" href="/drives/">
+      <i class="bi bi-building"></i> Company Drives
+    </a>
+    <a class="nav-link {% if request.path.startswith('/project') %}active{% endif %}" href="/project/">
+      <i class="bi bi-kanban"></i> My Projects
+    </a>
+    {% endif %}
+
+    <!-- Faculty links -->
+    {% if current_user.role in ['faculty', 'hod'] %}
+    <div class="sidebar-section">ATTENDANCE</div>
+    <a class="nav-link {% if request.path.startswith('/attendance/mark') %}active{% endif %}" href="/attendance/mark">
+      <i class="bi bi-check2-square"></i> Mark Attendance
+    </a>
+    <a class="nav-link {% if request.path.startswith('/attendance/defaulters') %}active{% endif %}" href="/attendance/defaulters">
+      <i class="bi bi-exclamation-triangle"></i> Defaulters
+    </a>
+
+    <div class="sidebar-section">APPROVALS</div>
+    <a class="nav-link {% if request.path.startswith('/leave/pending/mentor') %}active{% endif %}" href="/leave/pending/mentor">
+      <i class="bi bi-check2-square"></i> Leave Approvals
+    </a>
+    <a class="nav-link {% if request.path.startswith('/leave/mentor/report') %}active{% endif %}" href="/leave/mentor/report">
+      <i class="bi bi-file-earmark-bar-graph"></i> Leave Report
+    </a>
+    <a class="nav-link {% if request.path.startswith('/project') %}active{% endif %}" href="/project/">
+      <i class="bi bi-kanban"></i> Projects
+    </a>
+    <a class="nav-link {% if request.path.startswith('/hod/my-subjects') %}active{% endif %}" href="/hod/my-subjects">
+      <i class="bi bi-journal-bookmark"></i> My Subjects
+    </a>
+
+    <div class="sidebar-section">ANALYTICS</div>
+    <a class="nav-link {% if request.path.startswith('/ml/predict') %}active{% endif %}" href="/ml/predict">
+      <i class="bi bi-graph-up"></i> ML Analysis
+    </a>
+    <a class="nav-link {% if request.path.startswith('/placement/eligible') %}active{% endif %}" href="/placement/eligible">
+      <i class="bi bi-award"></i> Placement
+    </a>
+    {% endif %}
+
+    <!-- HOD extra -->
+    {% if current_user.role == 'hod' %}
+    <div class="sidebar-section">HOD</div>
+    <a class="nav-link {% if request.path.startswith('/leave/pending/hod') %}active{% endif %}" href="/leave/pending/hod">
+      <i class="bi bi-clipboard-check"></i> HOD Approvals
+    </a>
+    <a class="nav-link {% if request.path.startswith('/drives/post') %}active{% endif %}" href="/drives/post">
+      <i class="bi bi-megaphone"></i> Post Drive
+    </a>
+    <a class="nav-link {% if request.path.startswith('/hod/faculty') %}active{% endif %}" href="/hod/faculty">
+      <i class="bi bi-people"></i> Faculty Management
+    </a>
+
+    {% endif %}
+
+    <!-- Admin links -->
+    {% if current_user.role == 'admin' %}
+    <div class="sidebar-section">ADMIN</div>
+    <a class="nav-link {% if request.path.startswith('/admin/mentors') %}active{% endif %}" href="/admin/mentors">
+      <i class="bi bi-person-heart"></i> Mentor Assignment
+    </a>
+    <a class="nav-link {% if request.path.startswith('/leave/mentor/report') %}active{% endif %}" href="/leave/mentor/report">
+      <i class="bi bi-file-earmark-bar-graph"></i> Leave Reports
+    </a>
+    <a class="nav-link {% if request.path.startswith('/auth/register') %}active{% endif %}" href="/auth/register">
+      <i class="bi bi-person-plus"></i> Add User
+    </a>
+    <a class="nav-link" href="/ml/predict">
+      <i class="bi bi-cpu"></i> ML Panel
+    </a>
+    <a class="nav-link {% if request.path.startswith('/drives/post') %}active{% endif %}" href="/drives/post">
+      <i class="bi bi-megaphone"></i> Post Drive
+    </a>
+    {% endif %}
+
+
+    <!-- Common bottom -->
+    <hr/>
+    <a class="nav-link {% if request.path.startswith('/alert') %}active{% endif %}" href="/alert/centre">
+      <i class="bi bi-bell"></i> Alerts
+    </a>
+    <a class="nav-link {% if request.path.startswith('/auth/profile') %}active{% endif %}" href="/auth/profile">
+      <i class="bi bi-person-circle"></i> Profile
+    </a>
+
+  </nav>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <script>
+        window.__flashedMessages = {{ messages | tojson }};
+      </script>
+    {% endif %}
+  {% endwith %}
+
+  <!-- ── Impersonation Banner ── -->
+  {% if session.get('_impersonator_id') %}
+  <div style="
+    background:linear-gradient(135deg,rgba(210,153,28,.2),rgba(210,153,28,.08));
+    border:1px solid rgba(210,153,28,.5);border-radius:12px;
+    padding:10px 18px;margin-bottom:16px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    position:sticky;top:0;z-index:999;backdrop-filter:blur(8px);
+  ">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">👁️</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#d29922">
+          Preview Mode — Viewing as {{ current_user.name }}
+        </div>
+        <div style="font-size:11px;color:var(--muted)">
+          Role: {{ session.get('_impersonating_role','') | title }} · You are logged in as admin in the background
+        </div>
+      </div>
+    </div>
+    <a href="/admin/exit-impersonation"
+       style="background:rgba(210,153,28,.2);border:1px solid rgba(210,153,28,.5);
+              color:#d29922;border-radius:8px;padding:6px 14px;
+              font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;
+              transition:all .2s"
+       onmouseover="this.style.background='rgba(210,153,28,.35)'"
+       onmouseout="this.style.background='rgba(210,153,28,.2)'">
+      ✕ Exit Preview
+    </a>
+  </div>
+  {% endif %}
+
+  {% block content %}{% endblock %}
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  // ══════════════════════════════════════════════════════════════
+  //  PREMIUM DESIGN SYSTEM — cursor, magnetic buttons, toasts, preloader
+  // ══════════════════════════════════════════════════════════════
+  const _reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const _hasHover     = window.matchMedia('(hover: hover)').matches;
+
+  // ---- Theme toggle ----
+  function _applyThemeIcon() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const icon = document.getElementById('themeIcon');
+    if (icon) icon.className = isLight ? 'bi bi-sun' : 'bi bi-moon-stars';
+  }
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isLight = html.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      html.removeAttribute('data-theme');
+      try { localStorage.setItem('edufusion-theme', 'dark'); } catch(e) {}
+    } else {
+      html.setAttribute('data-theme', 'light');
+      try { localStorage.setItem('edufusion-theme', 'light'); } catch(e) {}
+    }
+    _applyThemeIcon();
+  }
+  window.toggleTheme = toggleTheme;
+  document.addEventListener('DOMContentLoaded', _applyThemeIcon);
+
+  // ---- Preloader ----
+  window.addEventListener('load', () => {
+    setTimeout(() => document.getElementById('appPreloader')?.classList.add('hide'), 350);
+  });
+  setTimeout(() => document.getElementById('appPreloader')?.classList.add('hide'), 1800); // safety fallback
+
+  // ---- Custom cursor ----
+  if (_hasHover && !_reduceMotion) {
+    document.body.classList.add('cursor-ready');
+    const dot = document.getElementById('cursorDot');
+    const ring = document.getElementById('cursorRing');
+    let mx = 0, my = 0, rx = 0, ry = 0;
+    document.addEventListener('mousemove', e => {
+      mx = e.clientX; my = e.clientY;
+      dot.style.opacity = '1'; ring.style.opacity = '1';
+      dot.style.left = mx + 'px'; dot.style.top = my + 'px';
+    });
+    document.addEventListener('mouseleave', () => { dot.style.opacity='0'; ring.style.opacity='0'; });
+    (function loop(){
+      rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
+      ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+      requestAnimationFrame(loop);
+    })();
+    document.addEventListener('mouseover', e => {
+      if (e.target.closest('a,button,.btn,input,select,[role="button"]')) ring.classList.add('hovering');
+    });
+    document.addEventListener('mouseout', e => {
+      if (e.target.closest('a,button,.btn,input,select,[role="button"]')) ring.classList.remove('hovering');
+    });
+  }
+
+  // ---- Magnetic buttons (opt-in via class="magnetic") ----
+  function initMagnetic(root=document) {
+    if (!_hasHover) return;
+    root.querySelectorAll('.magnetic').forEach(btn => {
+      if (btn.dataset.magneticBound) return;
+      btn.dataset.magneticBound = '1';
+      btn.addEventListener('mousemove', e => {
+        const r = btn.getBoundingClientRect();
+        const mx2 = e.clientX - r.left - r.width / 2;
+        const my2 = e.clientY - r.top - r.height / 2;
+        btn.style.transform = `translate(${mx2 * 0.18}px, ${my2 * 0.3}px)`;
+      });
+      btn.addEventListener('mouseleave', () => { btn.style.transform = 'translate(0,0)'; });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', () => initMagnetic());
+
+  // ---- Premium toasts ----
+  function showToast(type, title, message, duration=4000) {
+    const stack = document.getElementById('toastStack');
+    if (!stack) return;
+    const icons = { success:'bi-check-circle', danger:'bi-exclamation-octagon',
+                    warning:'bi-exclamation-triangle', info:'bi-info-circle' };
+    const el = document.createElement('div');
+    el.className = `toast-premium ${type}`;
+    el.innerHTML = `
+      <i class="bi ${icons[type]||'bi-bell'} t-icon"></i>
+      <div style="flex:1;min-width:0">
+        ${title ? `<div class="t-title">${title}</div>` : ''}
+        <div class="t-msg">${message}</div>
+      </div>
+      <button class="t-close" aria-label="Dismiss">×</button>
+      <div class="t-bar" style="animation-duration:${duration}ms"></div>`;
+    stack.appendChild(el);
+
+    const remove = () => {
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 280);
+    };
+    el.querySelector('.t-close').addEventListener('click', remove);
+    const timer = setTimeout(remove, duration);
+    el.addEventListener('mouseenter', () => clearTimeout(timer));
+  }
+  window.showToast = showToast;
+
+  // Map Flask flash() categories to toast types
+  const _catMap = { success:'success', danger:'danger', warning:'warning', info:'info', message:'info' };
+  (window.__flashedMessages || []).forEach(([cat, msg]) => {
+    showToast(_catMap[cat] || 'info', null, msg);
+  });
+</script>
+<script>
+  // ══════════════════════════════════════════════════════════════
+  //  PWA — Service Worker + Install Prompt
+  // ══════════════════════════════════════════════════════════════
+  let _swRegistration = null;
+  let _deferredInstallPrompt = null;
+
+  // Capture install prompt
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    // Show banner only if not dismissed before
+    if (!localStorage.getItem('pwaDismissed') && !localStorage.getItem('pwaInstalled')) {
+      const banner = document.getElementById('pwaInstallBanner');
+      if (banner) banner.style.display = 'flex';
+    }
+  });
+
+  // Hide banner after install
+  window.addEventListener('appinstalled', () => {
+    localStorage.setItem('pwaInstalled', '1');
+    const banner = document.getElementById('pwaInstallBanner');
+    if (banner) banner.style.display = 'none';
+    console.log('[PWA] App installed!');
+  });
+
+  function installPWA() {
+    if (!_deferredInstallPrompt) return;
+    _deferredInstallPrompt.prompt();
+    _deferredInstallPrompt.userChoice.then(choice => {
+      if (choice.outcome === 'accepted') {
+        localStorage.setItem('pwaInstalled', '1');
+        document.getElementById('pwaInstallBanner').style.display = 'none';
+      }
+      _deferredInstallPrompt = null;
+    });
+  }
+
+  function reloadForUpdate() {
+    if (_swRegistration?.waiting) {
+      _swRegistration.waiting.postMessage('SKIP_WAITING');
+    }
+    window.location.reload();
+  }
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+      .then(reg => {
+        _swRegistration = reg;
+        console.log('[PWA] SW registered, scope:', reg.scope);
+
+        // Check for updates
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version ready — show update banner
+              const banner = document.getElementById('pwaUpdateBanner');
+              if (banner) banner.style.display = 'flex';
+            }
+          });
+        });
+      })
+      .catch(e => console.warn('[PWA] SW failed:', e));
+
+    // Listen for SW messages
+    navigator.serviceWorker.addEventListener('message', event => {
+      if (event.data?.type === 'SYNC_NOTIFICATIONS') {
+        loadNotifications();
+      }
+    });
+  }
+
+  // ── Notification Bell ────────────────────────────────────────────────────
+  async function loadNotifications() {
+    try {
+      const res  = await fetch('/notify/api/mine');
+      const data = await res.json();
+      if (!data.success) return;
+      updateBell(data.unread);
+      renderNotifications(data.notifications);
+    } catch {}
+  }
+
+  function updateBell(count) {
+    const badge = document.getElementById('bellBadge');
+    if (!badge) return;
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-block' : 'none';
+  }
+
+  function renderNotifications(notifs) {
+    const el = document.getElementById('notifList');
+    if (!el) return;
+    if (!notifs.length) {
+      el.innerHTML = '<div style="text-align:center;padding:1.5rem;font-size:12px;color:var(--muted)">No notifications yet.</div>';
+      return;
+    }
+    el.innerHTML = notifs.slice(0,15).map(n => `
+      <div onclick="readNotif(${n.id},'${n.ref_url||''}',this)"
+           style="padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;
+                  background:${n.is_read?'transparent':'rgba(88,166,255,.05)'};
+                  display:flex;gap:10px;align-items:flex-start;
+                  transition:background .15s"
+           onmouseover="this.style.background='var(--surface2)'"
+           onmouseout="this.style.background='${n.is_read?'transparent':'rgba(88,166,255,.05)'}'">
+        <div style="width:30px;height:30px;border-radius:50%;background:rgba(88,166,255,.12);
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="bi ${n.icon||'bi-bell'}" style="font-size:13px;color:${n.color||'#58a6ff'}"></i>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:${n.is_read?'400':'600'};color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n.title}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.body||''}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:'Space Mono',monospace">${n.created_at.split('T')[0]}</div>
+        </div>
+        ${!n.is_read ? '<div style="width:7px;height:7px;border-radius:50%;background:#58a6ff;flex-shrink:0;margin-top:5px"></div>' : ''}
+      </div>`).join('');
+  }
+
+  async function readNotif(id, url, el) {
+    await fetch(`/notify/api/read/${id}`, { method: 'POST' }).catch(()=>{});
+    el.style.background = 'transparent';
+    const dot = el.querySelector('[style*="border-radius:50%;background:#58a6ff"]');
+    if (dot) dot.remove();
+    // Decrement badge
+    const badge = document.getElementById('bellBadge');
+    if (badge) {
+      const cur = parseInt(badge.textContent) - 1;
+      badge.textContent = cur;
+      if (cur <= 0) badge.style.display = 'none';
+    }
+    if (url) { window.location.href = url; }
+  }
+
+  async function markAllRead() {
+    await fetch('/notify/api/read-all', { method: 'POST' }).catch(()=>{});
+    document.getElementById('bellBadge').style.display = 'none';
+    loadNotifications();
+  }
+
+  async function clearBellNotifs() {
+    if (!confirm('Clear all notifications? This cannot be undone.')) return;
+    try {
+      const res  = await fetch('/notify/api/clear', { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('bellBadge').style.display = 'none';
+        document.getElementById('notifList').innerHTML =
+          '<div style="text-align:center;padding:1.5rem;font-size:12px;color:var(--muted)">No notifications.</div>';
+      } else {
+        alert(data.message || 'Could not clear notifications.');
+      }
+    } catch { alert('Server error. Try again.'); }
+  }
+
+  // Poll for new notifications every 30 seconds
+  loadNotifications();
+  setInterval(loadNotifications, 30000);
+</script>
+{% block extra_js %}{% endblock %}
+
+<!-- ── Global dark-mode text enforcer ──────────────────────────────────────
+     Scans all elements after every JS innerHTML injection and forces
+     the correct text color in dark mode. Fixes ALL invisible text across
+     every page without needing per-template edits.                       -->
+<script>
+(function() {
+  const DARK_TEXT  = '#e6edf3';
+  const LIGHT_TEXT = '#1f2328';
+
+  // Selectors whose text must always be readable
+  const FORCE_SELECTORS = [
+    '.subj-name', '.stat-box .value', '.stat-box .num',
+    '.slider-row .val', '.reason-item', '.log-msg', '.log-item',
+    '.sys-row', '.company', '.eligibility-check',
+    '.notif-title', '.send-section div',
+    'td', 'th',
+  ].join(',');
+
+  function isDark() {
+    return document.documentElement.getAttribute('data-theme') !== 'light';
+  }
+
+  function enforceColors() {
+    const target = isDark() ? DARK_TEXT : LIGHT_TEXT;
+    // Force readable color on known problem elements
+    document.querySelectorAll(FORCE_SELECTORS).forEach(el => {
+      const computed = window.getComputedStyle(el).color;
+      // Convert computed color to check if it's near-black (dark on dark)
+      const rgb = computed.match(/\d+/g);
+      if (rgb) {
+        const [r, g, b] = rgb.map(Number);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // If brightness < 80 (near-black) in dark mode → invisible → force fix
+        if (isDark() && brightness < 80) {
+          el.style.setProperty('color', target, 'important');
+        }
+        // If brightness > 200 (near-white) in light mode → force fix
+        if (!isDark() && brightness > 200 && el.style.color === DARK_TEXT) {
+          el.style.setProperty('color', target, 'important');
+        }
+      }
+    });
+  }
+
+  // Run on DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(enforceColors, 100);
+    setTimeout(enforceColors, 500);
+    setTimeout(enforceColors, 1500);
+  });
+
+  // Watch for JS-injected content (innerHTML changes)
+  const observer = new MutationObserver(() => {
+    setTimeout(enforceColors, 50);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Re-run when theme toggles
+  const themeBtn = document.getElementById('themeToggle');
+  if (themeBtn) themeBtn.addEventListener('click', () => setTimeout(enforceColors, 100));
+})();
+</script>
+
+<!-- ── PWA: Service Worker + Push Notifications ──────────────────────────── -->
+<script>
+(function() {
+  // ── 1. Register Service Worker ─────────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then(reg => {
+          console.log('[PWA] SW registered:', reg.scope);
+          window._swReg = reg;
+
+          // Handle SW update silently — auto-apply without repeated native popup
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+
+            newWorker.addEventListener('statechange', () => {
+              // New SW installed and ready to take over
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // Tell new SW to skip waiting and take control immediately
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          });
+        })
+        .catch(err => console.warn('[PWA] SW registration failed:', err));
+
+      // When SW takes control, refresh the page once (silently)
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          // Only auto-refresh if there was already a controller (not first install)
+          if (sessionStorage.getItem('pwa_sw_ready')) {
+            window.location.reload();
+          }
+          sessionStorage.setItem('pwa_sw_ready', '1');
+        }
+      });
+    });
+  }
+
+  // ── 2. Install Prompt ("Add to Home Screen") ───────────────────────────────
+  let _deferredPrompt = null;
+  const installBtn = document.getElementById('pwaInstallBtn');
+
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _deferredPrompt = e;
+    if (installBtn) installBtn.style.display = 'flex';
+  });
+
+  window.pwaInstall = async function() {
+    if (!_deferredPrompt) return;
+    _deferredPrompt.prompt();
+    const { outcome } = await _deferredPrompt.userChoice;
+    console.log('[PWA] Install outcome:', outcome);
+    _deferredPrompt = null;
+    if (installBtn) installBtn.style.display = 'none';
+  };
+
+  window.addEventListener('appinstalled', () => {
+    console.log('[PWA] App installed!');
+    if (installBtn) installBtn.style.display = 'none';
+    _deferredPrompt = null;
+  });
+
+  // ── 3. Push Notification Subscription ─────────────────────────────────────
+  async function subscribeToPush() {
+    if (!('PushManager' in window)) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) return; // Already subscribed
+
+      // Get VAPID public key from server
+      const r = await fetch('/alert/push/vapid-public');
+      const { vapid_public_key } = await r.json();
+      if (!vapid_public_key) return;
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: _urlBase64ToUint8Array(vapid_public_key)
+      });
+
+      // Send subscription to server
+      await fetch('/alert/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub)
+      });
+      console.log('[PWA] Push subscription registered.');
+    } catch(e) {
+      console.warn('[PWA] Push subscribe failed:', e);
+    }
+  }
+
+  function _urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw     = window.atob(base64);
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+  }
+
+  // Subscribe after SW is ready (only if user is authenticated)
+  if ('serviceWorker' in navigator && {{ (current_user.is_authenticated | lower) }}) {
+    navigator.serviceWorker.ready.then(() => {
+      // Ask permission only if not already granted
+      if (Notification.permission === 'granted') {
+        subscribeToPush();
+      } else if (Notification.permission !== 'denied') {
+        // Delay to not interrupt the user immediately on page load
+        setTimeout(() => {
+          Notification.requestPermission().then(p => {
+            if (p === 'granted') subscribeToPush();
+          });
+        }, 5000);
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

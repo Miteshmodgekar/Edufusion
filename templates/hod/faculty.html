@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block title %}Faculty Mgmt | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+:root { --grad-active:linear-gradient(135deg,#3fb950,#2ea043);
+        --grad-idle:linear-gradient(135deg,#d2991c,#b8860b);
+        --grad-inactive:linear-gradient(135deg,#f85149,#da3633);
+        --grad-new:linear-gradient(135deg,#58a6ff,#388bfd); }
+
+/* ── Header ── */
+.hod-hero { background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  padding:28px 32px;margin-bottom:1.5rem;position:relative;overflow:hidden; }
+.hod-hero::before { content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;
+  background:radial-gradient(circle,rgba(88,166,255,.12),transparent 70%);pointer-events:none; }
+.hod-hero h3 { font-weight:800;font-size:1.5rem;margin-bottom:4px;
+  background:linear-gradient(135deg,#e6edf3,#58a6ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+.hod-hero p { font-size:13px;color:var(--muted);margin:0; }
+.hod-badge { font-size:10px;padding:4px 12px;border-radius:20px;font-family:'Space Mono',monospace;
+  font-weight:700;background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3); }
+
+/* ── Stats ── */
+.stats-row { display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:1.5rem; }
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:540px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.s-card { background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:16px;text-align:center;position:relative;overflow:hidden;transition:transform .2s; }
+.s-card:hover { transform:translateY(-2px); }
+.s-card::after { content:'';position:absolute;bottom:0;left:0;right:0;height:3px; }
+.s-card.c-blue::after { background:var(--grad-new); }
+.s-card.c-green::after { background:var(--grad-active); }
+.s-card.c-yellow::after { background:var(--grad-idle); }
+.s-card.c-red::after { background:var(--grad-inactive); }
+.s-card.c-purple::after { background:linear-gradient(135deg,#a371f7,#8957e5); }
+.s-card.c-gray::after { background:linear-gradient(135deg,#8b949e,#6e7681); }
+.s-card .slbl { font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;
+  letter-spacing:.08em;margin-bottom:8px; }
+.s-card .sval { font-size:28px;font-weight:800;line-height:1; }
+
+/* ── Toolbar ── */
+.toolbar { display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:10px 14px;margin-bottom:1.2rem; }
+.f-btn { padding:6px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+  border:1px solid var(--border);background:transparent;color:var(--muted);
+  font-family:'Space Mono',monospace;transition:all .15s; }
+.f-btn.active,.f-btn:hover { background:rgba(88,166,255,.12);color:#58a6ff;border-color:rgba(88,166,255,.4); }
+.f-btn.fa { background:rgba(63,185,80,.12);color:#3fb950;border-color:rgba(63,185,80,.4); }
+.f-btn.fi { background:rgba(210,153,34,.12);color:#d2991c;border-color:rgba(210,153,34,.4); }
+.f-btn.fr { background:rgba(248,81,73,.12);color:#f85149;border-color:rgba(248,81,73,.4); }
+.srch { margin-left:auto;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:7px 14px;font-size:12.5px;min-width:220px; }
+
+/* ── Grid ── */
+.fc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px; }
+
+/* ── Faculty Card ── */
+.fc { background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  overflow:hidden;transition:box-shadow .2s,border-color .2s; }
+.fc:hover { box-shadow:0 8px 32px rgba(0,0,0,.25);border-color:rgba(88,166,255,.3); }
+.fc-banner { height:4px; }
+.fc.sa .fc-banner { background:var(--grad-active); }
+.fc.si .fc-banner { background:var(--grad-idle); }
+.fc.sr .fc-banner { background:var(--grad-inactive); }
+.fc.sn .fc-banner { background:var(--grad-new); }
+.fc-body { padding:18px; }
+.fc-top { display:flex;align-items:flex-start;gap:14px;margin-bottom:14px; }
+.av { width:50px;height:50px;border-radius:14px;display:flex;align-items:center;
+  justify-content:center;font-size:17px;font-weight:900;flex-shrink:0; }
+.sa .av { background:rgba(63,185,80,.15);color:#3fb950; }
+.si .av { background:rgba(210,153,34,.15);color:#d2991c; }
+.sr .av { background:rgba(248,81,73,.15);color:#f85149; }
+.sn .av { background:rgba(88,166,255,.15);color:#58a6ff; }
+.fc-name { font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px; }
+.fc-desig { font-size:11.5px;color:var(--muted); }
+.spill { font-size:10px;padding:3px 10px;border-radius:20px;font-weight:700;
+  font-family:'Space Mono',monospace;display:inline-block;margin-top:5px; }
+.sa .spill { background:rgba(63,185,80,.18);color:#3fb950; }
+.si .spill { background:rgba(210,153,34,.18);color:#d2991c; }
+.sr .spill { background:rgba(248,81,73,.18);color:#f85149; }
+.sn .spill { background:rgba(88,166,255,.18);color:#58a6ff; }
+
+/* Metrics strip */
+.mstrip { display:flex;gap:8px;margin-bottom:14px; }
+.mbox { flex:1;background:var(--surface2);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border); }
+.mbox .mv { font-size:22px;font-weight:800;color:var(--text); }
+.mbox .ml { font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.04em; }
+
+/* Info lines */
+.iline { display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-bottom:4px; }
+.iline i { width:14px;text-align:center;font-size:11px; }
+
+/* Subject section */
+.subj-hdr { font-size:9px;font-family:'Space Mono',monospace;color:var(--muted);
+  letter-spacing:.08em;margin:12px 0 6px; }
+.tags { display:flex;flex-wrap:wrap;gap:5px; }
+.t-base { font-size:10px;padding:3px 9px;border-radius:20px;font-family:'Space Mono',monospace;font-weight:600; }
+.t-blue { background:rgba(88,166,255,.12);color:#58a6ff; }
+.t-green { background:rgba(63,185,80,.12);color:#3fb950;display:flex;align-items:center;gap:4px; }
+.t-green button { background:none;border:none;color:inherit;cursor:pointer;
+  padding:0 0 0 2px;font-size:11px;opacity:.6;line-height:1; }
+.t-green button:hover { opacity:1; }
+.t-muted { font-size:11px;color:var(--muted); }
+
+/* Assign btn */
+.btn-asgn { width:100%;margin-top:12px;padding:9px;border-radius:10px;font-size:12.5px;
+  font-weight:600;cursor:pointer;background:rgba(88,166,255,.1);
+  border:1px solid rgba(88,166,255,.25);color:#58a6ff;
+  transition:all .15s;font-family:'Sora',sans-serif; }
+.btn-asgn:hover { background:rgba(88,166,255,.22);border-color:rgba(88,166,255,.5); }
+
+/* Coverage */
+.cov-panel { background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:16px;margin-bottom:1.2rem; }
+.cov-panel .chdr { font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);
+  letter-spacing:.07em;margin-bottom:10px; }
+.cov-chip { font-size:11px;padding:4px 11px;border-radius:8px;background:var(--surface2);
+  border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace; }
+
+/* Modal */
+.moverlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9000;
+  display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px); }
+.moverlay.hidden { display:none; }
+.mbox { background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:30px;width:460px;max-width:95vw;box-shadow:0 24px 80px rgba(0,0,0,.6);
+  position:relative;overflow:hidden; }
+.mbox::before { content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,#58a6ff,#a371f7,#3fb950); }
+.mbox h5 { font-size:16px;font-weight:800;margin-bottom:3px;color:var(--text); }
+.mbox .mfor { font-size:12px;color:var(--muted);margin-bottom:20px; }
+.mbox label { font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;
+  letter-spacing:.06em;display:block;margin-bottom:5px;margin-top:14px; }
+.mbox input,.mbox select { width:100%;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:10px;padding:10px 13px;font-size:13px;
+  font-family:'Sora',sans-serif;outline:none;transition:border-color .15s; }
+.mbox input:focus,.mbox select:focus { border-color:#58a6ff; }
+.merr { display:none;font-size:12px;color:#f85149;background:rgba(248,81,73,.08);
+  border:1px solid rgba(248,81,73,.25);border-radius:8px;padding:9px 12px;margin-top:12px; }
+.mactions { display:flex;gap:10px;margin-top:22px; }
+.mactions button { flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:700;
+  cursor:pointer;font-family:'Sora',sans-serif;border:none;transition:all .15s; }
+.mcancel { background:var(--surface2);color:var(--text);border:1px solid var(--border)!important; }
+.mconfirm { background:linear-gradient(135deg,#58a6ff,#388bfd);color:#0d1117; }
+.mconfirm:hover { opacity:.9; }
+
+/* Empty */
+.es { text-align:center;padding:3rem;color:var(--muted); }
+.es i { font-size:2.5rem;display:block;margin-bottom:10px;opacity:.35; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Modal -->
+<div class="moverlay hidden" id="assignModal">
+  <div class="mbox">
+    <h5><i class="bi bi-journal-plus me-2" style="color:#58a6ff"></i>Assign Subject</h5>
+    <div class="mfor" id="mFacName">—</div>
+    <label>SUBJECT NAME *</label>
+    <input id="inp_subject" type="text" placeholder="e.g. Data Structures, DBMS…">
+    <label>SEMESTER *</label>
+    <select id="inp_semester">
+      <option value="">Select Semester</option>
+      {% for i in range(1,9) %}<option value="{{ i }}">Semester {{ i }}</option>{% endfor %}
+    </select>
+    <label>SECTION <span style="font-weight:400;opacity:.6">(optional)</span></label>
+    <input id="inp_section" type="text" placeholder="e.g. A, B, C  —  leave blank for all">
+    <div class="merr" id="mErr"></div>
+    <div class="mactions">
+      <button class="mcancel" onclick="closeModal()">Cancel</button>
+      <button class="mconfirm" id="mBtn" onclick="submitAssign()">
+        <i class="bi bi-check2 me-1"></i>Assign Subject
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Hero header -->
+<div class="hod-hero mb-4">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+      <h3><i class="bi bi-people-fill me-2"></i>Faculty Management</h3>
+      <p id="deptLabel">Loading department info…</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="hod-badge">HOD PANEL</span>
+      <button class="btn btn-outline-secondary btn-sm" onclick="loadData()" title="Refresh">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="s-card c-blue">  <div class="slbl">TOTAL FACULTY</div><div class="sval" style="color:#58a6ff" id="sTotal">—</div></div>
+  <div class="s-card c-green"> <div class="slbl">ACTIVE</div>       <div class="sval" style="color:#3fb950" id="sActive">—</div></div>
+  <div class="s-card c-yellow"><div class="slbl">IDLE</div>         <div class="sval" style="color:#d2991c" id="sIdle">—</div></div>
+  <div class="s-card c-red">   <div class="slbl">INACTIVE</div>     <div class="sval" style="color:#f85149" id="sInactive">—</div></div>
+  <div class="s-card c-purple"><div class="slbl">TOTAL UPLOADS</div><div class="sval" style="color:#a371f7" id="sUploads">—</div></div>
+  <div class="s-card c-gray">  <div class="slbl">SUBJECTS</div>     <div class="sval" id="sSubjects">—</div></div>
+</div>
+
+<!-- Coverage -->
+<div class="cov-panel" id="covPanel" style="display:none">
+  <div class="chdr">SUBJECTS WITH ATTENDANCE DATA</div>
+  <div class="tags" id="covChips"></div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <button class="f-btn active" onclick="setF('all',this)">All</button>
+  <button class="f-btn fa" onclick="setF('active',this)">🟢 Active</button>
+  <button class="f-btn fi" onclick="setF('idle',this)">🟡 Idle</button>
+  <button class="f-btn fr" onclick="setF('inactive',this)">🔴 Inactive</button>
+  <input class="srch" id="fSearch" placeholder="🔍  Search name or subject…" oninput="renderCards()">
+</div>
+
+<!-- Cards -->
+<div class="fc-grid" id="cardsGrid">
+  <div class="es" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i>Loading faculty…</div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allFaculty = [], curFilter = 'all', activeFId = null;
+
+async function loadData() {
+  try {
+    const d = await (await fetch('/hod/api/faculty')).json();
+    if (!d.success) { showErr(d.message); return; }
+    allFaculty = d.faculty;
+    const s = d.stats;
+    document.getElementById('sTotal').textContent    = s.total;
+    document.getElementById('sActive').textContent   = s.active;
+    document.getElementById('sIdle').textContent     = s.idle;
+    document.getElementById('sInactive').textContent = s.inactive;
+    document.getElementById('sUploads').textContent  = s.uploads;
+    document.getElementById('sSubjects').textContent = s.subjects;
+    document.getElementById('deptLabel').textContent =
+      `Dept of ${s.dept} · ${s.total} faculty · Monitor activity & assign subjects`;
+    if (d.all_subjects.length) {
+      document.getElementById('covPanel').style.display = 'block';
+      document.getElementById('covChips').innerHTML =
+        d.all_subjects.map(x => `<span class="cov-chip">${x}</span>`).join('');
+    }
+    renderCards();
+  } catch { showErr('Network error.'); }
+}
+
+function showErr(m) {
+  document.getElementById('cardsGrid').innerHTML =
+    `<div class="es" style="grid-column:1/-1"><i class="bi bi-wifi-off"></i>${m}</div>`;
+}
+
+function setF(f, el) {
+  curFilter = f;
+  document.querySelectorAll('.f-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderCards();
+}
+
+function renderCards() {
+  const q = document.getElementById('fSearch').value.trim().toLowerCase();
+  let list = allFaculty;
+  if (curFilter !== 'all') list = list.filter(f => f.status === curFilter);
+  if (q) list = list.filter(f =>
+    f.name.toLowerCase().includes(q) ||
+    (f.assigned_subjects||[]).some(s => s.subject.toLowerCase().includes(q)) ||
+    (f.subjects_uploaded||[]).some(s => s.toLowerCase().includes(q))
+  );
+  const g = document.getElementById('cardsGrid');
+  g.innerHTML = list.length
+    ? list.map(card).join('')
+    : `<div class="es" style="grid-column:1/-1"><i class="bi bi-person-slash"></i>No faculty found.</div>`;
+}
+
+const CLS = {active:'sa',idle:'si',inactive:'sr',new:'sn'};
+const SLBL = {active:'● Active',idle:'◐ Idle',inactive:'○ Inactive',new:'✦ New'};
+
+function card(f) {
+  const ini = f.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  const cls = CLS[f.status]||'sn';
+  const login = f.last_login ? `${f.days_since_login===0?'Today':f.days_since_login+'d ago'}` : 'Never logged in';
+  const upload = f.last_upload ? `Last upload ${f.last_upload}` : 'No uploads yet';
+
+  const asgn = f.assigned_subjects.length
+    ? f.assigned_subjects.map(a =>
+        `<span class="t-base t-green">
+           <i class="bi bi-bookmark-check" style="font-size:9px"></i>
+           Sem${a.semester}${a.section!=='All'?'-'+a.section:''}: ${a.subject}
+           <button onclick="remAsgn(${a.id})" title="Remove">×</button>
+         </span>`).join('')
+    : `<span class="t-muted">No subjects assigned yet</span>`;
+
+  const upl = f.subjects_uploaded.slice(0,5).map(s=>`<span class="t-base t-blue">${s}</span>`).join('')
+    + (f.subjects_uploaded.length>5?`<span class="t-base t-blue">+${f.subjects_uploaded.length-5}</span>`:'');
+
+  return `
+  <div class="fc ${cls}">
+    <div class="fc-banner"></div>
+    <div class="fc-body">
+      <div class="fc-top">
+        <div class="av">${ini}</div>
+        <div style="flex:1;min-width:0">
+          <div class="fc-name">${f.name}</div>
+          <div class="fc-desig">${f.designation}</div>
+          <span class="spill">${SLBL[f.status]||f.status}</span>
+        </div>
+      </div>
+      <div class="mstrip">
+        <div class="mbox"><div class="mv" style="color:#a371f7">${f.sheets_total}</div><div class="ml">UPLOADS</div></div>
+        <div class="mbox"><div class="mv" style="color:#58a6ff">${f.sheets_30d}</div><div class="ml">LAST 30D</div></div>
+        <div class="mbox"><div class="mv" style="color:#3fb950">${f.assigned_subjects.length}</div><div class="ml">ASSIGNED</div></div>
+      </div>
+      <div class="iline"><i class="bi bi-clock"></i> ${login}</div>
+      <div class="iline"><i class="bi bi-cloud-upload"></i> ${upload}</div>
+      <div class="iline"><i class="bi bi-envelope"></i> ${f.email}</div>
+
+      <div class="subj-hdr">ASSIGNED BY HOD</div>
+      <div class="tags">${asgn}</div>
+
+      ${upl ? `<div class="subj-hdr">UPLOADED ATTENDANCE FOR</div><div class="tags">${upl}</div>` : ''}
+
+      <button class="btn-asgn" onclick="openModal(${f.id},'${f.name.replace(/'/g,"\\'")}')">
+        <i class="bi bi-plus-lg me-1"></i>Assign New Subject
+      </button>
+    </div>
+  </div>`;
+}
+
+function openModal(id, name) {
+  activeFId = id;
+  document.getElementById('mFacName').textContent = `Assigning to: ${name}`;
+  ['inp_subject','inp_section'].forEach(x=>document.getElementById(x).value='');
+  document.getElementById('inp_semester').value='';
+  document.getElementById('mErr').style.display='none';
+  document.getElementById('assignModal').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('inp_subject').focus(),100);
+}
+function closeModal() {
+  document.getElementById('assignModal').classList.add('hidden'); activeFId=null;
+}
+document.getElementById('assignModal').addEventListener('click',e=>{ if(e.target===e.currentTarget)closeModal(); });
+
+async function submitAssign() {
+  const subj=document.getElementById('inp_subject').value.trim();
+  const sem =document.getElementById('inp_semester').value;
+  const sec =document.getElementById('inp_section').value.trim();
+  const err =document.getElementById('mErr');
+  const btn =document.getElementById('mBtn');
+  if(!subj||!sem){err.textContent='Subject name and semester are required.';err.style.display='block';return;}
+  btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Assigning…';
+  err.style.display='none';
+  try {
+    const d=await (await fetch('/hod/api/assign',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({faculty_id:activeFId,subject:subj,semester:parseInt(sem),section:sec})})).json();
+    if(d.success){closeModal();loadData();}
+    else{err.textContent=d.message||'Failed.';err.style.display='block';}
+  } catch{err.textContent='Server error.';err.style.display='block';}
+  btn.disabled=false;btn.innerHTML='<i class="bi bi-check2 me-1"></i>Assign Subject';
+}
+
+async function remAsgn(id) {
+  if(!confirm('Remove this assignment?')) return;
+  const d=await (await fetch(`/hod/api/assign/${id}`,{method:'DELETE'})).json();
+  if(d.success) loadData(); else alert(d.message||'Error.');
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')closeModal();
+  if(e.key==='Enter'&&activeFId)submitAssign();
+});
+
+loadData();
+</script>
+{% endblock %}

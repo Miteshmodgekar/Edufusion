@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+{% block title %}Mark Attendance | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .roster-table { width:100%; border-collapse:collapse; }
+  .roster-table th {
+    text-align:left; font-size:10px; font-family:'Space Mono',monospace; color:var(--muted);
+    letter-spacing:.5px; padding:8px 10px; border-bottom:1px solid var(--border);
+    background: var(--surface2); position: sticky; top: 0;
+  }
+  .roster-table th.center, .roster-table td.center { text-align:center; }
+  .roster-table td {
+    padding: 8px 10px; border-bottom:1px solid var(--border); font-size:13px;
+    vertical-align: middle;
+  }
+  .roster-table tr.st-absent { background: rgba(248,81,73,.06); }
+  .roster-table tr:hover     { background: var(--surface2); }
+  .roll-badge {
+    font-family:'Space Mono',monospace; font-size:11px; font-weight:600;
+    color: var(--accent2); background: rgba(88,166,255,.1);
+    border-radius: 6px; padding: 3px 8px; display:inline-block;
+  }
+  .stu-name { font-weight:500; color: var(--text); }
+  .already-tag { font-size:10px; color:var(--accent2); margin-left:6px; }
+  .pct-tag { font-family:'Space Mono',monospace; font-size:12px; font-weight:600; }
+  .pct-tag.ok   { color: var(--accent); }
+  .pct-tag.warn { color: var(--warn); }
+  .pct-tag.bad  { color: var(--danger); }
+  .pct-tag.none { color: var(--muted); font-weight:400; }
+
+  .seg { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; width: fit-content; }
+  .seg button {
+    border:none; background:transparent; color:var(--muted);
+    font-size:11px; font-family:'Space Mono',monospace; padding:6px 12px;
+    cursor:pointer; transition:all .15s; border-right:1px solid var(--border);
+  }
+  .seg button:last-child { border-right:none; }
+  .seg button.active.p { background:rgba(63,185,80,.15); color:var(--accent); }
+  .seg button.active.a { background:rgba(248,81,73,.15); color:var(--danger); }
+
+  .date-chip {
+    font-size:11px; padding:4px 12px; border-radius:16px;
+    border:1px solid var(--border); background:transparent; color:var(--muted);
+    font-family:'Space Mono',monospace; cursor:pointer; white-space:nowrap;
+  }
+  .date-chip:hover { border-color:var(--accent2); color:var(--accent2); }
+
+  /* ── Counter chips (PRESENT / ABSENT / ON DUTY) ──────────────────── */
+  .stat-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .stat-chip .val {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.1;
+    /* colour overridden per-chip inline; fallback is always readable */
+    color: var(--text);
+  }
+  .stat-chip .lbl {
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .6px;
+    margin-top: 3px;
+  }
+
+  #rosterBox { display:none; }
+  #rosterBox.show { display:block; }
+  #emptyRoster { display:none; }
+  #emptyRoster.show { display:block; }
+
+  /* ── Search bar ── */
+  .search-wrap {
+    position: relative;
+  }
+  .search-wrap .bi-search {
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    color:var(--muted); font-size:13px; pointer-events:none;
+  }
+  #rosterSearch {
+    padding-left: 32px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    height: 36px;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  #rosterSearch:focus {
+    outline: none;
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 2px rgba(88,166,255,.15);
+  }
+  #rosterSearch::placeholder { color: var(--muted); }
+  .search-count {
+    font-size:11px; color:var(--muted);
+    font-family:'Space Mono',monospace;
+  }
+  tr.row-hidden { display:none; }
+  tr.row-match td { background: rgba(88,166,255,.04); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Mark Attendance</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Tick the roster, hit save — no Excel needed. Students see it instantly.</p>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <button class="btn btn-success btn-sm" id="downloadBtn" onclick="downloadSheet()">
+      <i class="bi bi-file-earmark-excel me-1"></i>Download Excel
+    </button>
+    <a href="/attendance/mark/grid" class="btn btn-outline-secondary btn-sm"><i class="bi bi-table me-1"></i>Excel Grid View</a>
+    <span class="badge-blue mono">FACULTY / HOD</span>
+  </div>
+</div>
+
+<!-- Selectors -->
+<div class="card p-4 mb-3">
+  <div class="row g-2">
+    <div class="col-md-4">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SUBJECT</label>
+      <select class="form-select form-select-sm" id="mSubject" onchange="onSubjectChange()">
+        <option value="" disabled selected>Loading subjects…</option>
+        <option value="__new__">+ Add new subject</option>
+      </select>
+      <input type="text" class="form-control form-control-sm mt-2" id="mSubjectNew"
+             placeholder="Type the new subject name" style="display:none">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SEMESTER</label>
+      <select class="form-select form-select-sm" id="mSemester">
+        {% for i in range(1,9) %}<option value="{{ i }}" {% if i==4 %}selected{% endif %}>Sem {{ i }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SECTION</label>
+      <select class="form-select form-select-sm" id="mSection">
+        <option>A</option><option>B</option><option>C</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">DATE</label>
+      <input type="date" class="form-control form-control-sm" id="mDate">
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <button class="btn btn-primary w-100" id="loadRosterBtn" onclick="loadRoster()">
+      <i class="bi bi-people me-2"></i>Load Roster
+    </button>
+  </div>
+
+  <!-- Recently marked dates for this subject/sem/section -->
+  <div id="recentDates" class="mt-3" style="display:none">
+    <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:6px">RECENTLY MARKED — CLICK TO EDIT</div>
+    <div id="recentDatesList" class="d-flex flex-wrap gap-2"></div>
+  </div>
+</div>
+
+<!-- Roster -->
+<div class="card p-4" id="rosterBox">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="card-header rounded" id="rosterTitle">ROSTER</div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm" onclick="markAll('present')">
+        <i class="bi bi-check2-all me-1"></i>All Present
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="markAll('absent')">
+        <i class="bi bi-x-octagon me-1"></i>All Absent
+      </button>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-6"><div class="stat-chip"><div class="val" id="cntPresent" style="color:var(--accent)">0</div><div class="lbl">PRESENT</div></div></div>
+    <div class="col-6"><div class="stat-chip"><div class="val" id="cntAbsent" style="color:var(--danger)">0</div><div class="lbl">ABSENT</div></div></div>
+  </div>
+
+  <!-- Search + Mark Absent shortcut -->
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <div class="search-wrap flex-grow-1">
+      <i class="bi bi-search"></i>
+      <input type="text" id="rosterSearch" class="form-control"
+             placeholder="Search by name or roll no…"
+             oninput="filterRoster(this.value)">
+    </div>
+    <span class="search-count" id="searchCount"></span>
+    <button class="btn btn-outline-secondary btn-sm" id="markVisibleAbsent"
+            onclick="markVisibleAbsent()" style="display:none;white-space:nowrap">
+      <i class="bi bi-x-circle me-1"></i>Mark Found Absent
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="clearSearch()" id="clearSearchBtn" style="display:none">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div style="overflow-x:auto">
+    <table class="roster-table">
+      <thead>
+        <tr>
+          <th style="width:70px">ROLL NO</th>
+          <th>NAME</th>
+          <th class="center" style="width:110px">ATTENDANCE %</th>
+          <th class="center" style="width:170px">MARK</th>
+        </tr>
+      </thead>
+      <tbody id="rosterList"></tbody>
+    </table>
+  </div>
+
+  <button class="btn btn-primary w-100 mt-3" id="saveBtn" onclick="saveAttendance()">
+    <i class="bi bi-cloud-check me-2"></i>Save Attendance
+  </button>
+  <div id="saveMsg" class="mt-2" style="font-size:13px"></div>
+</div>
+
+<div class="card p-4" id="emptyRoster">
+  <div class="text-center py-4">
+    <div style="font-size:44px;margin-bottom:.5rem">🧑‍🎓</div>
+    <p style="color:var(--muted);font-size:14px;margin:0">No students found for that semester + section.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let rosterData = [];
+
+// Default date = today, can't pick the future
+(function initDate() {
+  const d = new Date();
+  const iso = d.toISOString().slice(0, 10);
+  const input = document.getElementById('mDate');
+  input.value = iso;
+  input.max = iso;
+})();
+
+// ── Subject picker ──────────────────────────────────────────────────────────
+async function loadSubjects(preselect) {
+  const sel = document.getElementById('mSubject');
+  try {
+    const res  = await fetch('/attendance/api/subjects');
+    const data = await res.json();
+    const existing = data.success ? data.subjects : [];
+
+    sel.innerHTML = '<option value="" disabled' + (preselect ? '' : ' selected') + '>Choose a subject…</option>' +
+      existing.map(s => `<option value="${s}"${s === preselect ? ' selected' : ''}>${s}</option>`).join('') +
+      '<option value="__new__">+ Add new subject</option>';
+  } catch (e) {
+    sel.innerHTML = '<option value="__new__" selected>+ Add new subject</option>';
+    onSubjectChange();
+  }
+}
+loadSubjects();
+
+function onSubjectChange() {
+  const sel    = document.getElementById('mSubject');
+  const newBox = document.getElementById('mSubjectNew');
+  newBox.style.display = sel.value === '__new__' ? 'block' : 'none';
+  if (sel.value === '__new__') newBox.focus();
+}
+
+function getSelectedSubject() {
+  const sel = document.getElementById('mSubject');
+  if (sel.value === '__new__') return document.getElementById('mSubjectNew').value.trim();
+  return sel.value.trim();
+}
+
+async function loadRoster() {
+  const subject  = getSelectedSubject();
+  const semester = document.getElementById('mSemester').value;
+  const section  = document.getElementById('mSection').value;
+  const date     = document.getElementById('mDate').value;
+
+  if (!subject) { alert('Enter a subject first.'); return; }
+  if (!date)    { alert('Pick a date.'); return; }
+
+  const btn = document.getElementById('loadRosterBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+
+  try {
+    const params = new URLSearchParams({ subject, semester, section, date });
+    const res  = await fetch('/attendance/api/roster?' + params.toString());
+    const data = await res.json();
+
+    if (!data.success) { alert(data.message || 'Could not load roster.'); return; }
+
+    rosterData = data.students;
+    document.getElementById('emptyRoster').classList.toggle('show', rosterData.length === 0);
+    document.getElementById('rosterBox').classList.toggle('show', rosterData.length > 0);
+    // download button stays visible always
+
+    if (rosterData.length) {
+      document.getElementById('rosterTitle').textContent =
+        `${subject.toUpperCase()} — SEM ${semester} SEC ${section} — ${date}`;
+      renderRoster();
+      loadRecentDates(subject, semester, section);
+    }
+  } catch (e) {
+    alert('Network error loading roster.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-people me-2"></i>Load Roster';
+  }
+}
+
+function pctClass(pct) {
+  if (pct === null || pct === undefined) return 'none';
+  return pct >= 85 ? 'ok' : pct >= 75 ? 'warn' : 'bad';
+}
+
+function renderRoster() {
+  const list = document.getElementById('rosterList');
+  list.innerHTML = rosterData.map((s, i) => {
+    const cls = pctClass(s.attendance_pct);
+    const pctText = s.attendance_pct === null || s.attendance_pct === undefined
+      ? 'No data yet'
+      : `${s.attendance_pct}% <span style="color:var(--muted);font-weight:400">(${s.classes_attended}/${s.total_classes})</span>`;
+    return `
+    <tr class="${s.status === 'present' ? '' : 'st-' + s.status}" id="row-${i}">
+      <td><span class="roll-badge">${s.roll_number || '—'}</span></td>
+      <td>
+        <span class="stu-name">${s.name}</span>
+        ${s.already_marked ? '<span class="already-tag">edited</span>' : ''}
+      </td>
+      <td class="center"><span class="pct-tag ${cls}">${pctText}</span></td>
+      <td class="center">
+        <div class="seg" style="margin:0 auto">
+          <button class="p ${s.status==='present'?'active':''}" onclick="setStatus(${i},'present')">P</button>
+          <button class="a ${s.status==='absent'?'active':''}"  onclick="setStatus(${i},'absent')">A</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  updateCounts();
+}
+
+function setStatus(i, status) {
+  rosterData[i].status = status;
+  const row = document.getElementById('row-' + i);
+  row.className = status === 'absent' ? 'st-absent' : '';
+  row.querySelectorAll('.seg button').forEach(b => b.classList.remove('active'));
+  row.querySelector(`.seg .${status === 'present' ? 'p' : 'a'}`).classList.add('active');
+  updateCounts();
+}
+
+function markAll(status) {
+  rosterData.forEach((s, i) => { s.status = status; });
+  renderRoster();
+  // Re-apply search after re-render
+  const q = document.getElementById('rosterSearch').value;
+  if (q) filterRoster(q);
+}
+
+// ── Search / Filter ──────────────────────────────────────────────────────
+function filterRoster(q) {
+  q = q.trim().toLowerCase();
+  const rows = document.querySelectorAll('#rosterList tr');
+  let visible = 0;
+  rows.forEach((row, i) => {
+    const s = rosterData[i];
+    if (!s) return;
+    const match = !q ||
+      (s.name        || '').toLowerCase().includes(q) ||
+      (s.roll_number || '').toLowerCase().includes(q);
+    row.classList.toggle('row-hidden', !match);
+    row.classList.toggle('row-match', match && !!q);
+    if (match) visible++;
+  });
+
+  const countEl = document.getElementById('searchCount');
+  const markBtn = document.getElementById('markVisibleAbsent');
+  const clearBtn = document.getElementById('clearSearchBtn');
+
+  if (q) {
+    countEl.textContent = `${visible} of ${rosterData.length} shown`;
+    markBtn.style.display = 'inline-flex';
+    clearBtn.style.display = 'inline-flex';
+  } else {
+    countEl.textContent = '';
+    markBtn.style.display = 'none';
+    clearBtn.style.display = 'none';
+  }
+}
+
+function clearSearch() {
+  document.getElementById('rosterSearch').value = '';
+  filterRoster('');
+}
+
+function markVisibleAbsent() {
+  // Mark only currently visible (matching) rows as absent
+  const rows = document.querySelectorAll('#rosterList tr');
+  rows.forEach((row, i) => {
+    if (!row.classList.contains('row-hidden')) {
+      setStatus(i, 'absent');
+    }
+  });
+}
+
+function updateCounts() {
+  document.getElementById('cntPresent').textContent = rosterData.filter(s => s.status === 'present').length;
+  document.getElementById('cntAbsent').textContent  = rosterData.filter(s => s.status === 'absent').length;
+}
+
+async function saveAttendance() {
+  const subject  = getSelectedSubject();
+  const semester = document.getElementById('mSemester').value;
+  const section  = document.getElementById('mSection').value;
+  const date     = document.getElementById('mDate').value;
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+  try {
+    const res = await fetch('/attendance/api/mark-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject, semester, section, date,
+        entries: rosterData.map(s => ({ student_id: s.id, status: s.status })),
+      }),
+    });
+    const data = await res.json();
+    const msg = document.getElementById('saveMsg');
+
+    if (data.success) {
+      msg.innerHTML = `<span style="color:var(--accent)"><i class="bi bi-check-circle me-1"></i>${data.message}</span>` +
+        (data.defaulters && data.defaulters.length
+          ? ` — <span style="color:var(--danger)">${data.defaulters.length} student(s) now below threshold</span>`
+          : '');
+      loadRecentDates(subject, semester, section);
+      loadSubjects(subject);
+    } else {
+      msg.innerHTML = `<span style="color:var(--danger)">${data.message || 'Save failed.'}</span>`;
+    }
+  } catch (e) {
+    document.getElementById('saveMsg').innerHTML = '<span style="color:var(--danger)">Network error saving attendance.</span>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-check me-2"></i>Save Attendance';
+  }
+}
+
+async function loadRecentDates(subject, semester, section) {
+  try {
+    const params = new URLSearchParams({ subject, semester, section });
+    const res  = await fetch('/attendance/api/marked-dates?' + params.toString());
+    const data = await res.json();
+    const box  = document.getElementById('recentDates');
+    const list = document.getElementById('recentDatesList');
+
+    if (!data.success || !data.dates.length) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    list.innerHTML = data.dates.map(d => `
+      <button type="button" class="date-chip" onclick="jumpToDate('${d.date}')">${d.date} <span style="opacity:.6">(${d.marked})</span></button>
+    `).join('');
+  } catch (e) { /* silent — this is a convenience widget */ }
+}
+
+function jumpToDate(dateStr) {
+  document.getElementById('mDate').value = dateStr;
+  loadRoster();
+}
+
+function downloadSheet() {
+  const subject  = getSelectedSubject();
+  const semester = document.getElementById('mSemester').value;
+  const section  = document.getElementById('mSection').value;
+  if (!subject) { alert('Select a subject first.'); return; }
+  const params = new URLSearchParams({ subject, semester, section });
+  window.location.href = '/attendance/api/download-sheet?' + params.toString();
+}
+</script>
+{% endblock %}

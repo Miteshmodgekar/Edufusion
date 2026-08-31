@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Mentor Leave Report{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center}
+  .stat-card .num{font-size:32px;font-weight:700;font-family:'Space Mono',monospace}
+  .stat-card .lbl{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em}
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;font-family:'Space Mono',monospace}
+  .s-approved{background:rgba(63,185,80,.15);color:#3fb950}
+  .s-rejected{background:rgba(248,81,73,.15);color:#f85149}
+  .s-pending {background:rgba(210,153,28,.15);color:#d29922}
+  .leave-row{padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .leave-row:last-child{border-bottom:none}
+  .section-title{font-size:11px;letter-spacing:.08em;font-weight:700;color:var(--muted);margin:20px 0 10px;text-transform:uppercase}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+  <div>
+    <h4 class="mb-0" style="font-weight:700">My Leave Report</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">All leave requests handled by you as mentor</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <!-- Admin: pick any mentor -->
+    {% if current_user.is_admin %}
+    <select class="form-select form-select-sm" id="mentorPicker" onchange="loadReport()" style="width:220px;font-size:12px">
+      <option value="">Select mentor…</option>
+    </select>
+    {% endif %}
+    <a id="downloadBtn" href="/leave/mentor/report/download" target="_blank"
+       class="btn btn-sm"
+       style="background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)">
+      <i class="bi bi-file-earmark-excel me-1"></i>Download Excel
+    </a>
+  </div>
+</div>
+
+<!-- Mentor info card -->
+<div class="card p-3 mb-4" id="mentorInfo" style="display:none">
+  <div class="d-flex align-items-center gap-3">
+    <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,rgba(63,185,80,.3),rgba(63,185,80,.1));display:flex;align-items:center;justify-content:center;font-size:20px">🎓</div>
+    <div>
+      <div style="font-weight:700;font-size:15px" id="mName"></div>
+      <div style="font-size:12px;color:var(--muted)" id="mDesig"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="row g-3 mb-4" id="statsRow" style="display:none">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="num" style="color:var(--accent2)" id="sTotal">0</div>
+      <div class="lbl">TOTAL APPLIED</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="num" style="color:#3fb950" id="sApproved">0</div>
+      <div class="lbl">APPROVED BY YOU</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="num" style="color:#f85149" id="sRejected">0</div>
+      <div class="lbl">REJECTED BY YOU</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="num" style="color:#d29922" id="sPending">0</div>
+      <div class="lbl">PENDING YOUR ACTION</div>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Details Tabs -->
+<div class="card p-0" id="detailsCard" style="display:none">
+  <ul class="nav nav-tabs px-3 pt-2" style="border-color:var(--border)" id="reportTabs">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabAll">All</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabApproved">✅ Approved</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabRejected">❌ Rejected</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabPending">⏳ Pending</a></li>
+  </ul>
+  <div class="tab-content p-3">
+    <div class="tab-pane fade show active" id="tabAll">
+      <div id="listAll"></div>
+    </div>
+    <div class="tab-pane fade" id="tabApproved">
+      <div id="listApproved"></div>
+    </div>
+    <div class="tab-pane fade" id="tabRejected">
+      <div id="listRejected"></div>
+    </div>
+    <div class="tab-pane fade" id="tabPending">
+      <div id="listPending"></div>
+    </div>
+  </div>
+</div>
+
+<div id="emptyMsg" style="display:none;text-align:center;color:var(--muted);padding:3rem;font-size:14px">
+  📭 No leave requests assigned to you yet.
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _mentorId = null;
+
+{% if current_user.is_admin %}
+async function loadMentorList() {
+  const res  = await fetch('/admin/api/mentors');
+  const data = await res.json();
+  if (!data.success) return;
+  const sel = document.getElementById('mentorPicker');
+  data.mentors.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = `${m.name} (${m.role}) — ${m.mentee_count} mentees`;
+    sel.appendChild(o);
+  });
+}
+loadMentorList();
+{% endif %}
+
+async function loadReport() {
+  {% if current_user.is_admin %}
+  _mentorId = document.getElementById('mentorPicker').value;
+  if (!_mentorId) return;
+  const url = `/leave/api/mentor/report?mentor_id=${_mentorId}`;
+  document.getElementById('downloadBtn').href = `/leave/mentor/report/download?mentor_id=${_mentorId}`;
+  {% else %}
+  const url = '/leave/api/mentor/report';
+  document.getElementById('downloadBtn').href = '/leave/mentor/report/download';
+  {% endif %}
+
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (!data.success) return;
+
+  const { mentor, summary, leaves } = data;
+
+  // Mentor info
+  document.getElementById('mentorInfo').style.display = '';
+  document.getElementById('mName').textContent  = mentor.name;
+  document.getElementById('mDesig').textContent = `${mentor.designation} · ${mentor.department}`;
+
+  // Stats
+  document.getElementById('statsRow').style.display  = '';
+  document.getElementById('sTotal').textContent    = summary.total;
+  document.getElementById('sApproved').textContent = summary.approved;
+  document.getElementById('sRejected').textContent = summary.rejected;
+  document.getElementById('sPending').textContent  = summary.pending;
+
+  const allLeaves = [...leaves.approved, ...leaves.rejected, ...leaves.pending];
+
+  if (!allLeaves.length) {
+    document.getElementById('emptyMsg').style.display = '';
+    document.getElementById('detailsCard').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('emptyMsg').style.display   = 'none';
+  document.getElementById('detailsCard').style.display = '';
+
+  document.getElementById('listAll').innerHTML      = renderList(allLeaves);
+  document.getElementById('listApproved').innerHTML = renderList(leaves.approved, 'No approved leaves.');
+  document.getElementById('listRejected').innerHTML = renderList(leaves.rejected, 'No rejected leaves.');
+  document.getElementById('listPending').innerHTML  = renderList(leaves.pending,  'No pending leaves.');
+}
+
+function statusPill(status) {
+  const map = {
+    approved: 's-approved', rejected: 's-rejected', pending: 's-pending',
+    mentor_approved: 's-approved'
+  };
+  const cls  = map[status] || 's-pending';
+  const text = status.replace('_', ' ').toUpperCase();
+  return `<span class="status-pill ${cls}">${text}</span>`;
+}
+
+function renderList(list, emptyMsg = 'No records.') {
+  if (!list.length) return `<div style="color:var(--muted);text-align:center;padding:1.5rem;font-size:13px">${emptyMsg}</div>`;
+  return list.map(l => `
+    <div class="leave-row">
+      <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap">
+        <div>
+          <div style="font-weight:700;font-size:13.5px">${l.student_name}
+            <small style="color:var(--muted);font-family:'Space Mono',monospace;font-size:11px"> · ${l.roll_number}</small>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">Sem ${l.semester} ${l.section} · ${l.leave_type.charAt(0).toUpperCase()+l.leave_type.slice(1)} leave</div>
+          <div style="font-size:12.5px;margin-top:4px;color:var(--text)">
+            <i class="bi bi-calendar3 me-1"></i>${l.from_date} → ${l.to_date}
+            <span style="color:var(--muted)"> (${l.days} day${l.days>1?'s':''})</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">
+            <i class="bi bi-chat-left-text me-1"></i>${l.reason}
+          </div>
+          ${l.mentor_comment && l.mentor_comment !== '—' ?
+            `<div style="font-size:12px;color:var(--muted);margin-top:2px">
+              <i class="bi bi-pencil me-1"></i>Your remark: <em>${l.mentor_comment}</em>
+            </div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div>${statusPill(l.mentor_status)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Applied ${l.applied_on}</div>
+          ${l.mentor_at && l.mentor_at !== '—' ?
+            `<div style="font-size:11px;color:var(--muted)">Decided ${l.mentor_at}</div>` : ''}
+          <div style="margin-top:4px">HOD: ${statusPill(l.hod_status)}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// Auto-load for non-admin (their own report)
+{% if not current_user.is_admin %}
+loadReport();
+{% endif %}
+</script>
+{% endblock %}

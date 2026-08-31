@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .att-ring { position:relative; width:110px; height:110px; margin:0 auto; }
+  .att-ring svg { transform:rotate(-90deg); }
+  .att-ring .ring-val {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    font-size:22px; font-weight:700; line-height:1;
+  }
+  .att-ring .ring-label { font-size:9px; color:var(--muted); font-family:'Space Mono',monospace; margin-top:2px; }
+
+  /* ── Stat tiles on the top row ───────────────────────────────────── */
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    transition: border-color .25s, box-shadow .25s;
+  }
+  .stat-card .label {
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .6px;
+    margin-bottom: 4px;
+  }
+  .stat-card .value {
+    font-size: 22px;
+    font-weight: 700;
+    /* individual value colours set inline via JS; fallback to --text */
+    color: var(--text);
+    line-height: 1.2;
+  }
+
+  /* ── Subject cards ───────────────────────────────────────────────── */
+  .subj-card {
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:10px; padding:12px 14px; transition:border-color .2s;
+  }
+  .subj-card:hover { border-color:var(--accent2); }
+  .subj-card.defaulter { border-color:rgba(248,81,73,.4); background:rgba(248,81,73,.04); }
+  /* Ensure subject name text is always readable — use !important to beat Bootstrap */
+  .subj-name { font-size:13px; font-weight:500; color:var(--text) !important; flex:1; margin-right:8px; }
+
+  .pct-track { height:4px; background:var(--border); border-radius:2px; margin-top:6px; }
+  .pct-fill  { height:100%; border-radius:2px; transition:width .6s ease; }
+  .sync-pill {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:10px; font-family:'Space Mono',monospace;
+    background:rgba(63,185,80,.08); border:1px solid rgba(63,185,80,.2);
+    color:var(--accent); border-radius:20px; padding:3px 10px;
+  }
+  .sync-dot { width:6px; height:6px; background:var(--accent); border-radius:50%; animation:blink 2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+  .sheet-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 0; border-bottom:1px solid var(--border); font-size:12px;
+    flex-wrap:wrap; gap:6px;
+  }
+  .sheet-row:last-child { border-bottom:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Dashboard</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Welcome back, {{ current_user.name }}</p>
+  </div>
+  <span class="badge-blue mono">{{ current_user.role | upper }}</span>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="label">ATTENDANCE</div>
+      <div class="value" id="statAtt" style="color:var(--accent)">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="label">LEAVE STATUS</div>
+      <div class="value" id="statLeave" style="color:var(--accent2)">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="label">RISK LEVEL</div>
+      <div class="value" id="statRisk" style="color:var(--warn)">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="label">PLACEMENT</div>
+      <div class="value" id="statPlace" style="color:var(--accent)">—</div>
+    </div>
+  </div>
+</div>
+
+{% if current_user.role == 'student' %}
+<!-- STUDENT: Live Attendance Widget -->
+<div class="row g-3 mb-4">
+  <!-- Overall Ring -->
+  <div class="col-md-3">
+    <div class="card p-3 h-100 text-center">
+      <div class="card-header rounded mb-3">OVERALL</div>
+      <div class="att-ring mb-3">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="46" fill="none" stroke="var(--border)" stroke-width="10"/>
+          <circle cx="55" cy="55" r="46" fill="none" stroke="var(--accent)" stroke-width="10"
+                  stroke-dasharray="289" stroke-dashoffset="289"
+                  id="ringCircle" stroke-linecap="round" style="transition:stroke-dashoffset .8s ease,stroke .4s"/>
+        </svg>
+        <div class="ring-val">
+          <span id="ringPct" style="color:var(--accent)">—</span>
+          <span class="ring-label">OVERALL</span>
+        </div>
+      </div>
+      <div id="syncInfo" style="font-size:11px;color:var(--muted)">Loading...</div>
+      <div id="defaulterWarn" style="display:none;margin-top:8px">
+        <span style="font-size:11px;color:var(--danger);font-family:'Space Mono',monospace">
+          ⚠ Some subjects below threshold!
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subject Cards -->
+  <div class="col-md-9">
+    <div class="card p-3 h-100">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="card-header rounded">SUBJECT-WISE ATTENDANCE</div>
+        <div class="sync-pill">
+          <div class="sync-dot"></div>
+          <span id="syncText">Live</span>
+        </div>
+      </div>
+      <div id="subjectCards" class="row g-2">
+        <div class="col-12" style="color:var(--muted);font-size:13px">Loading your attendance...</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<!-- FACULTY / HOD / ADMIN view -->
+<div class="row g-3 mb-4">
+  <div class="col-md-7">
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">ATTENDANCE BY STUDENT</div>
+      <canvas id="attChart" height="180"></canvas>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">OVERVIEW</div>
+      <canvas id="perfChart" height="180"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Uploaded Sheets Registry -->
+<div class="card p-3 mb-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="card-header rounded">UPLOADED ATTENDANCE SHEETS</div>
+    <a href="/attendance/upload" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-upload me-1"></i>Upload New Sheet
+    </a>
+  </div>
+  <div id="sheetList"><p style="font-size:13px;color:var(--muted)">Loading sheets...</p></div>
+</div>
+{% endif %}
+
+<!-- Alerts + Quick Actions -->
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">ACTIVE ALERTS</div>
+      <div id="alertsList"><p style="font-size:13px;color:var(--muted)">Loading alerts...</p></div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">QUICK ACTIONS</div>
+      <div class="d-grid gap-2" id="quickActions"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const role = "{{ current_user.role }}";
+const uid  = "{{ current_user.id }}";
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  STUDENT
+// ─────────────────────────────────────────────────────────────────────────────
+{% if current_user.role == 'student' %}
+
+async function loadStudentDashboard() {
+  try {
+    const [dashRes, attRes] = await Promise.all([
+      fetch('/dashboard/api/data'),
+      fetch('/attendance/api/my-full'),
+    ]);
+    const dash = await dashRes.json().catch(() => ({}));
+    const att  = await attRes.json().catch(() => ({}));
+
+    if (dash.success) {
+      document.getElementById('statLeave').textContent = (dash.leaves?.pending || 0) + ' Pending';
+      document.getElementById('statPlace').textContent = dash.placement ? dash.placement.readiness_score + '%' : 'N/A';
+    }
+
+    if (att.success) {
+      renderAttWidget(att);
+      const overall = att.overall || 0;
+      const attEl = document.getElementById('statAtt');
+      attEl.textContent = overall + '%';
+      attEl.style.color = overall < 85 ? 'var(--danger)' : 'var(--accent)';
+
+      // ML risk
+      fetch('/ml/risk', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ attendance_pct: overall, internal_marks: 30, progress_pct: 50 }) })
+      .then(r => r.json()).then(d => {
+        const el = document.getElementById('statRisk');
+        el.textContent = d.risk_level || '—';
+        el.style.color = d.color === 'danger' ? 'var(--danger)' : d.color === 'warning' ? 'var(--warn)' : 'var(--accent)';
+      }).catch(() => {});
+    }
+
+    loadAlerts();
+    renderQuickActions();
+  } catch(e) { console.error(e); }
+}
+
+function renderAttWidget(att) {
+  const overall  = att.overall || 0;
+  const subjects = att.subjects || [];
+
+  // Animate ring
+  const C = 289;
+  document.getElementById('ringCircle').style.strokeDashoffset = C - (overall / 100) * C;
+  const color = overall >= 85 ? 'var(--accent)' : overall >= 75 ? 'var(--warn)' : 'var(--danger)';
+  document.getElementById('ringCircle').style.stroke = color;
+  document.getElementById('ringPct').textContent = overall + '%';
+  document.getElementById('ringPct').style.color  = color;
+
+  // Sync info
+  const syncEl = document.getElementById('syncInfo');
+  if (att.last_sync) {
+    syncEl.innerHTML =
+      `<span style="color:var(--accent)">🟢 Connected</span><br>` +
+      `<span style="color:var(--text)">Updated by <strong>${att.last_sync.uploaded_by}</strong></span><br>` +
+      `<span style="font-size:10px;color:var(--muted)">${att.last_sync.uploaded_at}</span>`;
+    document.getElementById('syncText').textContent = att.last_sync.uploaded_at.split(',')[0];
+  } else {
+    syncEl.textContent = 'Waiting for faculty to upload sheet...';
+  }
+
+  if (att.defaulters > 0) document.getElementById('defaulterWarn').style.display = 'block';
+
+  // Subject cards
+  const grid = document.getElementById('subjectCards');
+  if (!subjects.length) {
+    grid.innerHTML = `<div class="col-12" style="color:var(--muted);font-size:13px;padding:1rem 0">
+      No attendance data yet. Your faculty will upload the attendance sheet soon.</div>`;
+    return;
+  }
+
+  grid.innerHTML = subjects.map(s => {
+    const pct   = s.attendance_pct || 0;
+    const color = pct >= 85 ? 'var(--accent)' : pct >= 75 ? 'var(--warn)' : 'var(--danger)';
+    const info  = s.sheet_info;
+    const updBy = info
+      ? `<span style="font-size:10px;color:var(--muted)">${info.uploaded_by} · ${info.uploaded_at}</span>`
+      : '';
+    const needTxt = s.attendance_pct < 85 && s.required_classes > 0
+      ? `<span style="font-size:10px;color:var(--danger);font-family:'Space Mono',monospace">Need +${s.required_classes} classes</span>`
+      : `<span style="font-size:10px;color:var(--accent);font-family:'Space Mono',monospace">✓ On track</span>`;
+
+    return `<div class="col-md-6 col-lg-4">
+      <div class="subj-card ${s.attendance_pct < 85 ? 'defaulter' : ''}">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="font-size:13px;font-weight:600;color:var(--text);flex:1;margin-right:8px">${s.subject}</div>
+          <div style="font-size:18px;font-weight:700;color:${color};white-space:nowrap">${pct}%</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin:2px 0">${s.classes_attended}/${s.total_classes} classes attended</div>
+        <div class="pct-track"><div class="pct-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-1">
+          ${needTxt}
+          ${updBy}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+loadStudentDashboard();
+setInterval(loadStudentDashboard, 120000); // auto-refresh every 2 min
+
+{% else %}
+// ─────────────────────────────────────────────────────────────────────────────
+//  FACULTY / HOD / ADMIN
+// ─────────────────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const res  = await fetch('/dashboard/api/data');
+    const data = await res.json();
+    if (!data.success) return;
+    renderFaculty(data);
+    loadSheetRegistry();
+    loadAlerts();
+    renderQuickActions();
+  } catch(e) { console.error(e); }
+}
+
+function renderFaculty(d) {
+  // Guard all values against undefined
+  const avgAtt   = d.avg_attendance ?? '—';
+  const pending  = d.pending_leaves  ?? '—';
+  const def_     = d.defaulters      ?? '—';
+  const students = d.total_students  ?? '—';
+
+  document.getElementById('statAtt').textContent   = avgAtt   !== '—' ? avgAtt + '%' : '—';
+  document.getElementById('statLeave').textContent = pending  !== '—' ? pending + ' Pending' : '—';
+  document.getElementById('statRisk').textContent  = def_     !== '—' ? def_ + ' Defaulters' : '—';
+  document.getElementById('statPlace').textContent = students !== '—' ? students + ' Students' : '—';
+
+  // Colour the attendance stat
+  const attEl = document.getElementById('statAtt');
+  if (avgAtt !== '—') attEl.style.color = avgAtt < 75 ? 'var(--danger)' : avgAtt < 85 ? 'var(--warn)' : 'var(--accent)';
+
+  try {
+    new Chart(document.getElementById('attChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Good (≥85%)', 'Defaulters (<85%)'],
+        datasets: [{ data: [students - def_, def_],
+          backgroundColor: ['rgba(63,185,80,.7)', 'rgba(248,81,73,.7)'], borderWidth: 0 }]
+      },
+      options: { plugins: { legend: { position: 'bottom' } }, cutout: '65%' }
+    });
+
+    new Chart(document.getElementById('perfChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Total', 'Defaulters', 'Leaves'],
+        datasets: [{ data: [students, def_, pending],
+          backgroundColor: ['rgba(88,166,255,.6)', 'rgba(248,81,73,.6)', 'rgba(210,153,34,.6)'],
+          borderRadius: 4 }]
+      },
+      options: { plugins: { legend: { display: false } },
+        scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
+    });
+  } catch(e) { console.warn('Chart error:', e); }
+}
+
+async function loadSheetRegistry() {
+  try {
+    const res  = await fetch('/attendance/api/sheets');
+    const data = await res.json();
+    const el   = document.getElementById('sheetList');
+    if (!data.success || !data.sheets.length) {
+      el.innerHTML = '<p style="font-size:13px;color:var(--muted)">No sheets uploaded yet. Use the button above to upload an Excel attendance sheet.</p>';
+      return;
+    }
+    el.innerHTML = data.sheets.slice(0, 10).map(s => `
+      <div class="sheet-row">
+        <div>
+          <span style="font-weight:500">${s.subject}</span>
+          <span class="mono" style="font-size:10px;color:var(--muted);margin-left:8px">
+            Sem ${s.semester} · Sec ${s.section || '—'}
+          </span>
+        </div>
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <span style="color:var(--muted)">${s.total_rows} students</span>
+          <span style="color:var(--accent2)">${s.uploaded_by}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">${s.uploaded_at}</span>
+          <a href="/attendance/upload" class="btn btn-outline-secondary btn-sm" style="font-size:10px;padding:2px 8px">Re-upload</a>
+        </div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+loadDashboard();
+{% endif %}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SHARED
+// ─────────────────────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  try {
+    const res  = await fetch('/alert/my');
+    const data = await res.json();
+    const el   = document.getElementById('alertsList');
+    if (!data.alerts?.length) {
+      el.innerHTML = '<p style="font-size:13px;color:var(--muted)">No active alerts. All good!</p>';
+      return;
+    }
+    el.innerHTML = data.alerts.map(a => `
+      <div class="alert alert-${a.type} py-2 px-3 mb-2" style="font-size:12px">
+        <strong>${a.title}</strong><br>${a.message}
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function renderQuickActions() {
+  const actions = {
+    student: [
+      { icon:'bi-calculator',       label:'Attendance Simulator',    href:'/attendance/simulator' },
+      { icon:'bi-file-earmark-plus',label:'Apply for Leave',         href:'/leave/apply' },
+      { icon:'bi-cpu',              label:'Run AI Prediction',       href:'/ml/predict' },
+      { icon:'bi-stars',            label:'Career Assistant',        href:'/placement/career-assistant' },
+      { icon:'bi-briefcase',        label:'Update Placement Profile', href:'/placement/profile' },
+    ],
+    faculty: [
+      { icon:'bi-check2-square',      label:'Mark Attendance',           href:'/attendance/mark' },
+      { icon:'bi-check2-square',      label:'Review Leave Requests',    href:'/leave/pending/mentor' },
+      { icon:'bi-exclamation-triangle',label:'View Defaulters',          href:'/attendance/defaulters' },
+      { icon:'bi-bell',               label:'Send Alerts',               href:'/alert/centre' },
+    ],
+    hod: [
+      { icon:'bi-check2-square',    label:'Mark Attendance',         href:'/attendance/mark' },
+      { icon:'bi-clipboard-check',  label:'HOD Leave Approvals',    href:'/leave/pending/hod' },
+      { icon:'bi-graph-up',         label:'Risk Analysis Report',   href:'/ml/predict' },
+      { icon:'bi-award',            label:'Placement Eligibility',  href:'/placement/eligible' },
+    ],
+    admin: [
+      { icon:'bi-person-plus', label:'Register New User', href:'/auth/register' },
+      { icon:'bi-cpu',         label:'Train ML Model',    href:'/ml/train' },
+    ],
+  };
+  const list = actions[role] || [];
+  document.getElementById('quickActions').innerHTML = list.map(a => `
+    <a href="${a.href}" class="btn btn-outline-secondary text-start" style="font-size:13px">
+      <i class="bi ${a.icon} me-2"></i>${a.label}
+    </a>`).join('');
+}
+</script>
+{% endblock %}

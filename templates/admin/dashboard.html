@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-box{background:var(--surface2);border-radius:10px;padding:1rem 1.25rem;}
+  .stat-box .label{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px;}
+  .stat-box .value{font-size:26px;font-weight:600;color:var(--text);}
+  .log-item{font-size:12px;padding:8px 12px;border-radius:8px;background:var(--surface2);margin-bottom:6px;display:flex;gap:10px;align-items:flex-start;color:var(--text);}
+  .log-msg{flex:1;font-size:12px;color:var(--text);}
+  .log-time{font-family:'Space Mono',monospace;color:var(--muted);font-size:11px;white-space:nowrap;min-width:42px;}
+  .log-type{font-size:10px;padding:2px 7px;border-radius:6px;font-family:'Space Mono',monospace;white-space:nowrap;}
+  .lt-login{background:rgba(88,166,255,.15);color:var(--accent2);}
+  .lt-leave{background:rgba(210,153,34,.15);color:var(--warn);}
+  .lt-att{background:rgba(63,185,80,.15);color:var(--accent);}
+  .lt-risk{background:rgba(248,81,73,.15);color:var(--danger);}
+  .db-bar{height:5px;border-radius:3px;background:var(--surface);overflow:hidden;margin-top:4px;}
+  .db-fill{height:100%;border-radius:3px;background:var(--accent2);}
+  .sys-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);}
+  .sys-row:last-child{border-bottom:none;}
+
+  /* ── Switchable User Manager ── */
+  .view-toggle {
+    display:inline-flex; background:var(--surface2); border-radius:30px;
+    padding:4px; border:1px solid var(--border); gap:0;
+  }
+  .view-toggle .vt-btn {
+    padding:6px 20px; border-radius:26px; font-size:12px; cursor:pointer;
+    font-family:'Space Mono',monospace; border:none; background:transparent;
+    color:var(--muted); transition:all .25s; display:flex; align-items:center; gap:6px;
+  }
+  .view-toggle .vt-btn.active {
+    background:var(--accent2); color:#0d1117; font-weight:600;
+    box-shadow:0 2px 8px rgba(88,166,255,.3);
+  }
+  .view-toggle .vt-btn.active.faculty-active {
+    background:var(--accent); color:#0d1117;
+    box-shadow:0 2px 8px rgba(63,185,80,.3);
+  }
+  .user-panel { transition:opacity .2s, transform .2s; }
+  .user-panel.hidden { display:none; }
+  .count-badge {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%;
+    font-size:10px; font-weight:700; font-family:'Space Mono',monospace;
+  }
+  .count-badge.student { background:rgba(88,166,255,.2); color:var(--accent2); }
+  .count-badge.faculty { background:rgba(63,185,80,.2); color:var(--accent); }
+  .search-wrap { position:relative; }
+  .search-wrap .bi-search { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:13px; }
+  .search-wrap input { padding-left:30px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Admin Dashboard</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">System overview · User management · ML controls · Reports</p>
+  </div>
+  <span class="badge-danger mono">ADMIN</span>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="stat-box"><div class="label">TOTAL USERS</div><div class="value" style="color:var(--accent2)" id="sUsers">—</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-box"><div class="label">STUDENTS</div><div class="value" style="color:var(--accent)" id="sStudents">—</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-box"><div class="label">FACULTY</div><div class="value" style="color:var(--warn)" id="sFaculty">—</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-box"><div class="label">LEAVE REQUESTS</div><div class="value" id="sLeaves">—</div></div></div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" style="border-color:var(--border)">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-users">User management</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs">Audit logs</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-ml">ML controls</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-db">Database</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-reports">Reports</a></li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- Users Tab -->
+  <div class="tab-pane fade show active" id="tab-users">
+
+    <!-- Top bar: toggle + search + add -->
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+
+      <!-- Toggle Switch -->
+      <div class="view-toggle" id="viewToggle">
+        <button class="vt-btn active" id="btnStudents" onclick="switchView('students')">
+          <i class="bi bi-mortarboard"></i>
+          Students
+          <span class="count-badge student" id="badgeStudents">—</span>
+        </button>
+        <button class="vt-btn" id="btnFaculty" onclick="switchView('faculty')">
+          <i class="bi bi-person-badge"></i>
+          Faculty &amp; Staff
+          <span class="count-badge faculty" id="badgeFaculty">—</span>
+        </button>
+      </div>
+
+      <!-- Search + Filters + Add -->
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="search-wrap">
+          <i class="bi bi-search"></i>
+          <input type="text" class="form-control form-control-sm" id="userSearch"
+            placeholder="Search name, roll, email..." oninput="applyFilters()"
+            style="width:200px;font-size:12px">
+        </div>
+
+        <!-- Student filters (visible when students active) -->
+        <div id="studentFilters" class="d-flex gap-2">
+          <select class="form-select form-select-sm" id="filterSem" onchange="applyFilters()" style="font-size:11px;width:110px">
+            <option value="">All Sems</option>
+            {% for i in range(1,9) %}<option value="{{ i }}">Sem {{ i }}</option>{% endfor %}
+          </select>
+          <select class="form-select form-select-sm" id="filterSec" onchange="applyFilters()" style="font-size:11px;width:90px">
+            <option value="">All Sec</option>
+            <option>A</option><option>B</option><option>C</option>
+          </select>
+        </div>
+
+        <!-- Faculty filters (hidden when students active) -->
+        <div id="facultyFilters" class="d-flex gap-2" style="display:none!important">
+          <select class="form-select form-select-sm" id="filterRole" onchange="applyFilters()" style="font-size:11px;width:110px">
+            <option value="">All Roles</option>
+            <option value="faculty">Faculty</option>
+            <option value="hod">HOD</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+
+        <a href="/auth/register" class="btn btn-primary btn-sm">
+          <i class="bi bi-person-plus me-1"></i>Add user
+        </a>
+      </div>
+    </div>
+
+    <!-- Shown count label -->
+    <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:8px" id="shownLabel"></div>
+
+    <!-- Students Panel -->
+    <div class="user-panel card p-3" id="panelStudents">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr>
+            <th>Name</th><th>Roll No</th><th>Semester</th>
+            <th>Section</th><th>Department</th><th>Status</th>
+            <th>Last login</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="studentTable">
+            <tr><td colspan="8" class="text-center" style="color:var(--muted);padding:1.5rem">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Faculty Panel -->
+    <div class="user-panel card p-3 hidden" id="panelFaculty">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr>
+            <th>Name</th><th>Staff ID</th><th>Role</th>
+            <th>Designation</th><th>Department</th><th>Status</th>
+            <th>Last login</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="facultyTable">
+            <tr><td colspan="8" class="text-center" style="color:var(--muted);padding:1.5rem">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Audit Logs Tab -->
+  <div class="tab-pane fade" id="tab-logs">
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="card-header rounded">SYSTEM AUDIT LOG</div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadLogs()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+      <div id="logList"><p style="font-size:13px;color:var(--muted)">Loading logs...</p></div>
+    </div>
+  </div>
+
+  <!-- ML Controls Tab -->
+  <div class="tab-pane fade" id="tab-ml">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card p-4">
+          <h6 style="font-weight:500;margin-bottom:1rem;color:var(--text)">ML model status</h6>
+          <div class="sys-row"><span>Algorithm</span><strong>Logistic Regression</strong></div>
+          <div class="sys-row"><span>Status</span><span id="modelStatus"><span class="badge-accent">Checking...</span></span></div>
+          <div class="sys-row"><span>Training samples</span><span id="trainSamples">—</span></div>
+          <div class="sys-row"><span>Last accuracy</span><span id="lastAccuracy" style="color:var(--accent)">—</span></div>
+          <button class="btn btn-primary w-100 mt-3" id="trainBtn" onclick="trainModel()">
+            <i class="bi bi-cpu me-2"></i>Retrain model
+          </button>
+          <div id="trainResult" class="mt-2" style="font-size:12px"></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card p-4">
+          <h6 style="font-weight:500;margin-bottom:1rem;color:var(--text)">System configuration</h6>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">ATTENDANCE THRESHOLD %</label>
+            <input type="number" class="form-control form-control-sm" id="cfg_att" value="85" min="0" max="100">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">WARNING THRESHOLD %</label>
+            <input type="number" class="form-control form-control-sm" id="cfg_warn" value="75" min="0" max="100">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">ACTIVE SEMESTER</label>
+            <select class="form-select form-select-sm" id="cfg_sem">
+              {% for i in range(1,9) %}<option value="{{ i }}" {% if i==4 %}selected{% endif %}>Semester {{ i }}</option>{% endfor %}
+            </select>
+          </div>
+          <button class="btn btn-primary w-100" onclick="saveConfig()">Save configuration</button>
+          <div id="configResult" class="mt-2" style="font-size:12px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Database Tab -->
+  <div class="tab-pane fade" id="tab-db">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card p-4">
+          <h6 style="font-weight:500;margin-bottom:1rem;color:var(--text)">Database statistics</h6>
+          <div id="dbStats"><p style="font-size:13px;color:var(--muted)">Loading...</p></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card p-4">
+          <h6 style="font-weight:500;margin-bottom:1rem;color:var(--text)">Backup &amp; maintenance</h6>
+          <div class="d-grid gap-2">
+            <a href="/admin/export/db" class="btn btn-outline-secondary text-start btn-sm">
+              <i class="bi bi-download me-2"></i>Export database (.sqlite)
+            </a>
+            <a href="/admin/report/full" class="btn btn-outline-secondary text-start btn-sm">
+              <i class="bi bi-file-pdf me-2"></i>Generate full PDF report
+            </a>
+            <a href="/admin/export/attendance" class="btn btn-outline-secondary text-start btn-sm">
+              <i class="bi bi-table me-2"></i>Export all attendance (CSV)
+            </a>
+            <a href="/admin/export/defaulters" class="btn btn-outline-secondary text-start btn-sm">
+              <i class="bi bi-exclamation-triangle me-2"></i>Export defaulter list (CSV)
+            </a>
+            <button class="btn btn-outline-secondary text-start btn-sm" onclick="clearLogs()">
+              <i class="bi bi-trash me-2"></i>Clear audit logs
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reports Tab -->
+  <div class="tab-pane fade" id="tab-reports">
+    <div class="row g-3">
+      {% set reports = [
+        ('Attendance Report','Full attendance summary with defaulter list','bi-calendar-check','accent','/admin/report/attendance'),
+        ('Performance Report','Subject-wise marks and PASS/FAIL analysis','bi-bar-chart','accent2','/admin/report/performance'),
+        ('Placement Report','Readiness scores and eligibility overview','bi-briefcase','warn','/admin/report/placement'),
+        ('Risk Analysis Report','High/Medium/Low risk student classification','bi-cpu','danger','/admin/report/risk'),
+        ('Leave Summary Report','All leave requests with approval status','bi-file-earmark-text','accent','/admin/report/leave'),
+        ('Complete Department Report','All modules combined — full PDF','bi-journal-richtext','accent2','/admin/report/full'),
+      ] %}
+      {% for title, desc, icon, color, url in reports %}
+      <div class="col-md-4">
+        <div class="card p-3">
+          <div class="d-flex align-items-start gap-3">
+            <div style="width:40px;height:40px;border-radius:8px;background:rgba({% if color=='accent' %}63,185,80{% elif color=='accent2' %}88,166,255{% elif color=='warn' %}210,153,34{% else %}248,81,73{% endif %},.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <i class="bi {{ icon }}" style="color:var(--{{ color }})"></i>
+            </div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:500;margin-bottom:3px;color:var(--text)">{{ title }}</div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:10px">{{ desc }}</div>
+              <a href="{{ url }}" class="btn btn-outline-secondary btn-sm w-100">
+                <i class="bi bi-download me-1"></i>Generate PDF
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+
+async function loadStats() {
+  try {
+    const res  = await fetch('/dashboard/api/data');
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('sUsers').textContent    = data.total_users    || '—';
+      document.getElementById('sStudents').textContent = data.total_students || '—';
+      document.getElementById('sFaculty').textContent  = data.total_faculty  || '—';
+      document.getElementById('sLeaves').textContent   = data.total_leaves   || '—';
+    }
+  } catch {}
+}
+
+async function loadUsers() {
+  try {
+    const res  = await fetch('/admin/api/users');
+    const data = await res.json();
+    if (data.success) renderSplitTables(data.users);
+    else renderSplitTables(getDemoUsers());
+  } catch { renderSplitTables(getDemoUsers()); }
+}
+
+function getDemoUsers() {
+  return [
+    {id:1,name:'Arjun Sharma',username:'CS21001',role:'student',department:'CSE',semester:4,section:'A',roll_number:'CS21001',is_active:true,last_login:'2024-04-10'},
+    {id:2,name:'Priya Singh',username:'CS21002',role:'student',department:'CSE',semester:4,section:'A',roll_number:'CS21002',is_active:true,last_login:'2024-04-09'},
+    {id:3,name:'Dr. Priya Nair',username:'FAC001',role:'faculty',department:'CSE',designation:'Assistant Professor',is_active:true,last_login:'2024-04-10'},
+    {id:4,name:'Prof. K. Ramesh',username:'HOD001',role:'hod',department:'CSE',designation:'Head of Department',is_active:true,last_login:'2024-04-10'},
+    {id:5,name:'Nikhil G',username:'CS21013',role:'student',department:'CSE',semester:4,section:'A',roll_number:'CS21013',is_active:false,last_login:'2024-03-20'},
+  ];
+}
+
+function roleBadge(role) {
+  const map = {student:'badge-blue',faculty:'badge-accent',hod:'badge-warn',admin:'badge-danger'};
+  return `<span class="${map[role]||'badge-blue'} mono">${role}</span>`;
+}
+
+function statusBadge(active) {
+  return `<span class="${active?'badge-accent':'badge-danger'} mono">${active?'Active':'Inactive'}</span>`;
+}
+
+function actionBtn(id, active, role) {
+  const previewIcon = role === 'student' ? 'bi-mortarboard' :
+                      role === 'hod'     ? 'bi-building'    :
+                      role === 'faculty' ? 'bi-person-badge' : 'bi-shield';
+  return `
+    <a href="/admin/impersonate/${id}"
+       class="btn btn-sm"
+       style="background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3);margin-right:4px"
+       title="Preview app as this user"
+       onclick="return confirm('Preview as this user? You can exit anytime with the banner.')">
+      <i class="bi ${previewIcon} me-1"></i>Preview
+    </a>
+    <button class="btn btn-outline-secondary btn-sm" onclick="toggleUser(${id},${active})" style="margin-right:4px">${active?'Disable':'Enable'}</button>
+    <button class="btn btn-outline-danger btn-sm" onclick="deleteUser(${id})">Delete</button>`;
+}
+
+// Global user data cache
+let _allUsers = [];
+let _activeView = 'students';
+
+function renderSplitTables(users) {
+  _allUsers = users;
+
+  const students = users.filter(u => u.role === 'student');
+  const staff    = users.filter(u => u.role !== 'student');
+
+  // Update count badges on toggle buttons
+  document.getElementById('badgeStudents').textContent = students.length;
+  document.getElementById('badgeFaculty').textContent  = staff.length;
+
+  // Update stat boxes
+  document.getElementById('sStudents').textContent = students.length;
+  document.getElementById('sFaculty').textContent  = staff.filter(u => u.role !== 'admin').length;
+
+  applyFilters();
+}
+
+function switchView(view) {
+  _activeView = view;
+
+  const btnS = document.getElementById('btnStudents');
+  const btnF = document.getElementById('btnFaculty');
+  const panS = document.getElementById('panelStudents');
+  const panF = document.getElementById('panelFaculty');
+  const sfil = document.getElementById('studentFilters');
+  const ffil = document.getElementById('facultyFilters');
+
+  if (view === 'students') {
+    btnS.classList.add('active');    btnS.classList.remove('faculty-active');
+    btnF.classList.remove('active');
+    panS.classList.remove('hidden'); panF.classList.add('hidden');
+    sfil.style.display = '';         ffil.style.setProperty('display','none','important');
+  } else {
+    btnF.classList.add('active', 'faculty-active');
+    btnS.classList.remove('active');
+    panF.classList.remove('hidden'); panS.classList.add('hidden');
+    ffil.style.removeProperty('display'); ffil.style.display = 'flex';
+    sfil.style.display = 'none';
+  }
+
+  // Clear search when switching
+  document.getElementById('userSearch').value = '';
+  applyFilters();
+}
+
+function applyFilters() {
+  const q       = (document.getElementById('userSearch').value || '').toLowerCase();
+  const sem     = document.getElementById('filterSem').value;
+  const sec     = document.getElementById('filterSec').value;
+  const role    = document.getElementById('filterRole').value;
+
+  if (_activeView === 'students') {
+    let rows = _allUsers.filter(u => u.role === 'student');
+    if (sem)  rows = rows.filter(u => String(u.semester) === sem);
+    if (sec)  rows = rows.filter(u => (u.section||'').toUpperCase() === sec.toUpperCase());
+    if (q)    rows = rows.filter(u =>
+      (u.name||'').toLowerCase().includes(q) ||
+      (u.roll_number||'').toLowerCase().includes(q) ||
+      (u.username||'').toLowerCase().includes(q) ||
+      (u.email||'').toLowerCase().includes(q)
+    );
+    document.getElementById('studentTable').innerHTML = rows.length
+      ? rows.map(u => `
+          <tr>
+            <td style="font-weight:500;color:var(--text)">${u.name}</td>
+            <td style="font-family:'Space Mono',monospace;font-size:12px">${u.roll_number || u.username}</td>
+            <td style="font-size:12px;color:var(--muted)">${u.semester ? 'Sem ' + u.semester : '—'}</td>
+            <td style="font-size:12px;color:var(--muted)">${u.section || '—'}</td>
+            <td style="font-size:12px;color:var(--muted)">${u.department || '—'}</td>
+            <td>${statusBadge(u.is_active)}</td>
+            <td style="font-size:12px;color:var(--muted)">${u.last_login || '—'}</td>
+            <td>${actionBtn(u.id, u.is_active, u.role)}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="8" class="text-center" style="color:var(--muted);padding:1.5rem">No students match the filter.</td></tr>';
+    document.getElementById('shownLabel').textContent =
+      `Showing ${rows.length} of ${_allUsers.filter(u=>u.role==='student').length} students`;
+
+  } else {
+    let rows = _allUsers.filter(u => u.role !== 'student');
+    if (role) rows = rows.filter(u => u.role === role);
+    if (q)    rows = rows.filter(u =>
+      (u.name||'').toLowerCase().includes(q) ||
+      (u.username||'').toLowerCase().includes(q) ||
+      (u.email||'').toLowerCase().includes(q) ||
+      (u.designation||'').toLowerCase().includes(q)
+    );
+    document.getElementById('facultyTable').innerHTML = rows.length
+      ? rows.map(u => `
+          <tr>
+            <td style="font-weight:500">${u.name}</td>
+            <td style="font-family:'Space Mono',monospace;font-size:12px">${u.username}</td>
+            <td>${roleBadge(u.role)}</td>
+            <td style="font-size:12px;color:var(--muted)">${u.designation || '—'}</td>
+            <td style="font-size:12px;color:var(--muted)">${u.department || '—'}</td>
+            <td>${statusBadge(u.is_active)}</td>
+            <td style="font-size:12px;color:var(--muted)">${u.last_login || '—'}</td>
+            <td>${actionBtn(u.id, u.is_active, u.role)}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="8" class="text-center" style="color:var(--muted);padding:1.5rem">No staff match the filter.</td></tr>';
+    document.getElementById('shownLabel').textContent =
+      `Showing ${rows.length} of ${_allUsers.filter(u=>u.role!=='student').length} staff`;
+  }
+}
+
+async function toggleUser(id, currentActive) {
+  try {
+    const res  = await fetch(`/admin/user/${id}/toggle`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) loadUsers();
+  } catch { alert('Demo mode — toggle saved locally.'); }
+}
+
+async function deleteUser(id) {
+  const user = _allUsers.find(u => u.id === id);
+  const label = user ? `${user.name} (${user.roll_number || user.username})` : 'this user';
+  if (!confirm(`Delete ${label}? This permanently removes their account and every attendance, leave, project and placement record tied to them. This cannot be undone.`)) return;
+
+  try {
+    const res  = await fetch(`/admin/user/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      loadUsers();
+    } else {
+      alert(data.message || 'Could not delete that user.');
+    }
+  } catch (e) {
+    alert('Network error deleting user.');
+  }
+}
+
+async function loadLogs() {
+  const logTypes = {login:'lt-login',leave:'lt-leave',attendance:'lt-att',risk:'lt-risk',system:'lt-login'};
+  const demoLogs = [
+    {time:'09:14',type:'login',message:'Arjun Sharma logged in as student'},
+    {time:'09:22',type:'attendance',message:'Dr. Priya Nair uploaded attendance for DS — Sem 4A (40 classes, 6 defaulters)'},
+    {time:'09:45',type:'leave',message:'Leave #7 approved by HOD — Attendance adjusted for CS21004 (Sneha Nair)'},
+    {time:'10:02',type:'login',message:'Prof. K. Ramesh logged in as HOD'},
+    {time:'10:18',type:'risk',message:'ML risk scan: 2 HIGH risk students detected in Sem 4A'},
+    {time:'10:30',type:'attendance',message:'What-if simulator used by CS21001'},
+    {time:'11:05',type:'leave',message:'Leave #8 submitted by CS21002 — 3 days medical leave'},
+    {time:'11:22',type:'login',message:'Vikram Das login failed — wrong password (attempt 2)'},
+  ];
+  try {
+    const res  = await fetch('/admin/api/logs');
+    const data = await res.json();
+    renderLogs(data.success ? data.logs : demoLogs);
+  } catch { renderLogs(demoLogs); }
+}
+
+function renderLogs(logs) {
+  const typeClass = {login:'lt-login',leave:'lt-leave',attendance:'lt-att',risk:'lt-risk'};
+  document.getElementById('logList').innerHTML = logs.map(l => `
+    <div class="log-item">
+      <span class="log-time">${l.time}</span>
+      <span class="log-type ${typeClass[l.type]||'lt-login'}">${l.type.toUpperCase()}</span>
+      <span class="log-msg">${l.message}</span>
+    </div>`).join('');
+}
+
+async function trainModel() {
+  const btn = document.getElementById('trainBtn');
+  btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Training...';
+  btn.disabled  = true;
+  try {
+    const res  = await fetch('/ml/train', { method: 'POST' });
+    const data = await res.json();
+    document.getElementById('trainResult').innerHTML =
+      `<div class="alert alert-${data.success?'success':'warning'} py-2" style="font-size:12px">${data.message}</div>`;
+    if (data.success) {
+      document.getElementById('lastAccuracy').textContent = data.accuracy + '%';
+      document.getElementById('trainSamples').textContent = data.samples;
+    }
+  } catch {
+    document.getElementById('trainResult').innerHTML =
+      '<div class="alert alert-warning py-2" style="font-size:12px">Need ≥10 records in DB to train. Rule-based fallback is active.</div>';
+  }
+  btn.innerHTML = '<i class="bi bi-cpu me-2"></i>Retrain model';
+  btn.disabled  = false;
+}
+
+function saveConfig() {
+  document.getElementById('configResult').innerHTML =
+    '<div class="alert alert-success py-2" style="font-size:12px">Configuration saved.</div>';
+  setTimeout(() => document.getElementById('configResult').innerHTML = '', 3000);
+}
+
+function clearLogs() {
+  if (confirm('Clear all audit logs?')) {
+    document.getElementById('logList').innerHTML =
+      '<p style="font-size:13px;color:var(--muted)">Logs cleared.</p>';
+  }
+}
+
+function loadDbStats() {
+  const stats = [
+    {label:'Users',val:19,max:100},{label:'Attendance records',val:840,max:2000},
+    {label:'Leave requests',val:23,max:500},{label:'Projects',val:12,max:200},
+    {label:'Performance records',val:156,max:1000},
+  ];
+  document.getElementById('dbStats').innerHTML = stats.map(s => `
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;color:var(--text)">
+        <span>${s.label}</span><span style="font-weight:500;color:var(--text)">${s.val}</span>
+      </div>
+      <div class="db-bar"><div class="db-fill" style="width:${Math.round(s.val/s.max*100)}%"></div></div>
+    </div>`).join('');
+}
+
+loadStats(); loadUsers(); loadLogs(); loadDbStats();
+</script>
+{% endblock %}

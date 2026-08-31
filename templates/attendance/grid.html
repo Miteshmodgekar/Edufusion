@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block title %}Attendance Grid | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .legend {
+    display:flex; flex-wrap:wrap; gap:16px; align-items:center;
+    font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;
+    padding: 10px 14px; border:1px solid var(--border); border-radius:8px; margin-bottom:12px;
+  }
+  .legend .dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px; }
+  .legend .d-safe     { background:var(--accent); }
+  .legend .d-warn     { background:var(--warn); }
+  .legend .d-risk     { background:#e3833a; }
+  .legend .d-critical { background:var(--danger); }
+
+  .grid-wrap { overflow:auto; max-width:100%; border:1px solid var(--border); border-radius:10px; }
+  table.grid { border-collapse:collapse; width:max-content; min-width:100%; }
+  table.grid th, table.grid td {
+    border: 1px solid var(--border); padding: 4px 6px; text-align:center;
+    font-size: 12px; white-space:nowrap;
+  }
+  table.grid thead th {
+    background: var(--surface2); color:var(--muted); font-family:'Space Mono',monospace;
+    font-size:10px; position: sticky; top:0; z-index:2;
+  }
+  table.grid thead tr.dow-row th { padding-top:0; font-weight:400; color:var(--muted); }
+  th.col-roll, td.col-roll,
+  th.col-name, td.col-name {
+    position: sticky; background: var(--surface); z-index:3; text-align:left;
+  }
+  th.col-roll, td.col-roll { left:0; min-width:70px; }
+  th.col-name, td.col-name { left:70px; min-width:150px; box-shadow: 2px 0 0 var(--border); }
+  thead th.col-roll, thead th.col-name { background: var(--surface2); z-index:4; }
+
+  td.day-cell {
+    width: 34px; cursor:pointer; user-select:none; font-weight:600; font-family:'Space Mono',monospace;
+    transition: background .1s;
+  }
+  td.day-cell:hover { outline: 2px solid var(--accent2); outline-offset:-2px; }
+  td.day-cell.weekend { background: rgba(255,255,255,.02); }
+  td.day-cell.c-present    { background: rgba(63,185,80,.22);  color: #3fb950; font-weight:600; }
+  td.day-cell.c-absent     { background: rgba(248,81,73,.22); color: #f85149; font-weight:600; }
+
+  td.col-total { font-family:'Space Mono',monospace; font-weight:600; min-width:56px; }
+  td.col-pct { font-family:'Space Mono',monospace; font-weight:700; min-width:64px; }
+  td.col-pct.b-safe     { color: var(--accent); }
+  td.col-pct.b-warn     { color: var(--warn); }
+  td.col-pct.b-risk     { color: #e3833a; }
+  td.col-pct.b-critical { color: var(--danger); }
+  td.col-pct.b-none     { color: var(--muted); font-weight:400; }
+
+  #gridBox { display:none; }
+  #gridBox.show { display:block; }
+
+  /* ── Grid search bar ── */
+  .grid-search-wrap { position:relative; }
+  .grid-search-wrap .bi-search {
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    color:var(--muted); font-size:13px; pointer-events:none;
+  }
+  #gridSearch {
+    padding-left:32px; background:var(--surface2); border:1px solid var(--border);
+    border-radius:8px; color:var(--text); font-size:13px; height:36px; width:100%;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  #gridSearch:focus { outline:none; border-color:var(--accent2); box-shadow:0 0 0 2px rgba(88,166,255,.15); }
+  #gridSearch::placeholder { color:var(--muted); }
+  .gsearch-count { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; }
+  tr.grid-row-hidden { display:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Attendance Grid</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Spreadsheet-style — click a cell to mark it. Same database as Mark Attendance.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-success btn-sm" id="downloadBtn" onclick="downloadSheet()">
+      <i class="bi bi-file-earmark-excel me-1"></i>Download Excel
+    </button>
+    <a href="/attendance/mark" class="btn btn-outline-secondary btn-sm"><i class="bi bi-check2-square me-1"></i>Daily Mark View</a>
+  </div>
+</div>
+
+<div class="card p-4 mb-3">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SUBJECT</label>
+      <select class="form-select form-select-sm" id="gSubject" onchange="onSubjectChange()">
+        <option value="" disabled selected>Loading subjects…</option>
+        <option value="__new__">+ Add new subject</option>
+      </select>
+      <input type="text" class="form-control form-control-sm mt-2" id="gSubjectNew"
+             placeholder="Type the new subject name" style="display:none">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SEMESTER</label>
+      <select class="form-select form-select-sm" id="gSemester">
+        {% for i in range(1,9) %}<option value="{{ i }}" {% if i==4 %}selected{% endif %}>Sem {{ i }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SECTION</label>
+      <select class="form-select form-select-sm" id="gSection">
+        <option>A</option><option>B</option><option>C</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">MONTH</label>
+      <input type="month" class="form-control form-control-sm" id="gMonth">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-primary w-100" id="loadGridBtn" onclick="loadGrid()">
+        <i class="bi bi-table me-2"></i>Load Grid
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="gridBox">
+  <div class="legend">
+    <span><b style="color:var(--text)">1</b> = Present &nbsp; <b style="color:var(--text)">0</b> = Absent &nbsp; <b style="color:var(--accent2)">OD</b> = On Duty</span>
+    <span>|</span>
+    <span><span class="dot d-critical"></span>Critical &lt;65%</span>
+    <span><span class="dot d-risk"></span>At Risk 65–74%</span>
+    <span><span class="dot d-warn"></span>Warning 75–84%</span>
+    <span><span class="dot d-safe"></span>Safe ≥85%</span>
+    <span style="margin-left:auto">Click a cell: blank → P → A → blank</span>
+  </div>
+
+  <!-- Search bar for grid -->
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <div class="grid-search-wrap flex-grow-1">
+      <i class="bi bi-search"></i>
+      <input type="text" id="gridSearch" placeholder="Search by name or roll no…"
+             oninput="filterGrid(this.value)">
+    </div>
+    <span class="gsearch-count" id="gridSearchCount"></span>
+    <button class="btn btn-outline-secondary btn-sm" onclick="clearGridSearch()" id="clearGridBtn" style="display:none">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="grid-wrap">
+    <table class="grid" id="gridTable">
+      <thead id="gridHead"></thead>
+      <tbody id="gridBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card p-4" id="emptyGrid" style="display:none">
+  <div class="text-center py-4">
+    <div style="font-size:44px;margin-bottom:.5rem">🧑‍🎓</div>
+    <p style="color:var(--muted);font-size:14px;margin:0">No students found for that semester + section.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let gridDays = [];
+let gridStudents = [];
+let gCtx = {};   // subject/semester/section/year/month currently loaded
+
+(function initMonth() {
+  const d = new Date();
+  document.getElementById('gMonth').value = d.toISOString().slice(0, 7);
+})();
+
+async function loadSubjects(preselect) {
+  const sel = document.getElementById('gSubject');
+  try {
+    const res  = await fetch('/attendance/api/subjects');
+    const data = await res.json();
+    const existing = data.success ? data.subjects : [];
+    sel.innerHTML = '<option value="" disabled' + (preselect ? '' : ' selected') + '>Choose a subject…</option>' +
+      existing.map(s => `<option value="${s}"${s === preselect ? ' selected' : ''}>${s}</option>`).join('') +
+      '<option value="__new__">+ Add new subject</option>';
+  } catch (e) {
+    sel.innerHTML = '<option value="__new__" selected>+ Add new subject</option>';
+    onSubjectChange();
+  }
+}
+loadSubjects();
+
+function onSubjectChange() {
+  const sel = document.getElementById('gSubject');
+  const box = document.getElementById('gSubjectNew');
+  box.style.display = sel.value === '__new__' ? 'block' : 'none';
+  if (sel.value === '__new__') box.focus();
+}
+function getSelectedSubject() {
+  const sel = document.getElementById('gSubject');
+  return sel.value === '__new__' ? document.getElementById('gSubjectNew').value.trim() : sel.value.trim();
+}
+
+async function loadGrid() {
+  const subject  = getSelectedSubject();
+  const semester = document.getElementById('gSemester').value;
+  const section  = document.getElementById('gSection').value;
+  const monthVal = document.getElementById('gMonth').value;   // "YYYY-MM"
+
+  if (!subject) { alert('Choose a subject first.'); return; }
+  if (!monthVal) { alert('Pick a month.'); return; }
+  const [year, month] = monthVal.split('-').map(Number);
+
+  const btn = document.getElementById('loadGridBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+  try {
+    const params = new URLSearchParams({ subject, semester, section, year, month });
+    const res  = await fetch('/attendance/api/month-grid?' + params.toString());
+    const data = await res.json();
+    if (!data.success) { alert(data.message || 'Could not load grid.'); return; }
+
+    gridDays = data.days;
+    gridStudents = data.students;
+    gCtx = { subject, semester, section, year, month };
+
+    document.getElementById('emptyGrid').style.display = gridStudents.length ? 'none' : 'block';
+    document.getElementById('gridBox').classList.toggle('show', gridStudents.length > 0);
+    // download button stays visible always
+    if (gridStudents.length) renderGrid();
+  } catch (e) {
+    alert('Network error loading grid.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-table me-2"></i>Load Grid';
+  }
+}
+
+function statusSymbol(s) {
+  return s === 'present' ? '1' : s === 'absent' ? '0' : '';
+}
+function statusClass(s) {
+  return s === 'present' ? 'c-present' : s === 'absent' ? 'c-absent' : '';
+}
+
+function renderGrid() {
+  const head = document.getElementById('gridHead');
+  head.innerHTML = `
+    <tr>
+      <th class="col-roll" rowspan="2">ROLL</th>
+      <th class="col-name" rowspan="2">NAME</th>
+      ${gridDays.map(d => `<th>${d.day}</th>`).join('')}
+      <th rowspan="2" title="Present">P</th>
+      <th rowspan="2" title="Absent">A</th>
+      <th rowspan="2" title="Present / (Present + Absent)">%</th>
+    </tr>
+    <tr class="dow-row">
+      ${gridDays.map(d => `<th>${d.dow[0]}</th>`).join('')}
+    </tr>`;
+
+  const body = document.getElementById('gridBody');
+  body.innerHTML = gridStudents.map((s, si) => `
+    <tr id="grow-${si}" data-name="${(s.name||'').toLowerCase()}" data-roll="${(s.roll_number||'').toLowerCase()}">
+      <td class="col-roll">${s.roll_number || '—'}</td>
+      <td class="col-name">${s.name}</td>
+      ${gridDays.map(d => {
+        const st = s.cells[d.day];
+        return `<td class="day-cell ${statusClass(st)} ${d.is_weekend ? 'weekend' : ''}"
+                     id="cell-${si}-${d.day}"
+                     onclick="cycleCell(${si}, ${d.day})">${statusSymbol(st)}</td>`;
+      }).join('')}
+      <td class="col-total" id="tp-${si}">${s.total_present}</td>
+      <td class="col-total" id="ta-${si}">${s.total_absent}</td>
+      <td class="col-pct b-${s.band}" id="pct-${si}" title="${s.total_present}P / (${s.total_present}P + ${s.total_absent}A)">${s.attendance_pct === null ? '—' : s.attendance_pct + '%'}</td>
+    </tr>
+  `).join('');
+
+  // Re-apply any active search after re-render
+  const q = document.getElementById('gridSearch')?.value;
+  if (q) filterGrid(q);
+}
+
+const CYCLE = [null, 'present', 'absent'];
+
+function downloadSheet() {
+  if (!gCtx.subject) { alert('Load a grid first.'); return; }
+  const params = new URLSearchParams({
+    subject:  gCtx.subject,
+    semester: gCtx.semester,
+    section:  gCtx.section,
+    year:     gCtx.year,
+    month:    gCtx.month,
+  });
+  window.location.href = '/attendance/api/download-sheet?' + params.toString();
+}
+
+async function cycleCell(si, day) {
+  const student = gridStudents[si];
+  const current = student.cells[day] || null;
+  const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
+  const cell = document.getElementById(`cell-${si}-${day}`);
+
+  const dateStr = `${gCtx.year}-${String(gCtx.month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  cell.style.opacity = 0.5;
+
+  try {
+    const res = await fetch('/attendance/api/grid-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_id: student.id, subject: gCtx.subject, semester: gCtx.semester,
+        section: gCtx.section, date: dateStr, status: next || 'clear',
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) { alert(data.message || 'Could not save that cell.'); return; }
+
+    student.cells[day] = next;
+    cell.textContent = statusSymbol(next);
+    cell.className = 'day-cell ' + statusClass(next) +
+      (gridDays.find(d => d.day === day).is_weekend ? ' weekend' : '');
+
+    student.total_present   = data.total_present;
+    student.total_absent     = data.total_absent;
+    student.attendance_pct   = data.attendance_pct;
+    student.band             = data.band;
+    document.getElementById(`tp-${si}`).textContent  = data.total_present;
+    document.getElementById(`ta-${si}`).textContent  = data.total_absent;
+    const pctCell = document.getElementById(`pct-${si}`);
+    pctCell.textContent = data.attendance_pct === null ? '—' : data.attendance_pct + '%';
+    pctCell.title = `${data.total_present}P / (${data.total_present}P + ${data.total_absent}A)`;
+    pctCell.className = 'col-pct b-' + data.band;
+  } catch (e) {
+    alert('Network error saving that cell.');
+  } finally {
+    cell.style.opacity = 1;
+  }
+}
+
+// ── Grid Search ─────────────────────────────────────────────────────────────
+function filterGrid(q) {
+  q = q.trim().toLowerCase();
+  const rows = document.querySelectorAll('#gridBody tr');
+  let visible = 0;
+  rows.forEach(row => {
+    const match = !q ||
+      row.dataset.name.includes(q) ||
+      row.dataset.roll.includes(q);
+    row.classList.toggle('grid-row-hidden', !match);
+    if (match) visible++;
+  });
+  const countEl  = document.getElementById('gridSearchCount');
+  const clearBtn = document.getElementById('clearGridBtn');
+  if (q) {
+    countEl.textContent = `${visible} of ${gridStudents.length} shown`;
+    clearBtn.style.display = 'inline-flex';
+  } else {
+    countEl.textContent = '';
+    clearBtn.style.display = 'none';
+  }
+}
+
+function clearGridSearch() {
+  document.getElementById('gridSearch').value = '';
+  filterGrid('');
+}
+</script>
+{% endblock %}

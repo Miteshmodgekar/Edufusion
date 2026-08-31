@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Live Upload | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--surface);
+  }
+  .drop-zone.drag-over { border-color: var(--accent2); background: rgba(88,166,255,.05); }
+  .drop-icon {
+    width: 56px; height: 56px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 24px;
+  }
+  .live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); margin-right: 6px;
+    box-shadow: 0 0 0 0 rgba(63,185,80,.6);
+    animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(63,185,80,.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(63,185,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Live Attendance Sheet</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">
+      One shared workbook — students see it instantly by USN, no separate upload/analyze step.
+    </p>
+  </div>
+  <span class="badge-blue mono">FACULTY / HOD</span>
+</div>
+
+<div class="card p-4 mb-3">
+  <div style="font-size:13px;color:var(--muted);margin-bottom:1rem">
+    {% if last_synced %}
+      <span class="live-dot"></span>Currently live — last updated <strong>{{ last_synced }}</strong>
+    {% else %}
+      No live sheet uploaded yet. Students will see their older processed records (if any) until you upload one.
+    {% endif %}
+  </div>
+
+  <div class="drop-zone" id="dropZone"
+       onclick="document.getElementById('fileInput').click()"
+       ondragover="event.preventDefault(); this.classList.add('drag-over')"
+       ondragleave="this.classList.remove('drag-over')"
+       ondrop="handleDrop(event)">
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this.files[0])">
+    <div class="drop-icon">📊</div>
+    <h5 style="font-weight:500;margin-bottom:6px" id="dropTitle">Drop the updated workbook here</h5>
+    <p style="font-size:13px;color:var(--muted)">
+      One <span class="mono" style="color:var(--accent2)">.xlsx</span> file, one tab per subject —
+      each tab needs a <strong>Roll No / USN</strong> column and a <strong>Student Name</strong> column.
+    </p>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">
+      Re-uploading overwrites the previous version — students always see the latest.
+    </p>
+  </div>
+
+  <div id="progressBar" class="progress mt-3" style="display:none">
+    <div class="progress-bar progress-bar-animated progress-bar-striped w-100"></div>
+  </div>
+
+  <div id="resultBox" class="alert mt-3 mb-0" style="display:none;font-size:13px"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  document.getElementById('dropTitle').textContent = file.name;
+  document.getElementById('progressBar').style.display = 'block';
+  document.getElementById('resultBox').style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res  = await fetch('/attendance/live-upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    const box  = document.getElementById('resultBox');
+    box.style.display = 'block';
+    box.className = `alert mt-3 mb-0 ${data.success ? 'alert-success' : 'alert-warning'}`;
+    box.textContent = data.message || (data.success ? 'Live sheet updated.' : 'Upload failed.');
+  } catch (err) {
+    const box = document.getElementById('resultBox');
+    box.style.display = 'block';
+    box.className = 'alert mt-3 mb-0 alert-danger';
+    box.textContent = 'Upload failed: ' + err;
+  } finally {
+    document.getElementById('progressBar').style.display = 'none';
+  }
+}
+</script>
+{% endblock %}

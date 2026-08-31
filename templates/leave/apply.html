@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+{% block title %}Apply Leave | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.page-header { margin-bottom: 1.75rem; }
+.page-header h4 { font-weight: 700; font-size: 1.25rem; margin-bottom: 2px; }
+.page-header p  { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* ── Stats strip ─────────────────────────────────────────────────────────── */
+.stats-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 1.5rem; }
+.stat-tile   { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+               padding: 14px 16px; }
+.stat-tile .lbl { font-size: 10px; color: var(--muted); font-family:'Space Mono',monospace;
+                   letter-spacing:.04em; margin-bottom: 6px; }
+.stat-tile .val { font-size: 28px; font-weight: 700; line-height: 1; }
+
+/* ── Form card ───────────────────────────────────────────────────────────── */
+.form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+             padding: 1.5rem; height: 100%; }
+.form-card h6 { font-weight: 600; margin-bottom: 1.25rem; font-size: 14px; }
+.form-label-sm { font-size: 10px; color: var(--muted); font-family:'Space Mono',monospace;
+                  letter-spacing:.04em; margin-bottom: 4px; display: block; }
+.duration-preview { background: var(--surface2); border-radius: 8px; padding: 10px 14px;
+                    font-size: 13px; margin-bottom: 12px; display: none; }
+
+/* ── Leave history list ──────────────────────────────────────────────────── */
+.history-card { background: var(--surface); border: 1px solid var(--border);
+                border-radius: 12px; overflow: hidden; margin-bottom: 10px;
+                transition: border-color .18s, box-shadow .18s; }
+.history-card:hover { border-color: var(--accent2); box-shadow: 0 2px 12px rgba(88,166,255,.08); }
+.hc-top  { background: var(--surface2); padding: 11px 16px;
+           display: flex; align-items: center; justify-content: space-between; }
+.hc-body { padding: 14px 16px; }
+
+/* ── Flow tracker ────────────────────────────────────────────────────────── */
+.flow-track  { display: flex; align-items: center; margin-top: 10px; }
+.flow-node   { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+.flow-circle { width: 30px; height: 30px; border-radius: 50%; border: 2px solid;
+               display: flex; align-items: center; justify-content: center;
+               font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+.fc-done   { background: rgba(63,185,80,.15);  border-color: #3fb950; color: #3fb950; }
+.fc-active { background: rgba(210,153,34,.15); border-color: #d2991c; color: #d2991c; }
+.fc-wait   { background: var(--surface2);       border-color: var(--border); color: var(--muted); }
+.fc-rej    { background: rgba(248,81,73,.15);  border-color: #f85149; color: #f85149; }
+.flow-lbl  { font-size: 10px; color: var(--muted); text-align: center; }
+.flow-line { flex: 1; height: 2px; margin-bottom: 18px; }
+.fl-done   { background: #3fb950; }
+.fl-wait   { background: var(--border); }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.badge-pill { font-size: 10px; padding: 3px 10px; border-radius: 20px;
+              font-family:'Space Mono',monospace; font-weight: 600; }
+.bp-pending  { background: rgba(210,153,34,.18); color: #d2991c; }
+.bp-mentor   { background: rgba(88,166,255,.18); color: #58a6ff; }
+.bp-approved { background: rgba(63,185,80,.18);  color: #3fb950; }
+.bp-rejected { background: rgba(248,81,73,.18);  color: #f85149; }
+
+.type-pill { font-size: 10px; padding: 3px 10px; border-radius: 20px;
+             font-family:'Space Mono',monospace; }
+.tp-medical  { background: rgba(88,166,255,.15); color: #58a6ff; }
+.tp-personal { background: rgba(210,153,34,.15); color: #d2991c; }
+.tp-event    { background: rgba(88,166,255,.15); color: #a371f7; }
+.tp-od       { background: rgba(63,185,80,.15);  color: #3fb950; }
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+.toast-wrap { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex;
+              flex-direction: column; gap: 8px; }
+.toast-msg  { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500;
+              animation: slideUp .3s ease; min-width: 260px;
+              box-shadow: 0 4px 20px rgba(0,0,0,.3); }
+.toast-success { background: #1a3a1a; border: 1px solid #3fb950; color: #3fb950; }
+.toast-danger  { background: #3a1a1a; border: 1px solid #f85149; color: #f85149; }
+.toast-warning { background: #3a2e1a; border: 1px solid #d2991c; color: #d2991c; }
+@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+
+/* ── Comment chips ───────────────────────────────────────────────────────── */
+.comment-chip { background: var(--surface2); border-radius: 8px; padding: 8px 12px;
+                font-size: 12px; color: var(--muted); margin-top: 8px; }
+.comment-chip strong { color: var(--text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center justify-content-between">
+    <div>
+      <h4><i class="bi bi-calendar-check me-2" style="color:var(--accent2)"></i>Leave Management</h4>
+      <p>Apply for leave · Track your approval status · Attendance auto-updates on HOD approval</p>
+    </div>
+    <span class="badge-pill bp-pending mono">STUDENT PORTAL</span>
+  </div>
+</div>
+
+<!-- Stats strip -->
+<div class="stats-strip" id="statsStrip">
+  <div class="stat-tile"><div class="lbl">TOTAL APPLIED</div><div class="val" style="color:var(--accent2)" id="sTotal">—</div></div>
+  <div class="stat-tile"><div class="lbl">APPROVED</div><div class="val" style="color:#3fb950" id="sApproved">—</div></div>
+  <div class="stat-tile"><div class="lbl">PENDING</div><div class="val" style="color:#d2991c" id="sPending">—</div></div>
+  <div class="stat-tile"><div class="lbl">REJECTED</div><div class="val" style="color:#f85149" id="sRejected">—</div></div>
+</div>
+
+<div class="row g-3">
+  <!-- ── Apply Form ─────────────────────────────────────────────────────── -->
+  <div class="col-md-5">
+    <div class="form-card">
+      <h6><i class="bi bi-plus-circle me-2" style="color:var(--accent2)"></i>New Application</h6>
+
+      <!-- Flow diagram for context -->
+      <div class="flow-track mb-4">
+        <div class="flow-node">
+          <div class="flow-circle fc-done">✓</div>
+          <div class="flow-lbl">You</div>
+        </div>
+        <div class="flow-line fl-wait"></div>
+        <div class="flow-node">
+          <div class="flow-circle fc-wait">2</div>
+          <div class="flow-lbl">Mentor</div>
+        </div>
+        <div class="flow-line fl-wait"></div>
+        <div class="flow-node">
+          <div class="flow-circle fc-wait">3</div>
+          <div class="flow-lbl">HOD</div>
+        </div>
+        <div class="flow-line fl-wait"></div>
+        <div class="flow-node">
+          <div class="flow-circle fc-wait">✓</div>
+          <div class="flow-lbl">Done</div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label-sm">FROM DATE</label>
+        <input type="date" class="form-control" id="inp_from">
+        <div id="cutoffWarning" style="display:none;font-size:12px;color:#d2991c;margin-top:6px">
+          <i class="bi bi-clock-fill me-1"></i>
+          Applying for tomorrow — this must be submitted before <strong>2:00 PM today</strong>, or it won't be considered.
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">TO DATE</label>
+        <input type="date" class="form-control" id="inp_to">
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">LEAVE TYPE</label>
+        <select class="form-select" id="inp_type">
+          <option value="medical">🏥 Medical / Health</option>
+          <option value="personal">👤 Personal</option>
+          <option value="event">🏆 Event / Competition</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">REASON</label>
+        <textarea class="form-control" id="inp_reason" rows="4"
+          placeholder="Describe the reason for your leave..."></textarea>
+      </div>
+
+      <!-- Proof Upload -->
+      <div class="mb-3">
+        <label class="form-label-sm">SUPPORTING DOCUMENT <span style="color:var(--muted)">(optional but recommended)</span></label>
+        <div style="border:2px dashed var(--border);border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:border-color .2s"
+             onclick="document.getElementById('inp_proof').click()"
+             onmouseover="this.style.borderColor='var(--accent2)'" onmouseout="this.style.borderColor='var(--border)'">
+          <i class="bi bi-cloud-upload" style="font-size:20px;color:var(--muted)"></i>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px" id="proofLabel">Click to upload PDF, JPG, or PNG</div>
+        </div>
+        <input type="file" id="inp_proof" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="showProofName(this)">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">📎 Examples: medical certificate, event letter, bonafide certificate</div>
+      </div>
+
+      <div class="duration-preview" id="durationPreview">
+        <span style="color:var(--muted)">Duration:</span>
+        <strong id="durationDays" style="color:var(--accent2)">—</strong> day(s)
+        <span id="attendanceImpact" style="color:#d2991c;font-size:12px;margin-left:8px"></span>
+      </div>
+
+      <button class="btn btn-primary w-100" id="submitBtn" onclick="submitLeave()">
+        <i class="bi bi-send me-2"></i>Submit Application
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Leave History ──────────────────────────────────────────────────── -->
+  <div class="col-md-7">
+    <div class="form-card" style="padding:1.25rem">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 style="margin:0"><i class="bi bi-clock-history me-2" style="color:var(--accent)"></i>My Leave History</h6>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadMyLeaves()">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+      </div>
+      <div id="leaveList">
+        <p style="font-size:13px;color:var(--muted)">Loading your applications...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toastWrap"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Date helpers ──────────────────────────────────────────────────────────────
+document.getElementById('inp_from').addEventListener('change', () => { updateDuration(); updateCutoffWarning(); });
+document.getElementById('inp_to').addEventListener('change', updateDuration);
+
+function getIST() {
+  const now = new Date();
+  // Step 1: get UTC ms (local ms + timezone offset in ms)
+  const utcMs = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  // Step 2: add IST offset (UTC+5:30)
+  return new Date(utcMs + (5.5 * 60 * 60 * 1000));
+}
+
+function getTodayISTStr() {
+  const ist = getIST();
+  return ist.toISOString().slice(0, 10);
+}
+
+function getTomorrowISTStr() {
+  const ist = getIST();
+  ist.setDate(ist.getDate() + 1);
+  return ist.toISOString().slice(0, 10);
+}
+
+function isPastNextDayCutoff() {
+  const fromVal = document.getElementById('inp_from').value;
+  if (!fromVal) return false;
+  const ist = getIST();
+  return fromVal === getTomorrowISTStr() && ist.getHours() >= 14;
+}
+
+function updateCutoffWarning() {
+  const fromVal = document.getElementById('inp_from').value;
+  const todayStr    = getTodayISTStr();
+  const tomorrowStr = getTomorrowISTStr();
+  const warn = document.getElementById('cutoffWarning');
+
+  if (!fromVal) { warn.style.display = 'none'; return; }
+
+  if (fromVal <= todayStr) {
+    // Today or past — always too late
+    warn.style.display = 'block';
+    warn.style.color = 'var(--danger)';
+    warn.innerHTML = fromVal < todayStr
+      ? '<i class="bi bi-x-circle-fill me-1"></i>Too late — no longer accepted.'
+      : '<i class="bi bi-x-circle-fill me-1"></i>Too late — no longer accepted.';
+  } else if (fromVal === tomorrowStr) {
+    warn.style.display = 'block';
+    const late = isPastNextDayCutoff();
+    warn.style.color = late ? 'var(--danger)' : '#d2991c';
+    warn.innerHTML = late
+      ? '<i class="bi bi-x-circle-fill me-1"></i>It\'s past 2:00 PM IST — leave requests for tomorrow are no longer accepted.'
+      : '<i class="bi bi-clock-fill me-1"></i>Applying for tomorrow — must be submitted before <strong>2:00 PM IST today</strong>.';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+function updateDuration() {
+  const f = new Date(document.getElementById('inp_from').value);
+  const t = new Date(document.getElementById('inp_to').value);
+  if (!isNaN(f) && !isNaN(t) && t >= f) {
+    const days = Math.floor((t - f) / 86400000) + 1;
+    document.getElementById('durationPreview').style.display = 'block';
+    document.getElementById('durationDays').textContent = days;
+    document.getElementById('attendanceImpact').textContent =
+      `(~${days} class${days > 1 ? 'es' : ''} will be credited as present if approved)`;
+  } else {
+    document.getElementById('durationPreview').style.display = 'none';
+  }
+}
+
+// ── Submit Leave ──────────────────────────────────────────────────────────────
+async function submitLeave() {
+  const from   = document.getElementById('inp_from').value;
+  const to     = document.getElementById('inp_to').value;
+  const type   = document.getElementById('inp_type').value;
+  const reason = document.getElementById('inp_reason').value.trim();
+
+  if (!from || !to || !reason) {
+    toast('Please fill in all fields.', 'warning'); return;
+  }
+  if (from < getTodayISTStr()) {
+    toast('Cannot apply for a past date.', 'danger'); return;
+  }
+  if (from === getTodayISTStr()) {
+    toast("Too late — for today's leave you needed to apply yesterday before 2:00 PM IST.", 'danger'); return;
+  }
+  if (new Date(to) < new Date(from)) {
+    toast('End date must be after start date.', 'danger'); return;
+  }
+  if (isPastNextDayCutoff()) {
+    toast("Too late — leave for tomorrow must be submitted before 2:00 PM IST today.", 'danger');
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+
+  try {
+    // Use FormData to support file upload
+    const fd = new FormData();
+    fd.append('from_date',   from);
+    fd.append('to_date',     to);
+    fd.append('leave_type',  type);
+    fd.append('reason',      reason);
+    const proofFile = document.getElementById('inp_proof').files[0];
+    if (proofFile) fd.append('proof', proofFile);
+
+    const res  = await fetch('/leave/apply', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      toast('✓ Application submitted! Awaiting mentor approval.', 'success');
+      document.getElementById('inp_reason').value = '';
+      document.getElementById('inp_from').value   = '';
+      document.getElementById('inp_to').value     = '';
+      document.getElementById('inp_proof').value  = '';
+      document.getElementById('proofLabel').textContent = 'Click to upload PDF, JPG, or PNG';
+      document.getElementById('durationPreview').style.display = 'none';
+      loadMyLeaves();
+    } else {
+      toast(data.message || 'Submission failed.', 'danger');
+    }
+  } catch {
+    toast('Could not reach server. Please try again.', 'danger');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-send me-2"></i>Submit Application';
+}
+
+// ── Load My Leaves ────────────────────────────────────────────────────────────
+async function loadMyLeaves() {
+  try {
+    const res  = await fetch('/leave/my');
+    const data = await res.json();
+    if (data.success) renderLeaves(data.leaves);
+    else renderLeaves([]);
+  } catch {
+    renderLeaves([]);
+  }
+}
+
+// ── Render functions ──────────────────────────────────────────────────────────
+function typePill(t) {
+  const map = { medical:'tp-medical', personal:'tp-personal', event:'tp-event', od:'tp-od' };
+  const lbl = { medical:'Medical', personal:'Personal', event:'Event', od:'On Duty' };
+  return `<span class="type-pill ${map[t]||'tp-personal'}">${lbl[t]||t}</span>`;
+}
+
+function statusBadge(l) {
+  const s = l.status;
+  if (s === 'approved')        return '<span class="badge-pill bp-approved">✓ Fully Approved</span>';
+  if (s === 'rejected')        return '<span class="badge-pill bp-rejected">✗ Rejected</span>';
+  if (s === 'mentor_approved') return '<span class="badge-pill bp-mentor">⏳ Awaiting HOD</span>';
+  return '<span class="badge-pill bp-pending">⏳ Awaiting Mentor</span>';
+}
+
+function flowNode(cls, icon, label) {
+  return `<div class="flow-node">
+    <div class="flow-circle ${cls}">${icon}</div>
+    <div class="flow-lbl">${label}</div>
+  </div>`;
+}
+
+function renderFlowTrack(l) {
+  const ms = l.mentor_status, hs = l.hod_status;
+  const s1 = 'fc-done';   // Applied — always done
+  const s2 = ms === 'approved' ? 'fc-done' : ms === 'rejected' ? 'fc-rej' : 'fc-active';
+  const s3 = hs === 'approved' ? 'fc-done' : hs === 'rejected' ? 'fc-rej'
+           : ms === 'approved' ? 'fc-active' : 'fc-wait';
+  const s4 = l.status === 'approved' ? 'fc-done' : l.status === 'rejected' ? 'fc-rej' : 'fc-wait';
+
+  const i2 = ms === 'approved' ? '✓' : ms === 'rejected' ? '✗' : '2';
+  const i3 = hs === 'approved' ? '✓' : hs === 'rejected' ? '✗' : '3';
+  const i4 = l.status === 'approved' ? '✓' : l.status === 'rejected' ? '✗' : '4';
+
+  const lDone = cls => cls.includes('done') ? 'fl-done' : 'fl-wait';
+
+  return `<div class="flow-track">
+    ${flowNode(s1, '✓', 'Applied')}
+    <div class="flow-line ${lDone(s2)}"></div>
+    ${flowNode(s2, i2, 'Mentor')}
+    <div class="flow-line ${lDone(s3)}"></div>
+    ${flowNode(s3, i3, 'HOD')}
+    <div class="flow-line ${lDone(s4)}"></div>
+    ${flowNode(s4, i4, l.attendance_adjusted ? '✓ Att.' : 'Attendance')}
+  </div>`;
+}
+
+function renderLeaveCard(l) {
+  const attAdj = l.attendance_adjusted
+    ? '<span class="badge-pill bp-approved" style="font-size:9px">Attendance Updated</span>' : '';
+  const proofBadge = l.has_proof
+    ? `<span class="badge-pill" style="background:rgba(88,166,255,.15);color:#58a6ff;font-size:9px">📎 ${l.proof_original_name}</span>` : '';
+
+  return `<div class="history-card">
+    <div class="hc-top">
+      <div class="d-flex align-items-center gap-2">
+        ${typePill(l.leave_type)}
+        <span style="font-size:13px">${l.from_date} → ${l.to_date}</span>
+        <span style="font-size:11px;color:var(--muted)">(${l.days} day${l.days > 1 ? 's' : ''})</span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        ${proofBadge}
+        ${attAdj}
+        ${statusBadge(l)}
+      </div>
+    </div>
+    <div class="hc-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">${l.reason}</p>
+      ${renderFlowTrack(l)}
+      ${l.mentor_comment ? `<div class="comment-chip mt-2"><strong>Mentor:</strong> "${l.mentor_comment}"</div>` : ''}
+      ${l.hod_comment    ? `<div class="comment-chip"><strong>HOD:</strong> "${l.hod_comment}"</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderLeaves(leaves) {
+  const el = document.getElementById('leaveList');
+  if (!leaves.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted);text-align:center;padding:2rem">No leave applications yet.</p>';
+    ['sTotal','sApproved','sPending','sRejected'].forEach(id => document.getElementById(id).textContent = 0);
+    return;
+  }
+  el.innerHTML = leaves.map(renderLeaveCard).join('');
+
+  document.getElementById('sTotal').textContent    = leaves.length;
+  document.getElementById('sApproved').textContent = leaves.filter(l => l.status === 'approved').length;
+  document.getElementById('sPending').textContent  = leaves.filter(l => l.status === 'pending' || l.status === 'mentor_approved').length;
+  document.getElementById('sRejected').textContent = leaves.filter(l => l.status === 'rejected').length;
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const wrap = document.getElementById('toastWrap');
+  const el   = document.createElement('div');
+  el.className = `toast-msg toast-${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ── Show selected proof filename ─────────────────────────────────────────────────
+function showProofName(input) {
+  const label = document.getElementById('proofLabel');
+  if (input.files && input.files[0]) {
+    label.innerHTML = `<i class="bi bi-check-circle-fill" style="color:#3fb950"></i> ${input.files[0].name}`;
+    label.style.color = 'var(--text)';
+  } else {
+    label.textContent = 'Click to upload PDF, JPG, or PNG';
+    label.style.color = '';
+  }
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+loadMyLeaves();
+</script>
+{% endblock %}

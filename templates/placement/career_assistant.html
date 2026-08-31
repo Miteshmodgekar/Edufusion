@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+{% block title %}Career AI | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ══ Layout ══════════════════════════════════════════════════════════════ */
+.ca-wrap {
+  display:grid;
+  grid-template-columns:280px 1fr;
+  gap:16px;
+  height:calc(100vh - 56px - 2rem);
+}
+@media(max-width:900px){ .ca-wrap{ grid-template-columns:1fr; } .ca-sidebar{ display:none; } }
+
+/* ══ LEFT SIDEBAR ════════════════════════════════════════════════════════ */
+.ca-sidebar {
+  display:flex;flex-direction:column;gap:12px;overflow-y:auto;
+}
+.ca-sidebar::-webkit-scrollbar{ width:3px; }
+.ca-sidebar::-webkit-scrollbar-thumb{ background:var(--border);border-radius:3px; }
+
+/* AI identity card */
+.ai-card {
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:20px 18px;text-align:center;position:relative;overflow:hidden;
+}
+.ai-card::before {
+  content:'';position:absolute;top:-40px;left:50%;transform:translateX(-50%);
+  width:160px;height:160px;
+  background:radial-gradient(circle,rgba(63,185,80,.2),transparent 70%);
+  pointer-events:none;
+}
+.ai-orb {
+  width:64px;height:64px;border-radius:18px;margin:0 auto 12px;
+  background:linear-gradient(135deg,#3fb950,#2ea043);
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;color:#0d1117;
+  box-shadow:0 8px 24px rgba(63,185,80,.35);
+  animation:pulse 3s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{box-shadow:0 8px 24px rgba(63,185,80,.35)} 50%{box-shadow:0 8px 40px rgba(63,185,80,.6)}}
+.ai-name{font-size:14px;font-weight:800;color:var(--text);margin-bottom:3px}
+.ai-desc{font-size:11px;color:var(--muted);margin-bottom:12px}
+.ai-live-badge{
+  font-size:10px;padding:4px 10px;border-radius:20px;font-family:'Space Mono',monospace;
+  font-weight:700;background:rgba(63,185,80,.15);color:#3fb950;
+  border:1px solid rgba(63,185,80,.3);display:inline-flex;align-items:center;gap:5px;
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#3fb950;animation:livePulse 1.5s infinite}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Student profile mini */
+.profile-card {
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:16px;
+}
+.profile-card .pc-hdr{font-size:9px;font-family:'Space Mono',monospace;color:var(--muted);
+  letter-spacing:.08em;margin-bottom:10px}
+.prow{display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)}
+.prow:last-child{border-bottom:none}
+.prow .pk{color:var(--muted)}
+.prow .pv{font-weight:600;color:var(--text);font-family:'Space Mono',monospace;font-size:11px}
+.pv.green{color:#3fb950}
+.pv.red{color:#f85149}
+.pv.yellow{color:#d2991c}
+
+/* Tips card */
+.tips-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;
+}
+.tips-card .tc-hdr{font-size:9px;font-family:'Space Mono',monospace;color:var(--muted);
+  letter-spacing:.08em;margin-bottom:10px}
+.tip{font-size:11.5px;color:var(--muted);padding:5px 0;
+  border-bottom:1px solid var(--border);display:flex;gap:7px;line-height:1.4}
+.tip:last-child{border-bottom:none}
+.tip i{color:#3fb950;flex-shrink:0;margin-top:2px}
+
+/* ══ RIGHT CHAT PANEL ════════════════════════════════════════════════════ */
+.chat-panel{
+  display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  overflow:hidden;position:relative;
+}
+
+/* Animated background mesh */
+.chat-panel::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 400px 300px at 10% 20%,rgba(63,185,80,.04),transparent),
+    radial-gradient(ellipse 300px 400px at 90% 80%,rgba(88,166,255,.04),transparent),
+    radial-gradient(ellipse 200px 200px at 60% 40%,rgba(163,113,247,.03),transparent);
+}
+
+/* Chat topbar */
+.chat-topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border);position:relative;z-index:1;
+  background:var(--surface);
+}
+.chat-topbar-left{display:flex;align-items:center;gap:12px}
+.topbar-orb{
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,#3fb950,#2ea043);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;color:#0d1117;flex-shrink:0;
+}
+.topbar-title{font-size:14px;font-weight:700;color:var(--text)}
+.topbar-sub{font-size:11px;color:var(--muted)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#3fb950;
+  display:inline-block;margin-right:5px;animation:livePulse 1.5s infinite}
+
+/* Chat messages area */
+.chat-msgs{
+  flex:1;overflow-y:auto;padding:20px;
+  display:flex;flex-direction:column;gap:18px;
+  position:relative;z-index:1;
+}
+.chat-msgs::-webkit-scrollbar{width:4px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* Messages */
+.msg{display:flex;gap:10px;animation:fadeUp .25s ease;align-self:flex-start;width:100%}
+.msg.user{align-self:flex-end;flex-direction:row-reverse;max-width:82%;width:auto}
+.msg.ai  {width:100%;max-width:100%}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+.msg-av{
+  width:32px;height:32px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+}
+.msg.ai   .msg-av{background:linear-gradient(135deg,#3fb950,#2ea043);color:#0d1117}
+.msg.user .msg-av{background:linear-gradient(135deg,rgba(88,166,255,.25),rgba(88,166,255,.1));color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+
+.msg-content{display:flex;flex-direction:column;min-width:0;flex:1;overflow:hidden}
+.msg-bub{
+  padding:12px 16px;border-radius:14px;font-size:13.5px;line-height:1.65;
+  word-break:break-word;
+}
+.msg.ai .msg-bub{
+  background:var(--surface2);border:1px solid var(--border);
+  border-top-left-radius:3px;color:var(--text);
+  overflow-x:auto;max-width:100%;
+}
+.msg.user .msg-bub{
+  background:linear-gradient(135deg,rgba(88,166,255,.2),rgba(88,166,255,.1));
+  border:1px solid rgba(88,166,255,.3);border-top-right-radius:3px;color:var(--text);
+}
+.msg-bub ul{margin:8px 0 4px 4px;padding-left:18px}
+.msg-bub li{margin-bottom:4px}
+.msg-bub strong{color:var(--text)}
+.msg-time{font-size:10px;color:var(--muted);margin-top:4px;opacity:.55}
+.msg.user .msg-time{text-align:right}
+
+/* Typing indicator */
+.typing-row{display:flex;gap:10px;align-self:flex-start}
+.typing-bub{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:14px;border-top-left-radius:3px;
+  padding:12px 16px;display:flex;align-items:center;gap:5px;
+}
+.td{width:7px;height:7px;border-radius:50%;background:#3fb950;
+  animation:tdBounce 1.3s infinite ease-in-out}
+.td:nth-child(2){animation-delay:.18s}
+.td:nth-child(3){animation-delay:.36s}
+@keyframes tdBounce{0%,60%,100%{transform:translateY(0);opacity:.35}30%{transform:translateY(-6px);opacity:1}}
+
+/* Quick chips */
+.chips-row{
+  display:flex;gap:7px;flex-wrap:wrap;padding:10px 20px;
+  border-top:1px solid var(--border);position:relative;z-index:1;
+}
+.qchip{
+  font-size:11.5px;padding:6px 13px;border-radius:20px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface2);color:var(--muted);
+  transition:all .18s;white-space:nowrap;
+}
+.qchip:hover{border-color:#3fb950;color:#3fb950;background:rgba(63,185,80,.08);transform:translateY(-1px)}
+
+/* Input zone */
+.chat-input-zone{
+  padding:12px 16px;border-top:1px solid var(--border);position:relative;z-index:1;
+  background:var(--surface);
+}
+.input-wrap{
+  display:flex;gap:10px;align-items:flex-end;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:14px;padding:8px 8px 8px 14px;transition:border-color .2s;
+}
+.input-wrap:focus-within{border-color:#3fb950;box-shadow:0 0 0 3px rgba(63,185,80,.08)}
+.input-wrap textarea{
+  flex:1;resize:none;background:transparent;border:none;
+  color:var(--text);font-size:13.5px;font-family:'Sora',sans-serif;
+  outline:none;max-height:110px;line-height:1.5;padding:2px 0;
+}
+.input-wrap textarea::placeholder{color:var(--muted)}
+.send-btn{
+  width:38px;height:38px;border-radius:10px;border:none;
+  background:linear-gradient(135deg,#3fb950,#2ea043);
+  color:#0d1117;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .2s;
+}
+.send-btn:hover{transform:scale(1.08);box-shadow:0 4px 14px rgba(63,185,80,.4)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.input-hint{font-size:10.5px;color:var(--muted);margin-top:6px;padding:0 4px}
+
+/* Empty state */
+.empty-state{
+  margin:auto;text-align:center;padding:2rem 1rem;
+  display:flex;flex-direction:column;align-items:center;
+}
+.es-orb{
+  width:80px;height:80px;border-radius:22px;margin-bottom:20px;
+  background:linear-gradient(135deg,#3fb950,#2ea043);
+  display:flex;align-items:center;justify-content:center;
+  font-size:36px;color:#0d1117;
+  box-shadow:0 12px 32px rgba(63,185,80,.3);
+}
+.es-title{font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px}
+.es-sub{font-size:13px;color:var(--muted);max-width:380px;line-height:1.6}
+
+/* Not configured */
+.not-cfg{
+  grid-column:1/-1;text-align:center;padding:5rem 2rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:18px;
+}
+.not-cfg i{font-size:3rem;color:#d2991c;display:block;margin-bottom:16px}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if not ai_configured %}
+<div class="ca-wrap" style="display:block">
+  <div class="not-cfg">
+    <i class="bi bi-cpu"></i>
+    <h4 style="font-weight:800;margin-bottom:8px">Career Assistant Not Configured</h4>
+    <p style="font-size:13px;color:var(--muted);max-width:440px;margin:0 auto">
+      Add a free <strong>GROQ_API_KEY</strong> to your <code>.env</code> file.
+      Get one free at <a href="https://console.groq.com/keys" target="_blank" style="color:#58a6ff">console.groq.com/keys</a>
+    </p>
+  </div>
+</div>
+{% else %}
+
+<div class="ca-wrap">
+
+  <!-- ── LEFT SIDEBAR ─────────────────────────────────────────────── -->
+  <div class="ca-sidebar">
+
+    <!-- AI identity -->
+    <div class="ai-card">
+      <div class="ai-orb"><i class="bi bi-stars"></i></div>
+      <div class="ai-name">EduFusion AI</div>
+      <div class="ai-desc">Your personal career guidance assistant</div>
+      <span class="ai-live-badge"><span class="live-dot"></span>Live &amp; context-aware</span>
+    </div>
+
+    <!-- Student profile snapshot -->
+    <div class="profile-card">
+      <div class="pc-hdr">YOUR PROFILE SNAPSHOT</div>
+      <div class="prow"><span class="pk">Name</span><span class="pv">{{ current_user.name.split(' ')[0] }}</span></div>
+      <div class="prow"><span class="pk">Dept</span><span class="pv">{{ current_user.department or '—' }}</span></div>
+      <div class="prow"><span class="pk">Semester</span><span class="pv">{{ current_user.semester or '—' }}</span></div>
+      <div class="prow" style="margin-top:4px">
+        <span class="pk">Status</span>
+        <span class="pv green">✓ Loaded into AI</span>
+      </div>
+    </div>
+
+    <!-- What AI knows -->
+    <div class="tips-card">
+      <div class="tc-hdr">WHAT AI KNOWS ABOUT YOU</div>
+      <div class="tip"><i class="bi bi-check-circle-fill"></i>Your CGPA, skills &amp; certifications</div>
+      <div class="tip"><i class="bi bi-check-circle-fill"></i>Current open placement drives</div>
+      <div class="tip"><i class="bi bi-check-circle-fill"></i>Your backlogs &amp; interests</div>
+      <div class="tip"><i class="bi bi-check-circle-fill"></i>Live attendance percentage</div>
+    </div>
+
+    <!-- Past Sessions -->
+    <div class="tips-card" id="sessionsCard">
+      <div class="tc-hdr" style="display:flex;justify-content:space-between;align-items:center">
+        PAST CHATS
+        <button onclick="newChat()" style="background:rgba(63,185,80,.15);border:1px solid rgba(63,185,80,.3);color:#3fb950;border-radius:6px;padding:2px 8px;font-size:10px;font-family:'Space Mono',monospace;cursor:pointer">+ New</button>
+      </div>
+      <div id="sessionsList" style="margin-top:2px">
+        <div style="font-size:11px;color:var(--muted);text-align:center;padding:10px">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Update profile link -->
+    <a href="/placement/profile" class="btn btn-outline-secondary w-100" style="border-radius:12px;font-size:13px">
+      <i class="bi bi-person-badge me-2"></i>Update Placement Profile
+    </a>
+
+  </div>
+
+  <!-- ── RIGHT CHAT PANEL ─────────────────────────────────────────── -->
+  <div class="chat-panel">
+
+    <!-- Top bar -->
+    <div class="chat-topbar">
+      <div class="chat-topbar-left">
+        <div class="topbar-orb"><i class="bi bi-stars"></i></div>
+        <div>
+          <div class="topbar-title">Career Assistant</div>
+          <div class="topbar-sub"><span class="status-dot"></span>Online · Powered by Groq AI</div>
+        </div>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm" onclick="clearChat()" title="Clear conversation">
+        <i class="bi bi-trash3"></i>
+      </button>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="empty-state" id="emptyState">
+        <div class="es-orb"><i class="bi bi-stars"></i></div>
+        <div class="es-title">Hi {{ current_user.name.split(' ')[0] }}! 👋</div>
+        <div class="es-sub">I've loaded your full placement profile and all current open drives. Ask me anything about your career path — I'll give you specific, actionable advice.</div>
+      </div>
+    </div>
+
+    <!-- Quick chips -->
+    <div class="chips-row">
+      <div class="qchip" onclick="sq('Which open drives am I eligible for right now?')">💼 My eligible drives</div>
+      <div class="qchip" onclick="sq('What skills should I learn next based on my interests?')">📚 Skills to learn</div>
+      <div class="qchip" onclick="sq('Give me a 30-day action plan to improve my placement profile.')">🗓 30-day plan</div>
+      <div class="qchip" onclick="sq('What certifications would get me placed faster?')">🎓 Certifications</div>
+      <div class="qchip" onclick="sq('What is my biggest weakness for placement right now?')">⚡ My weaknesses</div>
+    </div>
+
+    <!-- Input -->
+    <div class="chat-input-zone">
+      <div class="input-wrap">
+        <textarea id="chatInput" rows="1"
+          placeholder="Ask about jobs, skills, internships, resume tips…"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
+          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,110)+'px'">
+        </textarea>
+        <button class="send-btn" id="sendBtn" onclick="send()">
+          <i class="bi bi-send-fill"></i>
+        </button>
+      </div>
+      <div class="input-hint"><i class="bi bi-info-circle me-1"></i>Enter to send · Shift+Enter for new line</div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let busy = false;
+let currentSessionId = null;
+
+const scrollBot = () => {
+  const m = document.getElementById('chatMsgs');
+  if(m) m.scrollTo({top:m.scrollHeight, behavior:'smooth'});
+};
+
+const nowTime = () => new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+const esc = s => { const d=document.createElement('div');d.textContent=s;return d.innerHTML; };
+
+/* ── Table cell parser — handles | inside cell content ─────────────── */
+function parseCells(row) {
+  // Strip leading/trailing | then split
+  const trimmed = row.trim().replace(/^\|/, '').replace(/\|$/, '');
+  return trimmed.split('|').map(c => c.trim());
+}
+
+/* ── Markdown formatter ──────────────────────────────────────────────── */
+function fmt(text) {
+  const lines=text.split('\n'); let html='',i=0;
+  while(i<lines.length){
+    const line=lines[i];
+    if(line.trim().startsWith('|')&&line.trim().endsWith('|')){
+      let tLines=[];
+      while(i<lines.length&&lines[i].trim().startsWith('|')){tLines.push(lines[i]);i++;}
+      // Filter out separator rows like |---|---|
+      const rows=tLines.filter(l=>!/^\s*\|[\s\-|:]+\|\s*$/.test(l));
+      if(rows.length>=1){
+        html+='<div style="overflow-x:auto;margin:10px 0"><table style="width:100%;border-collapse:collapse;font-size:12.5px">';
+        // Determine column count from header
+        const colCount = parseCells(rows[0]).length;
+        rows.forEach((row,ri)=>{
+          let cells = parseCells(row);
+          const tag=ri===0?'th':'td';
+          const st=ri===0
+            ?'background:rgba(63,185,80,.12);color:#3fb950;font-family:Space Mono,monospace;font-size:11px;padding:8px 10px;border-bottom:2px solid rgba(63,185,80,.25);text-align:left;white-space:nowrap'
+            :'padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text)';
+          // Merge overflow cells into last column, pad missing cells
+          if(cells.length > colCount) cells = [...cells.slice(0,colCount-1), cells.slice(colCount-1).join(' | ')];
+          while(cells.length < colCount) cells.push('');
+          html+=`<tr>${cells.map(c=>`<${tag} style="${st}">${inlineFmt(c.trim())}</${tag}>`).join('')}</tr>`;
+        });
+        html+='</table></div>';
+      }
+      continue;
+    }
+    if(/^###\s/.test(line)){html+=`<div style="font-size:13px;font-weight:800;color:var(--text);margin:12px 0 6px">${inlineFmt(line.replace(/^###\s*/,''))}</div>`;i++;continue;}
+    if(/^##\s/.test(line)){html+=`<div style="font-size:14px;font-weight:800;color:var(--text);margin:14px 0 6px">${inlineFmt(line.replace(/^##\s*/,''))}</div>`;i++;continue;}
+    if(/^#\s/.test(line)){html+=`<div style="font-size:15px;font-weight:800;color:var(--text);margin:14px 0 8px">${inlineFmt(line.replace(/^#\s*/,''))}</div>`;i++;continue;}
+
+    // ── Horizontal rule (--- or *** or ___) ───────────────────────
+    if(/^(\-{3,}|\*{3,}|_{3,})\s*$/.test(line.trim())){
+      html+='<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">';
+      i++;continue;
+    }
+
+    // ── Blockquote (> text) ───────────────────────────────────────
+    if(/^>\s/.test(line)){
+      html+='<div style="border-left:3px solid #3fb950;padding:6px 12px;margin:6px 0;background:rgba(63,185,80,.06);border-radius:0 8px 8px 0;font-style:italic;color:var(--muted)">';
+      while(i<lines.length&&/^>\s?/.test(lines[i])){
+        html+=`<span>${inlineFmt(lines[i].replace(/^>\s?/,''))}</span><br>`;
+        i++;
+      }
+      html+='</div>';continue;
+    }
+
+    if(/^\d+\.\s/.test(line)){
+      html+='<ol style="margin:6px 0;padding-left:20px">';
+      while(i<lines.length&&/^\d+\.\s/.test(lines[i])){html+=`<li style="margin-bottom:4px">${inlineFmt(lines[i].replace(/^\d+\.\s*/,''))}</li>`;i++;}
+      html+='</ol>';continue;
+    }
+    if(/^[-•*]\s/.test(line)){
+      html+='<ul style="margin:6px 0;padding-left:20px">';
+      while(i<lines.length&&/^[-•*]\s/.test(lines[i])){html+=`<li style="margin-bottom:4px">${inlineFmt(lines[i].replace(/^[-•*]\s*/,''))}</li>`;i++;}
+      html+='</ul>';continue;
+    }
+    if(line.trim()===''){html+='<br>';i++;continue;}
+    html+=`<span>${inlineFmt(line)}</span><br>`;i++;
+  }
+  return html.replace(/<br>\s*<br>/g,'<br>');
+}
+function inlineFmt(text){
+  const d=document.createElement('div');d.textContent=text;let s=d.innerHTML;
+  return s
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em style="color:#a371f7">$1</em>')
+    .replace(/`(.+?)`/g,'<code style="background:rgba(88,166,255,.12);color:#58a6ff;padding:1px 6px;border-radius:5px;font-size:11.5px;font-family:Space Mono,monospace">$1</code>')
+    .replace(/\[(.+?)\]\((https?:\/\/[^\)]+)\)/g,'<a href="$2" target="_blank" style="color:#58a6ff;text-decoration:underline;text-underline-offset:2px">$1</a>');
+}
+
+
+/* ── Add message to UI ──────────────────────────────────────────────── */
+function addMsg(role, text, time) {
+  document.getElementById('emptyState')?.remove();
+  const m=document.getElementById('chatMsgs');
+  const div=document.createElement('div');
+  div.className=`msg ${role}`;
+  const icon=role==='user'?'bi-person-fill':'bi-stars';
+  div.innerHTML=`
+    <div class="msg-av"><i class="bi ${icon}"></i></div>
+    <div class="msg-content">
+      <div class="msg-bub">${role==='user'?esc(text):fmt(text)}</div>
+      <div class="msg-time">${time||nowTime()}</div>
+    </div>`;
+  m.appendChild(div);
+  scrollBot();
+}
+
+function showTyping(){
+  document.getElementById('emptyState')?.remove();
+  const m=document.getElementById('chatMsgs');
+  const div=document.createElement('div');
+  div.className='typing-row';div.id='typingRow';
+  div.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#3fb950,#2ea043);color:#0d1117;border-radius:9px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="bi bi-stars"></i></div>
+    <div class="typing-bub"><div class="td"></div><div class="td"></div><div class="td"></div></div>`;
+  m.appendChild(div);scrollBot();
+}
+function hideTyping(){document.getElementById('typingRow')?.remove();}
+
+/* ── Load history from DB ───────────────────────────────────────────── */
+async function loadHistory(sessionId) {
+  const url = sessionId
+    ? `/placement/api/chat-history?session_id=${sessionId}`
+    : '/placement/api/chat-history';
+  try {
+    const d = await (await fetch(url)).json();
+    if(!d.success || !d.messages.length) { loadSessions(); return; }
+    currentSessionId = d.session_id;
+    document.getElementById('emptyState')?.remove();
+    d.messages.forEach(m => addMsg(m.role, m.content, m.created_at));
+    // Update topbar title
+    document.querySelector('.topbar-title').textContent = d.title || 'Career Assistant';
+    loadSessions();
+  } catch { loadSessions(); }
+}
+
+/* ── Sidebar sessions list ──────────────────────────────────────────── */
+async function loadSessions() {
+  try {
+    const d = await (await fetch('/placement/api/chat-sessions')).json();
+    const el = document.getElementById('sessionsList');
+    if(!d.success || !d.sessions.length){
+      el.innerHTML='<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">No past chats yet</div>';
+      return;
+    }
+    el.innerHTML = d.sessions.map(s => `
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div onclick="switchSession('${s.session_id}')" style="flex:1;cursor:pointer;min-width:0">
+          <div style="font-size:11.5px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${currentSessionId===s.session_id?'color:#3fb950':''}">${esc(s.title)}</div>
+          <div style="font-size:10px;color:var(--muted)">${s.updated_at} · ${s.msg_count} msgs</div>
+        </div>
+        <button onclick="deleteSession('${s.session_id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;flex-shrink:0;padding:2px" title="Delete">
+          <i class="bi bi-trash3"></i>
+        </button>
+      </div>`).join('');
+  } catch {}
+}
+
+async function switchSession(sessionId) {
+  currentSessionId = sessionId;
+  document.getElementById('chatMsgs').innerHTML =
+    '<div class="empty-state" id="emptyState"><div class="es-orb"><i class="bi bi-stars"></i></div><div class="es-title">Loading chat…</div></div>';
+  await loadHistory(sessionId);
+}
+
+async function deleteSession(sessionId) {
+  if(!confirm('Delete this chat?')) return;
+  await fetch(`/placement/api/chat-session/${sessionId}`, {method:'DELETE'});
+  if(currentSessionId === sessionId) newChat();
+  else loadSessions();
+}
+
+async function newChat() {
+  const d = await (await fetch('/placement/api/chat-new',{method:'POST'})).json();
+  if(d.success){ currentSessionId = d.session_id; }
+  else { currentSessionId = null; }
+  document.getElementById('chatMsgs').innerHTML=`
+    <div class="empty-state" id="emptyState">
+      <div class="es-orb"><i class="bi bi-stars"></i></div>
+      <div class="es-title">New conversation</div>
+      <div class="es-sub">I still have your full profile loaded. What would you like to explore?</div>
+    </div>`;
+  document.querySelector('.topbar-title').textContent = 'Career Assistant';
+  loadSessions();
+}
+
+function sq(text){document.getElementById('chatInput').value=text;send();}
+
+/* ── Send message ───────────────────────────────────────────────────── */
+async function send(){
+  if(busy) return;
+  const inp=document.getElementById('chatInput');
+  const msg=inp.value.trim();
+  if(!msg) return;
+  busy=true;
+  document.getElementById('sendBtn').disabled=true;
+  inp.value='';inp.style.height='auto';
+  addMsg('user',msg);
+  showTyping();
+  try {
+    const r=await fetch('/placement/api/career-chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg, session_id:currentSessionId||''})
+    });
+    const d=await r.json();
+    hideTyping();
+    if(d.success){
+      addMsg('ai',d.reply);
+      if(d.session_id) currentSessionId=d.session_id;
+      loadSessions(); // refresh sidebar
+    } else {
+      addMsg('ai','⚠️ '+(d.message||'Something went wrong. Please try again.'));
+    }
+  } catch {
+    hideTyping();
+    addMsg('ai',"⚠️ Network error — couldn't reach the Career Assistant. Please try again.");
+  } finally {
+    busy=false;
+    document.getElementById('sendBtn').disabled=false;
+    inp.focus();
+  }
+}
+
+// Auto-load on page open
+loadHistory();
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+{% block title %}Mentor Assignment | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .mentor-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;transition:border-color .2s}
+  .mentor-card:hover{border-color:var(--accent)}
+  .mentee-chip{display:inline-flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11.5px;color:var(--text);margin:3px}
+  .mentee-chip .rm{cursor:pointer;color:var(--danger);font-size:13px;margin-left:2px;opacity:.7;transition:opacity .15s}
+  .mentee-chip .rm:hover{opacity:1}
+  .stat-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-family:'Space Mono',monospace}
+
+  /* Unassigned student row */
+  .unassigned-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;
+    background:var(--surface2);border:1px solid var(--border);margin-bottom:6px;
+    font-size:13px;cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+  .unassigned-row:hover{border-color:rgba(88,166,255,.5);background:rgba(88,166,255,.05)}
+  .unassigned-row.selected{border-color:#58a6ff;background:rgba(88,166,255,.1)}
+  .unassigned-row input[type=checkbox]{accent-color:#58a6ff;width:15px;height:15px;cursor:pointer;flex-shrink:0}
+
+  /* Bulk action bar — appears when selection > 0 */
+  #bulkBar{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);
+    padding:10px;border-radius:0 0 12px 12px;display:none;gap:8px;align-items:center;flex-wrap:wrap}
+  #bulkBar.show{display:flex}
+  #bulkBar select{flex:1;min-width:140px;font-size:12px}
+  #bulkBar .sel-count{font-size:12px;color:#58a6ff;font-family:'Space Mono',monospace;white-space:nowrap}
+
+  /* Range selector */
+  .range-bar{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+  .range-bar label{font-size:11px;color:var(--muted);margin-bottom:3px;display:block}
+  .range-bar input[type=number]{background:var(--surface);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:4px 8px;font-size:12px;width:72px;outline:none}
+  .range-bar input[type=number]:focus{border-color:#58a6ff}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:700">Mentor Assignment</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Assign faculty/HOD as mentors to student groups</p>
+  </div>
+  <div class="d-flex gap-2">
+    <span class="stat-pill" style="background:rgba(63,185,80,.1);color:var(--accent)" id="statAssigned">— assigned</span>
+    <span class="stat-pill" style="background:rgba(248,81,73,.1);color:var(--danger)" id="statUnassigned">— unassigned</span>
+  </div>
+</div>
+
+<!-- Batch Assignment by Section -->
+<div class="card p-4 mb-4">
+  <h6 style="font-weight:700;margin-bottom:14px"><i class="bi bi-people-fill me-2" style="color:var(--accent)"></i>Batch Assign by Section</h6>
+  <div class="row g-3 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:12px;color:var(--muted)">MENTOR</label>
+      <select class="form-select form-select-sm" id="batchMentor">
+        <option value="">Select mentor…</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:12px;color:var(--muted)">SEMESTER</label>
+      <select class="form-select form-select-sm" id="batchSem">
+        <option value="">All</option>
+        {% for i in range(1,9) %}<option value="{{ i }}">Sem {{ i }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:12px;color:var(--muted)">SECTION</label>
+      <select class="form-select form-select-sm" id="batchSec">
+        <option value="">All</option>
+        <option>A</option><option>B</option><option>C</option><option>D</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-primary btn-sm w-100" onclick="batchAssign()">
+        <i class="bi bi-person-check me-1"></i>Assign to Matching Students
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Left: Mentor Cards -->
+  <div class="col-lg-8">
+    <h6 style="font-weight:700;color:var(--muted);font-size:11px;letter-spacing:.06em;margin-bottom:12px">MENTORS & THEIR MENTEES</h6>
+    <div id="mentorCards" class="row g-3">
+      <div class="col-12 text-center" style="color:var(--muted);padding:2rem">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Right: Unassigned Students with Mass Selection -->
+  <div class="col-lg-4">
+    <div class="card p-3" style="position:sticky;top:20px">
+
+      <!-- Header -->
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 style="font-weight:700;margin:0;font-size:13px">
+          <i class="bi bi-person-x me-1" style="color:var(--danger)"></i>Unassigned Students
+        </h6>
+        <span class="badge" style="background:rgba(248,81,73,.15);color:var(--danger);font-family:'Space Mono',monospace" id="unassignedCount">0</span>
+      </div>
+
+      <!-- Search -->
+      <input type="text" class="form-control form-control-sm mb-2"
+             placeholder="Search by name or roll…"
+             oninput="filterUnassigned(this.value)" style="font-size:12px">
+
+      <!-- Range selector (replaces Select All) -->
+      <div class="range-bar">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div>
+            <label>FROM roll #</label>
+            <input type="number" id="rangeFrom" min="1" placeholder="e.g. 1" oninput="previewRange()">
+          </div>
+          <div>
+            <label>TO roll #</label>
+            <input type="number" id="rangeTo" min="1" placeholder="e.g. 16" oninput="previewRange()">
+          </div>
+          <div style="margin-top:14px;display:flex;gap:6px;align-items:center">
+            <button class="btn btn-sm" style="background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3);font-size:11px"
+                    onclick="selectRange()">
+              <i class="bi bi-check2-square me-1"></i>Select Range
+            </button>
+            <button class="btn btn-sm" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);font-size:11px"
+                    onclick="clearSelection()">
+              Clear
+            </button>
+          </div>
+        </div>
+        <div id="rangePreview" style="font-size:11px;color:var(--muted);margin-top:5px"></div>
+      </div>
+
+      <!-- Student list -->
+      <div id="unassignedList" style="max-height:340px;overflow-y:auto">
+        <div style="color:var(--muted);font-size:13px;text-align:center;padding:2rem">Loading…</div>
+      </div>
+
+      <!-- Bulk Action Bar (sticky bottom) -->
+      <div id="bulkBar">
+        <span class="sel-count" id="bulkCount">0 selected</span>
+        <select class="form-select form-select-sm" id="bulkMentor">
+          <option value="">Choose mentor…</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="bulkAssign()" style="white-space:nowrap">
+          <i class="bi bi-person-check me-1"></i>Assign
+        </button>
+        <button class="btn btn-sm" style="background:rgba(248,81,73,.1);color:var(--danger);border:1px solid rgba(248,81,73,.3)"
+                onclick="clearSelection()">Clear</button>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Quick Assign Modal (single student) -->
+<div class="modal fade" id="quickAssignModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content" style="background:var(--surface);border:1px solid var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h6 class="modal-title" style="font-size:13px;font-weight:700">Assign Mentor</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--muted)">Assigning mentor to: <strong id="qaStudentName" style="color:var(--text)"></strong></p>
+        <select class="form-select form-select-sm" id="qaMentor">
+          <option value="">Select mentor…</option>
+        </select>
+      </div>
+      <div class="modal-footer" style="border-color:var(--border)">
+        <button class="btn btn-primary btn-sm" onclick="quickAssignConfirm()">Assign</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _data       = null;
+let _qaStudentId = null;
+let _selectedIds = new Set();
+let _filteredList = [];   // currently visible list (for select-all)
+
+// ── Load all data ──────────────────────────────────────────────────────────────
+async function loadData() {
+  const res = await fetch('/admin/api/mentors');
+  _data     = await res.json();
+  if (!_data.success) return;
+
+  document.getElementById('statAssigned').textContent    = `${_data.assigned_count} assigned`;
+  document.getElementById('statUnassigned').textContent  = `${_data.unassigned.length} unassigned`;
+  document.getElementById('unassignedCount').textContent = _data.unassigned.length;
+
+  // Populate mentor dropdowns
+  const opts = _data.mentors.map(m =>
+    `<option value="${m.id}">${m.name} (${m.role}) — ${m.mentee_count} mentees</option>`
+  ).join('');
+  ['batchMentor','qaMentor','bulkMentor'].forEach(id => {
+    document.getElementById(id).innerHTML = '<option value="">Select mentor…</option>' + opts;
+  });
+
+  _selectedIds.clear();
+  renderMentorCards();
+  _filteredList = _data.unassigned;
+  renderUnassigned(_filteredList);
+  updateBulkBar();
+}
+
+// ── Mentor cards ───────────────────────────────────────────────────────────────
+function renderMentorCards() {
+  const c = document.getElementById('mentorCards');
+  if (!_data.mentors.length) {
+    c.innerHTML = '<div class="col-12" style="color:var(--muted);text-align:center;padding:2rem">No faculty/HOD in system.</div>';
+    return;
+  }
+  c.innerHTML = _data.mentors.map(m => `
+    <div class="col-md-6">
+      <div class="mentor-card">
+        <div class="d-flex align-items-start justify-content-between mb-2">
+          <div>
+            <div style="font-weight:700;font-size:14px;color:var(--text)">${m.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${m.designation || m.role}</div>
+          </div>
+          <span class="stat-pill" style="background:rgba(63,185,80,.1);color:var(--accent)">
+            ${m.mentee_count} mentees
+          </span>
+        </div>
+        <div style="min-height:36px">
+          ${m.mentees.length
+            ? m.mentees.map(s => `
+              <span class="mentee-chip">
+                ${s.name} <small style="color:var(--muted)">(${s.roll_number})</small>
+                <span class="rm bi bi-x-circle-fill" onclick="unassign(${s.id}, '${s.name.replace(/'/g,"\\'")}')"></span>
+              </span>`).join('')
+            : '<span style="font-size:12px;color:var(--muted);font-style:italic">No mentees assigned yet</span>'
+          }
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Render unassigned list with checkboxes ─────────────────────────────────────
+function renderUnassigned(list) {
+  _filteredList = list;
+  const el = document.getElementById('unassignedList');
+  if (!list.length) {
+    el.innerHTML = '<div style="color:var(--accent);text-align:center;padding:1rem;font-size:13px">✅ All students assigned!</div>';
+    updateSelectAllState();
+    return;
+  }
+  el.innerHTML = list.map(s => `
+    <div class="unassigned-row ${_selectedIds.has(s.id) ? 'selected' : ''}"
+         id="row_${s.id}" onclick="toggleRow(${s.id}, event)">
+      <input type="checkbox" id="chk_${s.id}"
+             ${_selectedIds.has(s.id) ? 'checked' : ''}
+             onclick="event.stopPropagation(); toggleCheck(${s.id}, this.checked)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
+        <div style="font-size:11px;color:var(--muted)">${s.roll_number || '—'} · Sem ${s.semester || '?'} ${s.section || ''}</div>
+      </div>
+      <button class="btn btn-sm" style="background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3);font-size:11px;flex-shrink:0"
+        onclick="event.stopPropagation(); openQuickAssign(${s.id}, '${s.name.replace(/'/g,"\\'")}')">
+        Assign
+      </button>
+    </div>`).join('');
+
+  updateSelectAllState();
+}
+
+// ── Toggle entire row click ────────────────────────────────────────────────────
+function toggleRow(id, event) {
+  if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT') return;
+  toggleCheck(id, !_selectedIds.has(id));
+  const chk = document.getElementById('chk_' + id);
+  if (chk) chk.checked = _selectedIds.has(id);
+}
+
+function toggleCheck(id, checked) {
+  if (checked) _selectedIds.add(id);
+  else         _selectedIds.delete(id);
+  const row = document.getElementById('row_' + id);
+  if (row) row.classList.toggle('selected', checked);
+  updateBulkBar();
+}
+
+// ── Roll-number range selection ───────────────────────────────────────────────
+// Extracts the trailing integer from a roll number string.
+// e.g. "23JR24CS016" → 16 | "CS2024001" → 1 | "16" → 16
+function rollNum(rollStr) {
+  const m = String(rollStr || '').match(/(\d+)$/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function previewRange() {
+  const from  = parseInt(document.getElementById('rangeFrom').value);
+  const to    = parseInt(document.getElementById('rangeTo').value);
+  const prev  = document.getElementById('rangePreview');
+  if (isNaN(from) || isNaN(to)) { prev.textContent = ''; return; }
+  if (from > to) { prev.textContent = '⚠ From must be ≤ To'; prev.style.color = 'var(--danger)'; return; }
+
+  const matches = _filteredList.filter(s => {
+    const n = rollNum(s.roll_number);
+    return n !== null && n >= from && n <= to;
+  });
+  prev.style.color = 'var(--muted)';
+  prev.textContent = matches.length
+    ? `${matches.length} student${matches.length > 1 ? 's' : ''} in range (roll #${from} – #${to})`
+    : 'No students found in this range';
+}
+
+function selectRange() {
+  const from = parseInt(document.getElementById('rangeFrom').value);
+  const to   = parseInt(document.getElementById('rangeTo').value);
+  if (isNaN(from) || isNaN(to) || from > to) {
+    showToast('Enter a valid From – To range.', 'warning'); return;
+  }
+
+  let count = 0;
+  _filteredList.forEach(s => {
+    const n = rollNum(s.roll_number);
+    if (n !== null && n >= from && n <= to) {
+      _selectedIds.add(s.id);
+      count++;
+      const row = document.getElementById('row_' + s.id);
+      const chk = document.getElementById('chk_' + s.id);
+      if (row) row.classList.add('selected');
+      if (chk) chk.checked = true;
+    }
+  });
+
+  if (count === 0) { showToast('No students found in that range.', 'warning'); return; }
+  showToast(`${count} student${count > 1 ? 's' : ''} selected (roll #${from}–#${to})`, 'success');
+  updateBulkBar();
+}
+
+// ── Bulk bar visibility ────────────────────────────────────────────────────────
+function updateBulkBar() {
+  const n   = _selectedIds.size;
+  const bar = document.getElementById('bulkBar');
+  const lbl = document.getElementById('selCountLabel');
+
+  if (n > 0) {
+    bar.classList.add('show');
+    document.getElementById('bulkCount').textContent = `${n} selected`;
+    lbl.textContent  = `${n} selected`;
+    lbl.style.display = '';
+  } else {
+    bar.classList.remove('show');
+    lbl.style.display = 'none';
+  }
+}
+
+function clearSelection() {
+  _selectedIds.clear();
+  renderUnassigned(_filteredList);
+  updateBulkBar();
+}
+
+// ── Bulk Assign selected ──────────────────────────────────────────────────────
+async function bulkAssign() {
+  const mentorId = document.getElementById('bulkMentor').value;
+  if (!mentorId)           { showToast('Select a mentor first.', 'warning'); return; }
+  if (!_selectedIds.size)  { showToast('No students selected.', 'warning');  return; }
+
+  const res  = await fetch('/admin/api/mentors/assign', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ mentor_id: parseInt(mentorId), student_ids: [..._selectedIds] })
+  });
+  const data = await res.json();
+  if (data.success) {
+    showToast(data.message, 'success');
+    _selectedIds.clear();
+    loadData();
+  } else {
+    showToast(data.message || 'Error', 'danger');
+  }
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function filterUnassigned(q) {
+  if (!_data) return;
+  const filtered = q
+    ? _data.unassigned.filter(s =>
+        s.name.toLowerCase().includes(q.toLowerCase()) ||
+        (s.roll_number || '').toLowerCase().includes(q.toLowerCase()))
+    : _data.unassigned;
+  renderUnassigned(filtered);
+}
+
+// ── Batch by Section ──────────────────────────────────────────────────────────
+async function batchAssign() {
+  const mentorId = document.getElementById('batchMentor').value;
+  const sem      = document.getElementById('batchSem').value;
+  const sec      = document.getElementById('batchSec').value;
+  if (!mentorId) { showToast('Please select a mentor.', 'warning'); return; }
+
+  const body = { mentor_id: parseInt(mentorId) };
+  if (sem) body.semester = parseInt(sem);
+  if (sec) body.section  = sec;
+
+  const res  = await fetch('/admin/api/mentors/assign', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (data.success) { showToast(data.message, 'success'); loadData(); }
+  else showToast(data.message || 'Error', 'danger');
+}
+
+// ── Quick Assign (single) ─────────────────────────────────────────────────────
+function openQuickAssign(studentId, studentName) {
+  _qaStudentId = studentId;
+  document.getElementById('qaStudentName').textContent = studentName;
+  new bootstrap.Modal(document.getElementById('quickAssignModal')).show();
+}
+
+async function quickAssignConfirm() {
+  const mentorId = document.getElementById('qaMentor').value;
+  if (!mentorId) { showToast('Select a mentor.', 'warning'); return; }
+  const res  = await fetch('/admin/api/mentors/assign', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ mentor_id: parseInt(mentorId), student_ids: [_qaStudentId] })
+  });
+  const data = await res.json();
+  bootstrap.Modal.getInstance(document.getElementById('quickAssignModal')).hide();
+  if (data.success) { showToast(data.message, 'success'); loadData(); }
+  else showToast(data.message || 'Error', 'danger');
+}
+
+// ── Unassign ──────────────────────────────────────────────────────────────────
+async function unassign(studentId, name) {
+  if (!confirm(`Remove mentor from ${name}?`)) return;
+  const res  = await fetch('/admin/api/mentors/unassign', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ student_ids: [studentId] })
+  });
+  const data = await res.json();
+  if (data.success) { showToast(data.message, 'success'); loadData(); }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const colors = { success:'#3fb950', danger:'#f85149', warning:'#d2991c' };
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;
+    background:var(--surface2);border:1px solid ${colors[type]||colors.success};
+    border-radius:12px;padding:12px 18px;font-size:13px;color:${colors[type]||colors.success};
+    box-shadow:0 4px 20px rgba(0,0,0,.4)`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+loadData();
+</script>
+{% endblock %}

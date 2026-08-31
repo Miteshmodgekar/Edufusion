@@ -1,0 +1,590 @@
+{% extends "base.html" %}
+{% block title %}My Profile | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Profile Hero ──────────────────────────────────────── */
+  .profile-hero {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .hero-banner {
+    height: 110px;
+    background: linear-gradient(135deg,
+      rgba(63,185,80,.25) 0%,
+      rgba(88,166,255,.2) 50%,
+      rgba(210,153,34,.15) 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 50%, rgba(63,185,80,.3) 0%, transparent 50%),
+      radial-gradient(circle at 80% 50%, rgba(88,166,255,.3) 0%, transparent 50%);
+    animation: heroPulse 6s ease-in-out infinite alternate;
+  }
+  @keyframes heroPulse {
+    from { opacity: .6; }
+    to   { opacity: 1; }
+  }
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: .25;
+  }
+  .hero-body {
+    padding: 0 2rem 1.5rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+  }
+
+  /* ── Avatar ───────────────────────────────────────────── */
+  .avatar-wrap {
+    margin-top: -42px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .avatar-ring {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    padding: 3px;
+    background: conic-gradient(var(--accent), var(--accent2), var(--warn), var(--accent));
+    animation: spinRing 8s linear infinite;
+    box-shadow: 0 0 24px rgba(63,185,80,.35);
+  }
+  @keyframes spinRing {
+    to { transform: rotate(360deg); }
+  }
+  .avatar-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    border: 2px solid var(--surface);
+  }
+  .avatar-status {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 8px rgba(63,185,80,.6);
+    animation: statusPulse 2s ease infinite;
+  }
+  @keyframes statusPulse {
+    0%,100% { box-shadow: 0 0 8px rgba(63,185,80,.6); }
+    50%      { box-shadow: 0 0 16px rgba(63,185,80,.9); }
+  }
+
+  /* ── Hero Info ────────────────────────────────────────── */
+  .hero-info {
+    flex: 1;
+    padding-top: .75rem;
+    min-width: 0;
+  }
+  .hero-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hero-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .hero-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  /* ── Stat Cards ───────────────────────────────────────── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: .75rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    transition: transform .2s, border-color .2s, box-shadow .2s;
+    animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(88,166,255,.4);
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+  .stat-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto .5rem;
+    font-size: 16px;
+  }
+  .stat-val {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .stat-lbl {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-top: 2px;
+    letter-spacing: .5px;
+  }
+
+  /* ── Info Card ────────────────────────────────────────── */
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    animation: fadeUp .5s .1s cubic-bezier(.16,1,.3,1) both;
+  }
+  .info-card-header {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background .15s;
+    gap: 12px;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row:hover { background: var(--hover-tint); }
+  .info-row-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .info-row-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    flex: 0 0 100px;
+  }
+  .info-row-val {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    flex: 1;
+  }
+
+  /* ── Password Card ────────────────────────────────────── */
+  .pw-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    animation: fadeUp .5s .2s cubic-bezier(.16,1,.3,1) both;
+  }
+  .pw-input-wrap {
+    position: relative;
+    margin-bottom: 1rem;
+  }
+  .pw-input-wrap input {
+    padding-right: 42px;
+  }
+  .pw-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    transition: color .2s;
+  }
+  .pw-toggle:hover { color: var(--text); }
+
+  /* Strength meter */
+  .strength-wrap { margin: -4px 0 14px; }
+  .strength-bars {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .strength-bar {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--surface2);
+    transition: background .3s;
+  }
+  .strength-label {
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    transition: color .3s;
+  }
+
+  /* ── Animations ───────────────────────────────────────── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .stat-card:nth-child(2) { animation-delay: .05s; }
+  .stat-card:nth-child(3) { animation-delay: .10s; }
+  .stat-card:nth-child(4) { animation-delay: .15s; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Profile Hero ──────────────────────────────────────── -->
+<div class="profile-hero">
+  <div class="hero-banner">
+    <div class="hero-grid"></div>
+  </div>
+  <div class="hero-body">
+    <div class="avatar-wrap">
+      <div class="avatar-ring">
+        <div class="avatar-inner">
+          {{ current_user.name.split()|map('first')|join('') | upper }}
+        </div>
+      </div>
+      <div class="avatar-status" title="Online"></div>
+    </div>
+    <div class="hero-info">
+      <div class="hero-name">{{ current_user.name }}</div>
+      <div class="hero-sub">{{ current_user.username }} · {{ current_user.email }}</div>
+      <div class="hero-badges">
+        <span class="badge-blue mono">{{ current_user.role | upper }}</span>
+        {% if current_user.department %}
+          <span class="badge-accent mono">{{ current_user.department }}</span>
+        {% endif %}
+        {% if current_user.is_student and current_user.semester %}
+          <span class="badge-warn mono">SEM {{ current_user.semester }}</span>
+        {% endif %}
+        {% if current_user.designation %}
+          <span class="badge-blue mono">{{ current_user.designation }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Stat Cards ────────────────────────────────────────── -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:rgba(63,185,80,.12);color:var(--accent)">
+      <i class="bi bi-person-check"></i>
+    </div>
+    <div class="stat-val">{{ current_user.role | capitalize }}</div>
+    <div class="stat-lbl">ROLE</div>
+  </div>
+  {% if current_user.is_student %}
+  <div class="stat-card">
+    <div class="stat-icon" style="background:rgba(88,166,255,.12);color:var(--accent2)">
+      <i class="bi bi-mortarboard"></i>
+    </div>
+    <div class="stat-val">{{ current_user.roll_number or '—' }}</div>
+    <div class="stat-lbl">ROLL NO</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:rgba(210,153,34,.12);color:var(--warn)">
+      <i class="bi bi-layers"></i>
+    </div>
+    <div class="stat-val">{{ current_user.semester or '—' }}</div>
+    <div class="stat-lbl">SEMESTER</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:rgba(248,81,73,.12);color:var(--danger)">
+      <i class="bi bi-collection"></i>
+    </div>
+    <div class="stat-val">{{ current_user.section or '—' }}</div>
+    <div class="stat-lbl">SECTION</div>
+  </div>
+  {% else %}
+  <div class="stat-card">
+    <div class="stat-icon" style="background:rgba(88,166,255,.12);color:var(--accent2)">
+      <i class="bi bi-building"></i>
+    </div>
+    <div class="stat-val">{{ current_user.department or '—' }}</div>
+    <div class="stat-lbl">DEPARTMENT</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:rgba(210,153,34,.12);color:var(--warn)">
+      <i class="bi bi-award"></i>
+    </div>
+    <div class="stat-val" style="font-size:12px">{{ current_user.designation or '—' }}</div>
+    <div class="stat-lbl">DESIGNATION</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Two Column Layout ─────────────────────────────────── -->
+<div class="row g-3">
+
+  <!-- Account Info -->
+  <div class="col-lg-5">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-person-lines-fill"></i> ACCOUNT INFORMATION
+      </div>
+
+      <div class="info-row">
+        <div class="info-row-icon"><i class="bi bi-person"></i></div>
+        <div class="info-row-label">FULL NAME</div>
+        <div class="info-row-val">{{ current_user.name }}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-row-icon"><i class="bi bi-at"></i></div>
+        <div class="info-row-label">USERNAME</div>
+        <div class="info-row-val" style="font-family:'Space Mono',monospace;font-size:12px">{{ current_user.username }}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-row-icon"><i class="bi bi-envelope"></i></div>
+        <div class="info-row-label">EMAIL</div>
+        <div class="info-row-val" style="font-size:12px;word-break:break-all">{{ current_user.email }}</div>
+      </div>
+      {% if current_user.department %}
+      <div class="info-row">
+        <div class="info-row-icon"><i class="bi bi-building"></i></div>
+        <div class="info-row-label">DEPT</div>
+        <div class="info-row-val">{{ current_user.department }}</div>
+      </div>
+      {% endif %}
+      <div class="info-row">
+        <div class="info-row-icon"><i class="bi bi-shield-check"></i></div>
+        <div class="info-row-label">STATUS</div>
+        <div class="info-row-val">
+          {% if current_user.is_active %}
+            <span style="color:var(--accent);font-size:12px"><i class="bi bi-circle-fill" style="font-size:8px"></i> Active</span>
+          {% else %}
+            <span style="color:var(--danger);font-size:12px"><i class="bi bi-circle-fill" style="font-size:8px"></i> Inactive</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-row-icon"><i class="bi bi-clock-history"></i></div>
+        <div class="info-row-label">LAST LOGIN</div>
+        <div class="info-row-val" style="font-size:12px;color:var(--muted)">
+          {{ current_user.last_login.strftime('%d %b %Y, %I:%M %p') if current_user.last_login else '—' }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password -->
+  <div class="col-lg-7">
+    <div class="pw-card">
+      <div class="info-card-header">
+        <i class="bi bi-shield-lock"></i> CHANGE PASSWORD
+      </div>
+      <div class="p-4">
+        <div id="pwAlert" style="display:none" class="alert mb-3" role="alert"></div>
+
+        <!-- Current Password -->
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.5px">CURRENT PASSWORD</label>
+        <div class="pw-input-wrap">
+          <input type="password" class="form-control" id="oldPass" placeholder="Your current password">
+          <button class="pw-toggle" type="button" onclick="togglePw('oldPass',this)" tabindex="-1">
+            <i class="bi bi-eye"></i>
+          </button>
+        </div>
+
+        <!-- New Password -->
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.5px">NEW PASSWORD</label>
+        <div class="pw-input-wrap">
+          <input type="password" class="form-control" id="newPass" placeholder="Min 8 chars, 1 uppercase, 1 number"
+                 oninput="checkStrength(this.value)">
+          <button class="pw-toggle" type="button" onclick="togglePw('newPass',this)" tabindex="-1">
+            <i class="bi bi-eye"></i>
+          </button>
+        </div>
+
+        <!-- Strength Meter -->
+        <div class="strength-wrap" id="strengthWrap" style="display:none">
+          <div class="strength-bars">
+            <div class="strength-bar" id="sb1"></div>
+            <div class="strength-bar" id="sb2"></div>
+            <div class="strength-bar" id="sb3"></div>
+            <div class="strength-bar" id="sb4"></div>
+          </div>
+          <span class="strength-label" id="strengthLabel">Weak</span>
+        </div>
+
+        <!-- Confirm Password -->
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.5px">CONFIRM NEW PASSWORD</label>
+        <div class="pw-input-wrap">
+          <input type="password" class="form-control mb-0" id="confirmPass" placeholder="Repeat new password">
+          <button class="pw-toggle" type="button" onclick="togglePw('confirmPass',this)" tabindex="-1">
+            <i class="bi bi-eye"></i>
+          </button>
+        </div>
+
+        <!-- Rules hint -->
+        <div style="font-size:11px;color:var(--muted);margin:8px 0 18px;line-height:1.6">
+          <i class="bi bi-info-circle me-1"></i>
+          At least 8 characters · one uppercase letter · one number
+        </div>
+
+        <button class="btn btn-primary w-100 magnetic" id="pwBtn" onclick="changePassword()">
+          <i class="bi bi-shield-lock me-2"></i>Update Password
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── Show/Hide password ─────────────────────────────────── */
+function togglePw(id, btn) {
+  const inp = document.getElementById(id);
+  const isHidden = inp.type === 'password';
+  inp.type = isHidden ? 'text' : 'password';
+  btn.querySelector('i').className = isHidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+
+/* ── Strength meter ─────────────────────────────────────── */
+function checkStrength(val) {
+  const wrap = document.getElementById('strengthWrap');
+  if (!val) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+
+  let score = 0;
+  if (val.length >= 8)                        score++;
+  if (/[A-Z]/.test(val))                      score++;
+  if (/[0-9]/.test(val))                      score++;
+  if (/[^A-Za-z0-9]/.test(val) || val.length >= 12) score++;
+
+  const colors = ['#f85149','#d29922','#3fb950','#58a6ff'];
+  const labels = ['Weak','Fair','Good','Strong'];
+  const bars   = [1,2,3,4];
+
+  bars.forEach(i => {
+    const bar = document.getElementById('sb' + i);
+    bar.style.background = i <= score ? colors[score - 1] : 'var(--surface2)';
+  });
+
+  const lbl = document.getElementById('strengthLabel');
+  lbl.textContent = labels[score - 1] || 'Weak';
+  lbl.style.color = colors[score - 1] || colors[0];
+}
+
+/* ── Change password ─────────────────────────────────────── */
+async function changePassword() {
+  const old_password = document.getElementById('oldPass').value;
+  const new_password = document.getElementById('newPass').value;
+  const confirm      = document.getElementById('confirmPass').value;
+
+  if (!old_password || !new_password || !confirm) {
+    showAlert('Please fill in all fields.', 'danger'); return;
+  }
+  if (new_password !== confirm) {
+    showAlert('New passwords do not match.', 'danger'); return;
+  }
+  if (new_password.length < 8) {
+    showAlert('Password must be at least 8 characters.', 'danger'); return;
+  }
+  if (!/[A-Z]/.test(new_password)) {
+    showAlert('Password must contain at least one uppercase letter.', 'danger'); return;
+  }
+  if (!/[0-9]/.test(new_password)) {
+    showAlert('Password must contain at least one number.', 'danger'); return;
+  }
+
+  const btn = document.getElementById('pwBtn');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Updating...';
+  btn.disabled = true;
+
+  try {
+    const res  = await fetch('/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_password, new_password }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAlert('Password updated successfully!', 'success');
+      showToast('success', 'Password Changed', 'Your password has been updated.');
+      document.getElementById('oldPass').value     = '';
+      document.getElementById('newPass').value     = '';
+      document.getElementById('confirmPass').value = '';
+      document.getElementById('strengthWrap').style.display = 'none';
+    } else {
+      showAlert(data.message || 'Failed to update password.', 'danger');
+    }
+  } catch {
+    showAlert('Server error. Please try again.', 'danger');
+  } finally {
+    btn.innerHTML = '<i class="bi bi-shield-lock me-2"></i>Update Password';
+    btn.disabled = false;
+  }
+}
+
+function showAlert(msg, type) {
+  const el = document.getElementById('pwAlert');
+  el.className = `alert alert-${type}`;
+  el.innerHTML = `<i class="bi bi-${type==='success'?'check-circle':'exclamation-circle'} me-2"></i>${msg}`;
+  el.style.display = 'block';
+  if (type === 'success') setTimeout(() => el.style.display = 'none', 4000);
+}
+</script>
+{% endblock %}

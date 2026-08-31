@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}Post Drive | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-hdr h4 { font-weight:700; font-size:1.2rem; margin-bottom:2px; }
+.page-hdr p  { font-size:13px; color:var(--muted); margin:0; }
+
+/* ── Form card ───────────────────────────────────────────────────────────── */
+.form-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:1.5rem; }
+.form-section-title { font-size:11px; font-family:'Space Mono',monospace; color:var(--muted);
+                       letter-spacing:.06em; margin-bottom:1rem; padding-bottom:6px;
+                       border-bottom:1px solid var(--border); }
+.form-label-sm { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;
+                  display:block; margin-bottom:4px; }
+
+/* ── Drive row in list ───────────────────────────────────────────────────── */
+.drive-row  { background:var(--surface); border:1px solid var(--border); border-radius:12px;
+              padding:14px 16px; margin-bottom:10px; display:flex; align-items:center;
+              justify-content:space-between; gap:12px; }
+.drive-row:hover { border-color:var(--accent2); }
+.co-avatar  { width:40px; height:40px; border-radius:8px; background:rgba(88,166,255,.12);
+              color:#58a6ff; display:flex; align-items:center; justify-content:center;
+              font-size:14px; font-weight:800; flex-shrink:0; }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.badge-pill { font-size:10px; padding:3px 10px; border-radius:20px;
+              font-family:'Space Mono',monospace; font-weight:600; }
+.bp-open   { background:rgba(63,185,80,.18);  color:#3fb950; }
+.bp-closed { background:rgba(248,81,73,.18);  color:#f85149; }
+
+/* ── Result panel ────────────────────────────────────────────────────────── */
+.match-result { background:rgba(63,185,80,.07); border:1px solid rgba(63,185,80,.25);
+                border-radius:12px; padding:16px; margin-top:12px; }
+.match-result .title { font-size:13px; font-weight:600; color:#3fb950; margin-bottom:10px; }
+.result-stat { display:flex; gap:20px; flex-wrap:wrap; }
+.result-item { text-align:center; }
+.result-item .val { font-size:28px; font-weight:700; }
+.result-item .lbl { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; }
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+.toast-wrap { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+.toast-msg  { padding:12px 20px; border-radius:10px; font-size:13px; font-weight:500;
+              animation:slideUp .3s ease; min-width:260px; box-shadow:0 4px 20px rgba(0,0,0,.3); }
+.toast-success { background:#1a3a1a; border:1px solid #3fb950; color:#3fb950; }
+.toast-danger  { background:#3a1a1a; border:1px solid #f85149; color:#f85149; }
+@keyframes slideUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 page-hdr">
+  <div>
+    <h4><i class="bi bi-megaphone me-2" style="color:#d2991c"></i>Post Placement Drive</h4>
+    <p>Add a company drive · AI automatically notifies eligible students</p>
+  </div>
+  <span class="badge-pill bp-open" style="font-size:11px">ADMIN / HOD</span>
+</div>
+
+<div class="row g-3">
+  <!-- ── Post Form ────────────────────────────────────────────────────── -->
+  <div class="col-lg-5">
+    <div class="form-card">
+      <div class="form-section-title">COMPANY INFO</div>
+      <div class="mb-3">
+        <label class="form-label-sm">COMPANY NAME *</label>
+        <input class="form-control" id="f_company" placeholder="e.g. Google, Infosys...">
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">ROLE / POSITION *</label>
+        <input class="form-control" id="f_role" placeholder="e.g. Software Engineer, Data Analyst...">
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col">
+          <label class="form-label-sm">PACKAGE (LPA)</label>
+          <input class="form-control" id="f_pkg" type="number" step="0.1" placeholder="e.g. 12.5">
+        </div>
+        <div class="col">
+          <label class="form-label-sm">LOCATION</label>
+          <input class="form-control" id="f_loc" placeholder="e.g. Bangalore, Remote">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">LAST DATE TO APPLY</label>
+        <input class="form-control" id="f_deadline" type="date">
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">JOB DESCRIPTION</label>
+        <textarea class="form-control" id="f_desc" rows="3" placeholder="Role overview, responsibilities..."></textarea>
+      </div>
+
+      <div class="form-section-title mt-3">AI ELIGIBILITY CRITERIA</div>
+      <div class="row g-2 mb-3">
+        <div class="col">
+          <label class="form-label-sm">MIN CGPA</label>
+          <input class="form-control" id="f_cgpa" type="number" step="0.1" value="6.0">
+        </div>
+        <div class="col">
+          <label class="form-label-sm">MAX BACKLOGS</label>
+          <input class="form-control" id="f_backlogs" type="number" value="0">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">REQUIRED SKILLS (comma-separated)</label>
+        <input class="form-control" id="f_skills" placeholder="Python, SQL, Machine Learning, Django...">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">
+          AI will match against each student's resume skills
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label-sm">ELIGIBLE BRANCHES (leave blank for all)</label>
+        <input class="form-control" id="f_branches" placeholder="CSE, IT, ECE">
+      </div>
+
+      <button class="btn btn-primary w-100" id="postBtn" onclick="postDrive()">
+        <i class="bi bi-send me-2"></i>Post Drive &amp; Notify Eligible Students
+      </button>
+
+      <!-- Match result panel -->
+      <div id="matchResult" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ── Existing drives ──────────────────────────────────────────────── -->
+  <div class="col-lg-7">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.25rem">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 style="margin:0;font-weight:600"><i class="bi bi-list-ul me-2" style="color:#58a6ff"></i>All Drives</h6>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadDrives()">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+      </div>
+      <div id="driveList"><p style="font-size:13px;color:var(--muted)">Loading...</p></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function postDrive() {
+  const company = document.getElementById('f_company').value.trim();
+  const role    = document.getElementById('f_role').value.trim();
+  if (!company || !role) { toast('Company name and role are required.', 'danger'); return; }
+
+  const btn = document.getElementById('postBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Running AI Match...';
+
+  const payload = {
+    company_name:      company,
+    role:              role,
+    package_lpa:       document.getElementById('f_pkg').value      || null,
+    location:          document.getElementById('f_loc').value      || '',
+    deadline:          document.getElementById('f_deadline').value || null,
+    description:       document.getElementById('f_desc').value     || '',
+    min_cgpa:          parseFloat(document.getElementById('f_cgpa').value)     || 6.0,
+    max_backlogs:      parseInt(document.getElementById('f_backlogs').value)   || 0,
+    required_skills:   document.getElementById('f_skills').value   || '',
+    eligible_branches: document.getElementById('f_branches').value || '',
+  };
+
+  try {
+    const res  = await fetch('/drives/api/post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      const mr = data.match_result;
+      showMatchResult(mr, company, role);
+      toast(`✓ Drive posted! ${mr.eligible} eligible student${mr.eligible!==1?'s':''} notified.`, 'success');
+      clearForm();
+      loadDrives();
+    } else {
+      toast(data.message || 'Failed to post drive.', 'danger');
+    }
+  } catch {
+    toast('Server error — please try again.', 'danger');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-send me-2"></i>Post Drive &amp; Notify Eligible Students';
+}
+
+function showMatchResult(mr, company, role) {
+  const el = document.getElementById('matchResult');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="match-result">
+    <div class="title"><i class="bi bi-robot me-2"></i>AI Match Complete — ${company} (${role})</div>
+    <div class="result-stat">
+      <div class="result-item">
+        <div class="val" style="color:#3fb950">${mr.eligible}</div>
+        <div class="lbl">ELIGIBLE</div>
+      </div>
+      <div class="result-item">
+        <div class="val" style="color:#58a6ff">${mr.notified}</div>
+        <div class="lbl">NOTIFIED</div>
+      </div>
+      <div class="result-item">
+        <div class="val" style="color:var(--muted)">${mr.total}</div>
+        <div class="lbl">TOTAL CHECKED</div>
+      </div>
+      <div class="result-item">
+        <div class="val" style="color:#f85149">${mr.total - mr.eligible}</div>
+        <div class="lbl">INELIGIBLE</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function clearForm() {
+  ['f_company','f_role','f_pkg','f_loc','f_deadline','f_desc',
+   'f_skills','f_branches'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_cgpa').value     = '6.0';
+  document.getElementById('f_backlogs').value = '0';
+}
+
+async function loadDrives() {
+  try {
+    const res  = await fetch('/drives/api/all');
+    const data = await res.json();
+    if (data.success) renderDrives(data.drives);
+  } catch { document.getElementById('driveList').innerHTML = '<p style="font-size:13px;color:var(--muted)">Could not load drives.</p>'; }
+}
+
+function renderDrives(drives) {
+  const el = document.getElementById('driveList');
+  if (!drives.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted)">No drives posted yet.</p>';
+    return;
+  }
+  el.innerHTML = drives.map(d => `
+    <div class="drive-row">
+      <div class="d-flex align-items-center gap-3 flex-grow-1">
+        <div class="co-avatar">${d.company_name.charAt(0)}</div>
+        <div>
+          <div style="font-weight:600;font-size:14px">${d.company_name}</div>
+          <div style="font-size:12px;color:var(--muted)">${d.role}${d.package_lpa?' · '+d.package_lpa+' LPA':''}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:2px">
+            CGPA ≥${d.min_cgpa} · Skills: ${d.required_skills||'Any'} · ${d.applicant_count} applicant${d.applicant_count!==1?'s':''}
+          </div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        <span class="badge-pill ${d.status==='open'?'bp-open':'bp-closed'}">${d.status.toUpperCase()}</span>
+        <a href="/drives/${d.id}/applicants" class="btn btn-outline-secondary btn-sm" title="View Applicants">
+          <i class="bi bi-people"></i>
+        </a>
+        <button class="btn btn-outline-secondary btn-sm" title="Re-run AI Notify" onclick="reNotify(${d.id},this)">
+          <i class="bi bi-robot"></i>
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" title="Toggle Open/Closed" onclick="toggleDrive(${d.id},this)">
+          <i class="bi bi-${d.status==='open'?'lock':'unlock'}"></i>
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+async function reNotify(id, btn) {
+  btn.disabled = true;
+  try {
+    const res  = await fetch(`/drives/api/notify/${id}`, { method:'POST' });
+    const data = await res.json();
+    if (data.success) toast(`AI re-run: ${data.result.notified} new notifications sent.`, 'success');
+    else toast(data.message || 'Failed.', 'danger');
+  } catch { toast('Error.', 'danger'); }
+  btn.disabled = false;
+}
+
+async function toggleDrive(id, btn) {
+  btn.disabled = true;
+  try {
+    const res  = await fetch(`/drives/api/toggle/${id}`, { method:'POST' });
+    const data = await res.json();
+    if (data.success) { toast(`Drive ${data.status}.`, 'success'); loadDrives(); }
+    else toast(data.message, 'danger');
+  } catch { toast('Error.', 'danger'); }
+  btn.disabled = false;
+}
+
+function toast(msg, type='success') {
+  const wrap = document.getElementById('toastWrap');
+  const el   = document.createElement('div');
+  el.className = `toast-msg toast-${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 5000);
+}
+
+loadDrives();
+</script>
+{% endblock %}

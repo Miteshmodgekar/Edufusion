@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CSE Smart Academic System — Project Presentation</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0d1117;--s1:#161b22;--s2:#21262d;--border:#30363d;
+      --acc:#3fb950;--blue:#58a6ff;--warn:#d29922;--red:#f85149;
+      --text:#e6edf3;--muted:#8b949e;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);
+     overflow-x:hidden;}
+.slide{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+       padding:4rem 6rem;border-bottom:1px solid var(--border);position:relative;}
+.slide-num{position:absolute;top:2rem;right:2.5rem;font-family:'Space Mono',monospace;
+           font-size:11px;color:var(--muted);}
+
+/* Slide 1 — Title */
+.s1{background:radial-gradient(ellipse at 70% 50%,rgba(63,185,80,.08) 0%,transparent 60%);}
+.s1 .tag{font-family:'Space Mono',monospace;font-size:11px;color:var(--acc);
+         background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.25);
+         border-radius:6px;padding:5px 14px;display:inline-block;margin-bottom:1.5rem;
+         letter-spacing:1px;}
+.s1 h1{font-size:clamp(28px,4vw,52px);font-weight:700;line-height:1.15;
+        max-width:800px;margin-bottom:1.2rem;}
+.s1 h1 span{color:var(--acc);}
+.s1 p{font-size:18px;color:var(--muted);max-width:620px;line-height:1.7;
+      margin-bottom:2.5rem;}
+.pill-row{display:flex;flex-wrap:wrap;gap:10px;}
+.pill{font-size:12px;padding:6px 16px;border-radius:20px;font-family:'Space Mono',monospace;
+      border:1px solid;}
+.pill-g{border-color:rgba(63,185,80,.3);color:var(--acc);}
+.pill-b{border-color:rgba(88,166,255,.3);color:var(--blue);}
+.pill-w{border-color:rgba(210,153,34,.3);color:var(--warn);}
+.pill-r{border-color:rgba(248,81,73,.3);color:var(--red);}
+
+/* Common */
+.slide-title{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);
+             letter-spacing:2px;margin-bottom:.75rem;}
+.big-heading{font-size:clamp(22px,3vw,38px);font-weight:600;margin-bottom:1.5rem;
+             line-height:1.3;}
+.big-heading span{color:var(--acc);}
+
+/* Slide 2 — Problem */
+.problem-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:2rem;}
+.prob-card{background:var(--s1);border:1px solid var(--border);border-radius:12px;
+           padding:1.5rem;}
+.prob-icon{font-size:28px;margin-bottom:.75rem;}
+.prob-title{font-size:14px;font-weight:600;margin-bottom:.5rem;}
+.prob-desc{font-size:13px;color:var(--muted);line-height:1.6;}
+
+/* Slide 3 — Modules */
+.modules-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:1.5rem;}
+.mod{background:var(--s1);border:1px solid var(--border);border-radius:10px;
+     padding:14px;text-align:center;transition:border-color .2s;cursor:default;}
+.mod:hover{border-color:var(--blue);}
+.mod-icon{font-size:24px;margin-bottom:8px;}
+.mod-name{font-size:12px;font-weight:500;margin-bottom:4px;}
+.mod-tech{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;}
+
+/* Slide 4 — Tech stack */
+.stack-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;margin-top:1.5rem;}
+.stack-col{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:1.5rem;}
+.stack-col h3{font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;
+              letter-spacing:1px;margin-bottom:1rem;}
+.stack-item{display:flex;align-items:center;gap:10px;padding:8px 0;
+            border-bottom:1px solid var(--border);font-size:13px;}
+.stack-item:last-child{border:none;}
+.stack-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* Slide 5 — Architecture */
+.arch-wrap{margin-top:1.5rem;}
+.arch-layer{background:var(--s1);border:1px solid var(--border);border-radius:8px;
+            padding:12px 16px;margin-bottom:8px;}
+.arch-layer-label{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);
+                  letter-spacing:1px;margin-bottom:8px;}
+.arch-boxes{display:flex;flex-wrap:wrap;gap:6px;}
+.arch-box{font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid;}
+.ab-blue{background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.3);color:var(--blue);}
+.ab-green{background:rgba(63,185,80,.1);border-color:rgba(63,185,80,.3);color:var(--acc);}
+.ab-warn{background:rgba(210,153,34,.1);border-color:rgba(210,153,34,.3);color:var(--warn);}
+.ab-gray{background:var(--s2);border-color:var(--border);color:var(--text);}
+.arch-arrow{text-align:center;font-size:12px;color:var(--muted);padding:2px 0;}
+
+/* Slide 6 — ML */
+.ml-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem;
+         align-items:start;}
+.formula-box{background:var(--s1);border:1px solid var(--border);border-radius:12px;
+             padding:1.5rem;font-family:'Space Mono',monospace;}
+.formula-box .label{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:.75rem;}
+.formula{font-size:14px;color:var(--blue);line-height:1.8;}
+.risk-table{width:100%;font-size:13px;border-collapse:collapse;}
+.risk-table th{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);
+               padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);}
+.risk-table td{padding:8px 10px;border-bottom:1px solid var(--border);}
+.risk-table tr:last-child td{border:none;}
+
+/* Slide 7 — Features */
+.features-list{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.5rem;}
+.feat{display:flex;gap:12px;align-items:flex-start;}
+.feat-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;
+           justify-content:center;font-size:16px;flex-shrink:0;}
+.feat-text h4{font-size:13px;font-weight:500;margin-bottom:3px;}
+.feat-text p{font-size:12px;color:var(--muted);line-height:1.5;}
+
+/* Slide 8 — Viva */
+.viva-box{background:var(--s1);border:1px solid rgba(63,185,80,.3);border-radius:14px;
+          padding:2rem;margin-top:1.5rem;max-width:800px;}
+.viva-quote{font-size:clamp(14px,2vw,20px);line-height:1.6;color:var(--text);}
+.viva-quote em{color:var(--acc);font-style:normal;font-weight:600;}
+
+/* Slide 9 — Stats */
+.stats-big{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5rem;margin-top:2rem;}
+.stat-big{background:var(--s1);border:1px solid var(--border);border-radius:14px;
+          padding:1.5rem;text-align:center;}
+.stat-num{font-size:48px;font-weight:700;font-family:'Space Mono',monospace;
+          line-height:1;margin-bottom:.5rem;}
+.stat-lbl{font-size:12px;color:var(--muted);letter-spacing:.5px;}
+
+/* Nav */
+.nav-bar{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);
+         background:var(--s1);border:1px solid var(--border);border-radius:30px;
+         padding:8px 20px;display:flex;gap:8px;align-items:center;z-index:100;}
+.nav-btn{background:none;border:none;color:var(--muted);cursor:pointer;
+         font-size:18px;padding:4px 8px;transition:color .2s;font-family:sans-serif;}
+.nav-btn:hover{color:var(--text);}
+.nav-label{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);
+           min-width:60px;text-align:center;}
+.nav-dots{display:flex;gap:6px;align-items:center;}
+.nav-dot{width:6px;height:6px;border-radius:50%;background:var(--border);
+         transition:background .2s;cursor:pointer;}
+.nav-dot.active{background:var(--acc);}
+</style>
+</head>
+<body>
+
+<!-- Slide 1: Title -->
+<div class="slide s1" id="slide-1">
+  <span class="slide-num">01 / 09</span>
+  <div class="tag">CSE DEPARTMENT PROJECT · 2024–25</div>
+  <h1>AI-Driven Smart Academic,<br>Attendance &amp; Placement<br><span>Management System</span></h1>
+  <p>A unified decision support system for CSE departments with machine learning prediction, multi-level workflows, and Progressive Web App support.</p>
+  <div class="pill-row">
+    <span class="pill pill-g">Python Flask</span>
+    <span class="pill pill-b">Scikit-learn ML</span>
+    <span class="pill pill-w">Bootstrap 5</span>
+    <span class="pill pill-g">PWA + Push</span>
+    <span class="pill pill-b">SQLAlchemy</span>
+    <span class="pill pill-r">ReportLab PDF</span>
+  </div>
+</div>
+
+<!-- Slide 2: Problem -->
+<div class="slide" id="slide-2">
+  <span class="slide-num">02 / 09</span>
+  <div class="slide-title">THE PROBLEM</div>
+  <div class="big-heading">What was <span>broken</span> in the department?</div>
+  <div class="problem-grid">
+    <div class="prob-card">
+      <div class="prob-icon">📊</div>
+      <div class="prob-title">Manual attendance</div>
+      <div class="prob-desc">Faculty calculated attendance by hand from registers. Errors were common, defaulters were identified too late.</div>
+    </div>
+    <div class="prob-card">
+      <div class="prob-icon">📝</div>
+      <div class="prob-title">Unstructured leaves</div>
+      <div class="prob-desc">Leave requests were informal, approvals untracked, and attendance adjustments done inconsistently.</div>
+    </div>
+    <div class="prob-card">
+      <div class="prob-icon">⚠️</div>
+      <div class="prob-title">Late risk detection</div>
+      <div class="prob-desc">At-risk students were identified only at exam time — too late for meaningful intervention.</div>
+    </div>
+    <div class="prob-card">
+      <div class="prob-icon">💼</div>
+      <div class="prob-title">Disconnected placement</div>
+      <div class="prob-desc">No unified view of student placement readiness, skills, certifications, or internship history.</div>
+    </div>
+    <div class="prob-card">
+      <div class="prob-icon">🔔</div>
+      <div class="prob-title">No alert system</div>
+      <div class="prob-desc">Students had no proactive notifications about attendance shortfall, risk levels, or placement updates.</div>
+    </div>
+    <div class="prob-card">
+      <div class="prob-icon">📱</div>
+      <div class="prob-title">No mobile access</div>
+      <div class="prob-desc">All processes required desktop access. No mobile-friendly or offline-capable interface existed.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 3: Modules -->
+<div class="slide" id="slide-3">
+  <span class="slide-num">03 / 09</span>
+  <div class="slide-title">SYSTEM MODULES</div>
+  <div class="big-heading">10 integrated <span>modules</span></div>
+  <div class="modules-grid">
+    <div class="mod"><div class="mod-icon">📊</div><div class="mod-name">Smart Attendance</div><div class="mod-tech">Pandas · Excel</div></div>
+    <div class="mod"><div class="mod-icon">🔢</div><div class="mod-name">What-If Simulator</div><div class="mod-tech">Formula engine</div></div>
+    <div class="mod"><div class="mod-icon">📝</div><div class="mod-name">Leave Management</div><div class="mod-tech">3-level approval</div></div>
+    <div class="mod"><div class="mod-icon">🤖</div><div class="mod-name">ML Prediction</div><div class="mod-tech">Logistic Regression</div></div>
+    <div class="mod"><div class="mod-icon">⚠️</div><div class="mod-name">Risk Analysis</div><div class="mod-tech">Rule-based AI</div></div>
+    <div class="mod"><div class="mod-icon">💼</div><div class="mod-name">Placement</div><div class="mod-tech">Weighted scoring</div></div>
+    <div class="mod"><div class="mod-icon">📋</div><div class="mod-name">Project Monitor</div><div class="mod-tech">Weekly updates</div></div>
+    <div class="mod"><div class="mod-icon">🔔</div><div class="mod-name">Notifications</div><div class="mod-tech">Email + Push</div></div>
+    <div class="mod"><div class="mod-icon">📄</div><div class="mod-name">PDF Reports</div><div class="mod-tech">ReportLab · 6 types</div></div>
+    <div class="mod"><div class="mod-icon">📱</div><div class="mod-name">PWA</div><div class="mod-tech">Offline · Installable</div></div>
+  </div>
+</div>
+
+<!-- Slide 4: Tech Stack -->
+<div class="slide" id="slide-4">
+  <span class="slide-num">04 / 09</span>
+  <div class="slide-title">TECHNOLOGY STACK</div>
+  <div class="big-heading">Built with <span>modern</span> Python tools</div>
+  <div class="stack-grid">
+    <div class="stack-col">
+      <h3>BACKEND</h3>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--acc)"></div>Python 3.11 + Flask 3.0 — Web framework</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--blue)"></div>Flask-SQLAlchemy — ORM + DB abstraction</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--warn)"></div>Flask-Login + Bcrypt — Auth + security</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--acc)"></div>Scikit-learn + NumPy — ML prediction</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--blue)"></div>Pandas + openpyxl — Excel processing</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--red)"></div>ReportLab — PDF generation</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--warn)"></div>Flask-Mail + pywebpush — Notifications</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--muted)"></div>Gunicorn — Production WSGI server</div>
+    </div>
+    <div class="stack-col">
+      <h3>FRONTEND + INFRA</h3>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--blue)"></div>Bootstrap 5 — Responsive UI</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--acc)"></div>Chart.js 4 — Analytics charts</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--warn)"></div>Jinja2 — Server-side templates</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--blue)"></div>Service Worker + Web Push — PWA</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--muted)"></div>SQLite (dev) / PostgreSQL (prod)</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--acc)"></div>Docker + Render — Deployment</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--blue)"></div>VAPID — Push authentication</div>
+      <div class="stack-item"><div class="stack-dot" style="background:var(--warn)"></div>python-dotenv — Config management</div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 5: Architecture -->
+<div class="slide" id="slide-5">
+  <span class="slide-num">05 / 09</span>
+  <div class="slide-title">SYSTEM ARCHITECTURE</div>
+  <div class="big-heading">6-layer <span>architecture</span></div>
+  <div class="arch-wrap">
+    <div class="arch-layer">
+      <div class="arch-layer-label">USER LAYER</div>
+      <div class="arch-boxes">
+        <span class="arch-box ab-blue">Student</span>
+        <span class="arch-box ab-green">Faculty</span>
+        <span class="arch-box ab-warn">HOD</span>
+        <span class="arch-box ab-gray">Admin</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↕ HTTPS · Flask Sessions · Flask-Login</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">FRONTEND — Jinja2 · Bootstrap 5 · Chart.js (15 templates)</div>
+      <div class="arch-boxes">
+        <span class="arch-box ab-blue">Login</span><span class="arch-box ab-blue">Dashboard</span>
+        <span class="arch-box ab-blue">Attendance</span><span class="arch-box ab-blue">Leave</span>
+        <span class="arch-box ab-blue">ML Predict</span><span class="arch-box ab-blue">Placement</span>
+        <span class="arch-box ab-blue">Projects</span><span class="arch-box ab-blue">Admin</span>
+        <span class="arch-box ab-blue">Notifications</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↕ Flask Blueprints · REST JSON API (55 routes)</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">BACKEND — 9 Flask Blueprints</div>
+      <div class="arch-boxes">
+        <span class="arch-box ab-green">auth</span><span class="arch-box ab-green">attendance</span>
+        <span class="arch-box ab-green">leave</span><span class="arch-box ab-green">ml_routes</span>
+        <span class="arch-box ab-green">placement</span><span class="arch-box ab-green">project</span>
+        <span class="arch-box ab-green">alert</span><span class="arch-box ab-green">admin</span>
+        <span class="arch-box ab-green">dashboard</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↕ SQLAlchemy ORM · Pandas · Scikit-learn</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">SERVICES</div>
+      <div class="arch-boxes">
+        <span class="arch-box ab-warn">ML Engine</span>
+        <span class="arch-box ab-warn">PDF Generator</span>
+        <span class="arch-box ab-warn">Email + Push</span>
+        <span class="arch-box ab-warn">Excel Parser</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↕ SQLAlchemy ORM</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">DATA LAYER — SQLite / PostgreSQL (10 tables)</div>
+      <div class="arch-boxes">
+        <span class="arch-box ab-gray">User</span><span class="arch-box ab-gray">AttendanceSummary</span>
+        <span class="arch-box ab-gray">LeaveRequest</span><span class="arch-box ab-gray">PlacementProfile</span>
+        <span class="arch-box ab-gray">Project</span><span class="arch-box ab-gray">StudentPerformance</span>
+        <span class="arch-box ab-gray">PushSubscription</span><span class="arch-box ab-gray">NotificationLog</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↕ Service Worker · Web Push API · VAPID</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">PWA LAYER</div>
+      <div class="arch-boxes">
+        <span class="arch-box ab-green">manifest.json</span>
+        <span class="arch-box ab-green">Service Worker (sw.js)</span>
+        <span class="arch-box ab-green">Push Notifications</span>
+        <span class="arch-box ab-green">Offline Cache</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 6: ML -->
+<div class="slide" id="slide-6">
+  <span class="slide-num">06 / 09</span>
+  <div class="slide-title">MACHINE LEARNING</div>
+  <div class="big-heading">Prediction + <span>Risk</span> classification</div>
+  <div class="ml-grid">
+    <div>
+      <div class="formula-box" style="margin-bottom:1rem">
+        <div class="label">PASS/FAIL PREDICTION — LOGISTIC REGRESSION</div>
+        <div class="formula">
+          Features: [attendance %, internal marks, external marks]<br><br>
+          PASS if:<br>
+          &nbsp;· attendance ≥ 75%<br>
+          &nbsp;· internal ≥ 20 / 50<br>
+          &nbsp;· external ≥ 35 / 100<br>
+          &nbsp;· total ≥ 50 / 150<br><br>
+          Output: PASS / FAIL + confidence %
+        </div>
+      </div>
+      <div class="formula-box">
+        <div class="label">WHAT-IF SIMULATOR FORMULA</div>
+        <div class="formula">
+          Projected % = ((A + X) / (T + X)) × 100<br><br>
+          Classes needed:<br>
+          X = ⌈(85T − 100A) / (100 − 85)⌉
+        </div>
+      </div>
+    </div>
+    <div>
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:1px;margin-bottom:1rem">RISK CLASSIFICATION — RULE-BASED</div>
+        <table class="risk-table">
+          <thead><tr><th>Condition</th><th>Score</th></tr></thead>
+          <tbody>
+            <tr><td>Attendance &lt; 75%</td><td style="color:var(--red)">+3</td></tr>
+            <tr><td>Attendance 75–85%</td><td style="color:var(--warn)">+2</td></tr>
+            <tr><td>Internal &lt; 15/50</td><td style="color:var(--red)">+3</td></tr>
+            <tr><td>Internal 15–25/50</td><td style="color:var(--warn)">+2</td></tr>
+            <tr><td>Project &lt; 30%</td><td style="color:var(--red)">+2</td></tr>
+            <tr><td>Project 30–60%</td><td style="color:var(--warn)">+1</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:1rem;font-size:12px">
+          <div style="margin-bottom:6px"><span style="color:var(--red);font-weight:600">HIGH</span> <span style="color:var(--muted)">— score ≥ 5 → immediate intervention</span></div>
+          <div style="margin-bottom:6px"><span style="color:var(--warn);font-weight:600">MEDIUM</span> <span style="color:var(--muted)">— score 2–4 → monitor + counselling</span></div>
+          <div><span style="color:var(--acc);font-weight:600">LOW</span> <span style="color:var(--muted)">— score 0–1 → performing well</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 7: Key Features -->
+<div class="slide" id="slide-7">
+  <span class="slide-num">07 / 09</span>
+  <div class="slide-title">NOVELTY & INNOVATION</div>
+  <div class="big-heading">What makes this <span>unique</span></div>
+  <div class="features-list">
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(63,185,80,.15)">📊</div>
+      <div class="feat-text">
+        <h4>Excel-based automation</h4>
+        <p>Works with existing faculty Excel workflows — no new data entry process required.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(88,166,255,.15)">🔢</div>
+      <div class="feat-text">
+        <h4>What-If attendance simulator</h4>
+        <p>Students can plan future attendance before skipping classes using a live projection formula.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(210,153,34,.15)">📝</div>
+      <div class="feat-text">
+        <h4>Multi-level digital leave workflow</h4>
+        <p>Replaces paper-based approval with automatic attendance adjustment on HOD sign-off.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(248,81,73,.15)">🤖</div>
+      <div class="feat-text">
+        <h4>Proactive ML risk detection</h4>
+        <p>Identifies at-risk students early using ML + rule-based classification, not at exam time.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(63,185,80,.15)">💼</div>
+      <div class="feat-text">
+        <h4>Integrated placement readiness</h4>
+        <p>CGPA + attendance + skills + certifications combined into one actionable readiness score.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon" style="background:rgba(88,166,255,.15)">📱</div>
+      <div class="feat-text">
+        <h4>PWA with offline access</h4>
+        <p>Installable as an app, works offline, sends push notifications — no app store needed.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 8: Viva Line -->
+<div class="slide" id="slide-8" style="background:radial-gradient(ellipse at 30% 70%,rgba(63,185,80,.06) 0%,transparent 60%)">
+  <span class="slide-num">08 / 09</span>
+  <div class="slide-title">VIVA SUMMARY</div>
+  <div class="big-heading">The one line to <span>remember</span></div>
+  <div class="viva-box">
+    <div class="viva-quote">
+      "This project <em>integrates</em> academic monitoring, attendance intelligence,
+      and placement analytics using <em>machine learning</em>, providing a unified
+      <em>decision support system</em> for a CSE department — accessible as a
+      <em>Progressive Web Application</em> with real-time email and push notifications."
+    </div>
+  </div>
+  <div style="margin-top:2rem;display:flex;flex-wrap:wrap;gap:1rem">
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem">
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:.5rem">ML ALGORITHM</div>
+      <div style="font-size:14px;font-weight:500">Logistic Regression</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem">
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:.5rem">FRAMEWORK</div>
+      <div style="font-size:14px;font-weight:500">Python Flask</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem">
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:.5rem">DEPLOYMENT</div>
+      <div style="font-size:14px;font-weight:500">PWA + Docker + Render</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem">
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:.5rem">NOTIFICATIONS</div>
+      <div style="font-size:14px;font-weight:500">Email (SMTP) + Web Push</div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 9: Stats -->
+<div class="slide" id="slide-9">
+  <span class="slide-num">09 / 09</span>
+  <div class="slide-title">PROJECT STATISTICS</div>
+  <div class="big-heading">By the <span>numbers</span></div>
+  <div class="stats-big">
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--acc)">10</div>
+      <div class="stat-lbl">MODULES</div>
+    </div>
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--blue)">55</div>
+      <div class="stat-lbl">API ROUTES</div>
+    </div>
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--warn)">15</div>
+      <div class="stat-lbl">HTML PAGES</div>
+    </div>
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--red)">10</div>
+      <div class="stat-lbl">DB TABLES</div>
+    </div>
+  </div>
+  <div class="stats-big" style="margin-top:1.5rem">
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--acc)">4</div>
+      <div class="stat-lbl">USER ROLES</div>
+    </div>
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--blue)">6</div>
+      <div class="stat-lbl">PDF REPORTS</div>
+    </div>
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--warn)">3</div>
+      <div class="stat-lbl">NOTIFY CHANNELS</div>
+    </div>
+    <div class="stat-big">
+      <div class="stat-num" style="color:var(--red)">55</div>
+      <div class="stat-lbl">TOTAL FILES</div>
+    </div>
+  </div>
+</div>
+
+<!-- Nav bar -->
+<div class="nav-bar">
+  <button class="nav-btn" onclick="navigate(-1)">&#8592;</button>
+  <div class="nav-dots" id="dots"></div>
+  <span class="nav-label" id="navLabel">01 / 09</span>
+  <button class="nav-btn" onclick="navigate(1)">&#8594;</button>
+</div>
+
+<script>
+const TOTAL = 9;
+let current = 1;
+
+// Build dots
+const dotsEl = document.getElementById('dots');
+for (let i = 1; i <= TOTAL; i++) {
+  const d = document.createElement('div');
+  d.className = 'nav-dot' + (i === 1 ? ' active' : '');
+  d.onclick = () => goTo(i);
+  dotsEl.appendChild(d);
+}
+
+function goTo(n) {
+  current = Math.max(1, Math.min(TOTAL, n));
+  document.getElementById('slide-' + current).scrollIntoView({ behavior: 'smooth' });
+  document.querySelectorAll('.nav-dot').forEach((d, i) =>
+    d.classList.toggle('active', i + 1 === current));
+  document.getElementById('navLabel').textContent =
+    String(current).padStart(2,'0') + ' / ' + String(TOTAL).padStart(2,'0');
+}
+
+function navigate(dir) { goTo(current + dir); }
+
+// Update current on scroll
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const n = parseInt(e.target.id.split('-')[1]);
+      if (!isNaN(n)) {
+        current = n;
+        document.querySelectorAll('.nav-dot').forEach((d,i) =>
+          d.classList.toggle('active', i+1 === n));
+        document.getElementById('navLabel').textContent =
+          String(n).padStart(2,'0') + ' / ' + String(TOTAL).padStart(2,'0');
+      }
+    }
+  });
+}, { threshold: 0.5 });
+
+for (let i = 1; i <= TOTAL; i++) {
+  const el = document.getElementById('slide-' + i);
+  if (el) observer.observe(el);
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navigate(1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   navigate(-1);
+});
+</script>
+</body>
+</html>

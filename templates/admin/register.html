@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Register User | EduFusion{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Register New User</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Admin — add student, faculty, HOD or admin accounts</p>
+  </div>
+  <span class="badge-warn mono">ADMIN</span>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card p-4">
+      <h6 style="font-weight:500;margin-bottom:1.25rem">Account details</h6>
+      <div id="alertBox" style="display:none" class="alert mb-3"></div>
+
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">ROLE</label>
+        <select class="form-select" id="roleSelect" onchange="toggleFields()">
+          <option value="student">Student</option>
+          <option value="faculty">Faculty</option>
+          <option value="hod">HOD</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">FULL NAME</label>
+        <input type="text" class="form-control" id="name" placeholder="e.g. Arjun Sharma">
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">USERNAME / ID</label>
+          <input type="text" class="form-control" id="username" placeholder="e.g. CS21001">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">EMAIL</label>
+          <input type="email" class="form-control" id="email" placeholder="user@cse.edu">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">PASSWORD</label>
+        <input type="password" class="form-control" id="password" placeholder="Min 6 characters">
+      </div>
+
+      <!-- Student-specific fields -->
+      <div id="studentFields">
+        <div class="row g-2 mb-3">
+          <div class="col-4">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">ROLL NO</label>
+            <input type="text" class="form-control" id="roll_number" placeholder="CS21001">
+          </div>
+          <div class="col-4">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SEMESTER</label>
+            <select class="form-select" id="semester">
+              {% for i in range(1,9) %}<option value="{{ i }}">Sem {{ i }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SECTION</label>
+            <select class="form-select" id="section">
+              <option>A</option><option>B</option><option>C</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Staff-specific fields -->
+      <div id="staffFields" style="display:none">
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">DEPARTMENT</label>
+            <select class="form-select" id="department">
+              <option>CSE</option><option>IT</option><option>ECE</option><option>EEE</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">DESIGNATION</label>
+            <input type="text" class="form-control" id="designation" placeholder="e.g. Asst. Professor">
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary w-100" onclick="registerUser()">
+        <i class="bi bi-person-plus me-2"></i>Create account
+      </button>
+    </div>
+  </div>
+
+  <!-- Recent users list -->
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">REGISTERED USERS</div>
+      <div id="userList"><p style="font-size:13px;color:var(--muted)">Loading...</p></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleFields() {
+  const role = document.getElementById('roleSelect').value;
+  document.getElementById('studentFields').style.display = role === 'student' ? 'block' : 'none';
+  document.getElementById('staffFields').style.display   = role !== 'student' ? 'block' : 'none';
+}
+
+async function registerUser() {
+  const role = document.getElementById('roleSelect').value;
+  const payload = {
+    username: document.getElementById('username').value.trim(),
+    email:    document.getElementById('email').value.trim(),
+    name:     document.getElementById('name').value.trim(),
+    password: document.getElementById('password').value,
+    role,
+  };
+
+  if (role === 'student') {
+    payload.roll_number = document.getElementById('roll_number').value.trim();
+    payload.semester    = document.getElementById('semester').value;
+    payload.section     = document.getElementById('section').value;
+    payload.department  = 'CSE';
+  } else {
+    payload.department  = document.getElementById('department').value;
+    payload.designation = document.getElementById('designation').value.trim();
+  }
+
+  if (!payload.username || !payload.email || !payload.name || !payload.password) {
+    showAlert('All fields are required.', 'warning'); return;
+  }
+
+  try {
+    const res  = await fetch('/auth/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showAlert(`User "${data.user.name}" created successfully.`, 'success');
+      loadUsers();
+    } else {
+      showAlert(data.message, 'danger');
+    }
+  } catch (e) {
+    showAlert('Server error. Check console.', 'danger');
+  }
+}
+
+function showAlert(msg, type) {
+  const el = document.getElementById('alertBox');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+async function loadUsers() {
+  try {
+    const res  = await fetch('/dashboard/api/data');
+    const data = await res.json();
+    if (data.success && data.role === 'admin') {
+      document.getElementById('userList').innerHTML = `
+        <div class="row g-2">
+          <div class="col-6"><div class="p-2 rounded" style="background:var(--surface2);font-size:13px">
+            <div style="color:var(--muted);font-size:10px;font-family:'Space Mono',monospace">STUDENTS</div>
+            <div style="font-size:22px;font-weight:600;color:var(--accent2)">${data.total_students}</div>
+          </div></div>
+          <div class="col-6"><div class="p-2 rounded" style="background:var(--surface2);font-size:13px">
+            <div style="color:var(--muted);font-size:10px;font-family:'Space Mono',monospace">FACULTY</div>
+            <div style="font-size:22px;font-weight:600;color:var(--accent)">${data.total_faculty}</div>
+          </div></div>
+          <div class="col-12"><div class="p-2 rounded" style="background:var(--surface2);font-size:13px">
+            <div style="color:var(--muted);font-size:10px;font-family:'Space Mono',monospace">TOTAL USERS</div>
+            <div style="font-size:22px;font-weight:600">${data.total_users}</div>
+          </div></div>
+        </div>`;
+    }
+  } catch { /* demo mode */ }
+}
+
+loadUsers();
+</script>
+{% endblock %}

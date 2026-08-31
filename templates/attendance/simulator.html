@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Att. Simulator | EduFusion{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">What-If Attendance Simulator</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Formula: ((Attended + X) / (Total + X)) × 100</p>
+  </div>
+  <span class="badge-accent mono">STUDENT</span>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-5">
+    <div class="card p-4">
+      <div class="card-header rounded mb-3">YOUR INPUTS</div>
+
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">CLASSES ATTENDED (A)</label>
+        <input type="number" class="form-control" id="inp_a" value="30" min="0" oninput="compute()">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">TOTAL CLASSES HELD (T)</label>
+        <input type="number" class="form-control" id="inp_t" value="40" min="1" oninput="compute()">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">TARGET ATTENDANCE %</label>
+        <input type="range" class="form-range" id="inp_thresh" min="50" max="100" value="85" step="1" oninput="compute(); document.getElementById('threshLabel').textContent=this.value+'%'">
+        <div class="d-flex justify-content-between" style="font-size:12px;color:var(--muted)">
+          <span>50%</span><span id="threshLabel" style="color:var(--accent2);font-weight:500">85%</span><span>100%</span>
+        </div>
+      </div>
+
+      <div class="mt-2 p-3 rounded" style="background:var(--surface2)" id="resultBox">
+        <div class="row g-2 text-center">
+          <div class="col-6">
+            <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">CURRENT %</div>
+            <div style="font-size:28px;font-weight:600;color:var(--text)" id="res_cur">75.0%</div>
+          </div>
+          <div class="col-6">
+            <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">CLASSES NEEDED</div>
+            <div style="font-size:28px;font-weight:600;color:var(--danger)" id="res_need">14</div>
+          </div>
+          <div class="col-6">
+            <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">SAFE TO SKIP</div>
+            <div style="font-size:28px;font-weight:600;color:var(--accent)" id="res_skip">0</div>
+          </div>
+          <div class="col-6">
+            <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">PROJECTED (10 more)</div>
+            <div style="font-size:28px;font-weight:600;color:var(--accent2)" id="res_proj">76.0%</div>
+          </div>
+        </div>
+        <div id="res_msg" class="mt-3 p-2 rounded text-center" style="font-size:13px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-7">
+    <div class="card p-3 mb-3">
+      <div class="card-header rounded mb-3">PROJECTION CURVE (next 20 classes)</div>
+      <canvas id="projChart" height="200"></canvas>
+    </div>
+    <div class="card p-3">
+      <div class="card-header rounded mb-3">SCENARIOS</div>
+      <div id="scenarios" class="row g-2"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+let chartInst = null;
+
+function compute() {
+  const a  = parseFloat(document.getElementById('inp_a').value)      || 0;
+  const t  = parseFloat(document.getElementById('inp_t').value)      || 1;
+  const th = parseFloat(document.getElementById('inp_thresh').value) || 85;
+
+  const cur = parseFloat(((a/t)*100).toFixed(1));
+  const need = cur >= th ? 0 : Math.ceil((th*t - 100*a)/(100-th));
+  const proj10 = parseFloat(((a+10)/(t+10)*100).toFixed(1));
+
+  let skip = 0, tt = t;
+  while(((a)/(tt+1))*100 >= th) { tt++; skip++; if(skip>500) break; }
+
+  document.getElementById('res_cur').textContent  = cur + '%';
+  document.getElementById('res_need').textContent = need;
+  document.getElementById('res_skip').textContent = skip;
+  document.getElementById('res_proj').textContent = proj10 + '%';
+
+  const msg = need === 0
+    ? `✓ You meet the ${th}% target. You can skip ${skip} more class${skip!==1?'es':''}.`
+    : `Need ${need} consecutive classes to reach ${th}%.`;
+  const msgEl = document.getElementById('res_msg');
+  msgEl.textContent = msg;
+  msgEl.style.background = need === 0 ? 'rgba(63,185,80,.1)' : 'rgba(248,81,73,.1)';
+  msgEl.style.color = need === 0 ? 'var(--accent)' : 'var(--danger)';
+
+  // Chart
+  const labels = Array.from({length:21},(_,i)=>'+'+i);
+  const vals   = Array.from({length:21},(_,i)=>parseFloat(((a+i)/(t+i)*100).toFixed(1)));
+  const colors = vals.map(v => v>=th ? 'rgba(63,185,80,.8)' : v>=th-10 ? 'rgba(210,153,34,.8)' : 'rgba(248,81,73,.8)');
+
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(document.getElementById('projChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Projected %',
+        data: vals,
+        borderColor: '#58a6ff',
+        backgroundColor: 'rgba(88,166,255,.08)',
+        pointBackgroundColor: colors,
+        pointRadius: 4,
+        fill: true,
+        tension: 0.3,
+      }, {
+        label: `Target (${th}%)`,
+        data: Array(21).fill(th),
+        borderColor: 'rgba(63,185,80,.5)',
+        borderDash: [4,4],
+        pointRadius: 0,
+        fill: false,
+      }]
+    },
+    options: {
+      plugins: { legend:{ labels:{font:{size:11}, boxWidth:12} } },
+      scales: {
+        y: { min: Math.max(0,cur-15), max:100, grid:{color:'#30363d'}, ticks:{callback:v=>v+'%'} },
+        x: { grid:{display:false}, title:{display:true,text:'Extra classes attended',font:{size:11}} }
+      }
+    }
+  });
+
+  // Scenarios
+  const scens = [
+    { label:'Miss next 5 classes', a2:a, t2:t+5 },
+    { label:'Attend next 5 classes', a2:a+5, t2:t+5 },
+    { label:'Attend next 10 classes', a2:a+10, t2:t+10 },
+    { label:'Miss next 10 classes', a2:a, t2:t+10 },
+  ];
+  document.getElementById('scenarios').innerHTML = scens.map(s=>{
+    const p = parseFloat(((s.a2/s.t2)*100).toFixed(1));
+    const ok = p >= th;
+    return `<div class="col-6">
+      <div class="p-2 rounded" style="background:var(--surface2);font-size:12px">
+        <div style="color:var(--muted);margin-bottom:4px">${s.label}</div>
+        <div style="font-size:18px;font-weight:600;color:${ok?'var(--accent)':'var(--danger)'}">${p}%</div>
+        <div style="font-size:10px;color:${ok?'var(--accent)':'var(--danger)'};font-family:'Space Mono',monospace">${ok?'SAFE':'BELOW TARGET'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+compute();
+</script>
+{% endblock %}

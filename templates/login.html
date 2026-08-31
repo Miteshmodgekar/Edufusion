@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#3fb950" />
+  <link rel="manifest" href="/static/manifest.json" />
+  <title>Sign In | EduFusion</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --accent: #3fb950;
+      --accent2: #58a6ff;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --danger: #f85149;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: relative;
+      z-index: 2;
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 14px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .back-home {
+      font-size: 12px;
+      color: var(--muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color .2s;
+    }
+
+    .back-home:hover {
+      color: var(--text);
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: .22;
+    }
+
+    #scene-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: .7;
+      pointer-events: none;
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(22, 27, 34, .85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, .45);
+      opacity: 0;
+      transform: translateY(18px) scale(.98);
+      animation: cardIn .7s cubic-bezier(.16, 1, .3, 1) .15s forwards;
+    }
+
+    @keyframes cardIn {
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .card-top {
+      padding: 28px 32px 0;
+      text-align: center;
+    }
+
+    .sys-badge {
+      display: inline-block;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--accent);
+      background: rgba(63, 185, 80, .1);
+      border: 1px solid rgba(63, 185, 80, .3);
+      border-radius: 6px;
+      padding: 4px 12px;
+      margin-bottom: 14px;
+      letter-spacing: 1px;
+    }
+
+    .card-top h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      letter-spacing: -.2px;
+      color: #ffffff !important;
+      text-shadow: 0 2px 12px rgba(255, 255, 255, 0.25) !important;
+    }
+
+    .card-top p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .role-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 20px 32px 0;
+    }
+
+    .rtab {
+      flex: 1;
+      padding: 9px 4px;
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .2s;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .rtab.active {
+      background: var(--surface2);
+      border-color: var(--accent2);
+      color: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, .08);
+    }
+
+    .rtab:hover:not(.active) {
+      border-color: var(--muted);
+      color: var(--text);
+    }
+
+    .form-area {
+      padding: 18px 32px 28px;
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 5px;
+      letter-spacing: .5px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    input,
+    select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: 'Sora', sans-serif;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      margin-bottom: 12px;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, .1);
+    }
+
+    select option {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    .btn-login {
+      position: relative;
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #0d1117;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'Sora', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+      overflow: hidden;
+    }
+
+    .btn-login:hover {
+      background: #57d068;
+      box-shadow: 0 8px 22px rgba(63, 185, 80, .3);
+    }
+
+    .btn-login:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .divider hr {
+      flex: 1;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    .divider span {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .creds-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .creds-box .val {
+      color: var(--accent);
+    }
+
+    .panel {
+      display: none;
+    }
+
+    .panel.active {
+      display: block;
+      animation: panelIn .3s ease;
+    }
+
+    @keyframes panelIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .err {
+      background: rgba(248, 81, 73, .1);
+      border: 1px solid rgba(248, 81, 73, .3);
+      color: var(--danger);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .flash {
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .flash-info {
+      background: rgba(88, 166, 255, .1);
+      border: 1px solid rgba(88, 166, 255, .3);
+      color: #58a6ff;
+    }
+
+    .flash-success {
+      background: rgba(63, 185, 80, .1);
+      border: 1px solid rgba(63, 185, 80, .3);
+      color: #3fb950;
+    }
+
+    .flash-warning {
+      background: rgba(210, 153, 34, .1);
+      border: 1px solid rgba(210, 153, 34, .3);
+      color: #d29922;
+    }
+
+    .flash-danger {
+      background: rgba(248, 81, 73, .1);
+      border: 1px solid rgba(248, 81, 73, .3);
+      color: var(--danger);
+    }
+
+    .footer {
+      padding: 12px 28px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      z-index: 2;
+      background: var(--bg);
+    }
+
+    .footer span {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      #scene-canvas {
+        display: none;
+      }
+
+      .card {
+        animation: none;
+        opacity: 1;
+        transform: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <a class="logo" href="/">CSE<span style="color:#58a6ff">.</span>SMART<span style="color:#58a6ff">.</span>SYS</a>
+    <a class="back-home" href="/"><i class="bi bi-arrow-left"></i> Back to home</a>
+    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">v1.0 · PWA</div>
+  </div>
+
+  <div class="main">
+    <div class="bg-grid"></div>
+    <canvas id="scene-canvas"></canvas>
+    <div class="card">
+      <div class="card-top">
+        <div class="sys-badge">CSE DEPARTMENT PORTAL</div>
+        <h2>Sign In</h2>
+        <p>Select your role to continue</p>
+      </div>
+
+      <div class="role-tabs">
+        <button class="rtab active" onclick="setRole('student',this)">🎓<br>Student</button>
+        <button class="rtab" onclick="setRole('faculty',this)">📋<br>Faculty</button>
+        <button class="rtab" onclick="setRole('hod',this)">🏛️<br>HOD</button>
+        <button class="rtab" onclick="setRole('admin',this)">⚙️<br>Admin</button>
+      </div>
+
+      <div class="form-area">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, msg in messages %}
+        <div class="flash flash-{{ category }}">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        <div id="errBox" class="err"></div>
+
+        <div id="panel-student" class="panel active">
+          <label>STUDENT ID / EMAIL</label>
+          <input type="text" id="s-user" placeholder="CS21001 or student@cse.edu" autocomplete="username" />
+          <label>PASSWORD</label>
+          <input type="password" id="s-pass" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <div id="panel-faculty" class="panel">
+          <label>FACULTY ID / EMAIL</label>
+          <input type="text" id="f-user" placeholder="FAC001 or faculty@cse.edu" />
+          <label>PASSWORD</label>
+          <input type="password" id="f-pass" placeholder="••••••••" />
+        </div>
+
+        <div id="panel-hod" class="panel">
+          <label>HOD EMAIL</label>
+          <input type="text" id="h-user" placeholder="hod@cse.edu" />
+          <label>PASSWORD</label>
+          <input type="password" id="h-pass" placeholder="••••••••" />
+        </div>
+
+        <div id="panel-admin" class="panel">
+          <label>ADMIN USERNAME</label>
+          <input type="text" id="a-user" placeholder="admin" />
+          <label>ADMIN PASSWORD</label>
+          <input type="password" id="a-pass" placeholder="••••••••" />
+        </div>
+
+        <div style="text-align:right;margin:-4px 0 12px">
+          <a href="/auth/forgot-password" style="font-size:11.5px;color:var(--muted);text-decoration:none">Forgot
+            password?</a>
+        </div>
+        <button class="btn-login" id="loginBtn" onclick="doLogin()">Sign In →</button>
+
+        <div class="divider">
+          <hr><span>demo credentials</span>
+          <hr>
+        </div>
+        <div class="creds-box">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span>ID / Username:</span><span class="val" id="cId">CS21001</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span>Password:</span><span class="val" id="cPass">student123</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Role:</span><span class="val" id="cRole">Student</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>CSE Dept. Academic Management System</span>
+    <span>Flask + ML + PWA</span>
+  </div>
+
+  <script>
+    const CREDS = {
+      student: { id: 'CS21001', pass: 'student123', role: 'Student' },
+      faculty: { id: 'FAC001', pass: 'faculty123', role: 'Faculty' },
+      hod: { id: 'hod@cse.edu', pass: 'hod123', role: 'HOD' },
+      admin: { id: 'admin', pass: 'admin123', role: 'Admin' },
+    };
+    const FIELDS = {
+      student: ['s-user', 's-pass'],
+      faculty: ['f-user', 'f-pass'],
+      hod: ['h-user', 'h-pass'],
+      admin: ['a-user', 'a-pass'],
+    };
+
+    let curRole = 'student';
+
+    function setRole(r, el) {
+      curRole = r;
+      document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-' + r).classList.add('active');
+      document.getElementById('cId').textContent = CREDS[r].id;
+      document.getElementById('cPass').textContent = CREDS[r].pass;
+      document.getElementById('cRole').textContent = CREDS[r].role;
+      document.getElementById('errBox').style.display = 'none';
+    }
+
+    async function doLogin() {
+      const [uId, pId] = FIELDS[curRole];
+      const username = document.getElementById(uId).value.trim();
+      const password = document.getElementById(pId).value;
+
+      if (!username || !password) {
+        showErr('Please enter your ID and password.'); return;
+      }
+
+      const btn = document.getElementById('loginBtn');
+      btn.textContent = 'Verifying...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, role: curRole }),
+        });
+
+        let data;
+        try {
+          data = await res.json();
+        } catch {
+          showErr(res.status === 429
+            ? 'Too many attempts. Please wait a moment and try again.'
+            : `Server error (${res.status}). Please try again.`);
+          btn.textContent = 'Sign In →';
+          btn.disabled = false;
+          return;
+        }
+
+        if (data.success) {
+          btn.textContent = 'Redirecting...';
+          window.location.href = data.redirect || '/dashboard/';
+        } else {
+          showErr(data.message || 'Login failed.');
+          btn.textContent = 'Sign In →';
+          btn.disabled = false;
+        }
+      } catch (e) {
+        showErr('Could not connect to server. Please check your connection and try again.');
+        btn.textContent = 'Sign In →';
+        btn.disabled = false;
+      }
+    }
+
+    function showErr(msg) {
+      const el = document.getElementById('errBox');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => { });
+    }
+
+    // ---------- premium ambient 3D scene ----------
+    (function initAmbientScene() {
+      const canvas = document.getElementById('scene-canvas');
+      if (!canvas || typeof THREE === 'undefined') return;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) { canvas.style.display = 'none'; return; }
+
+      const wrap = canvas.parentElement;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+      camera.position.set(0, 0, 9);
+
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+      const key = new THREE.PointLight(0x58a6ff, 1.3, 30); key.position.set(6, 4, 6); scene.add(key);
+      const rim = new THREE.PointLight(0x3fb950, 1.1, 30); rim.position.set(-6, -4, 4); scene.add(rim);
+
+      const group = new THREE.Group();
+      group.position.set(3.4, 0, -2);
+      scene.add(group);
+
+      const coreGeo = new THREE.IcosahedronGeometry(1.5, 1);
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0x3fb950, wireframe: true, transparent: true, opacity: 0.28 });
+      group.add(new THREE.Mesh(coreGeo, coreMat));
+
+      const nodeColors = [0x3fb950, 0x58a6ff, 0xd29922, 0xf85149, 0x58a6ff];
+      const orbitR = 2.7;
+      const nodes = [];
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2;
+        const nodeGeo = new THREE.OctahedronGeometry(0.16, 0);
+        const nodeMat = new THREE.MeshBasicMaterial({ color: nodeColors[i], transparent: true, opacity: 0.65 });
+        const node = new THREE.Mesh(nodeGeo, nodeMat);
+        const tilt = (i % 2 === 0) ? 0.3 : -0.3;
+        node.position.set(Math.cos(angle) * orbitR, Math.sin(angle * 1.3) * tilt * 2, Math.sin(angle) * orbitR);
+        group.add(node);
+        nodes.push({ mesh: node, angle, tilt, speed: 0.12 + i * 0.015 });
+      }
+
+      // ambient dust
+      const dustCount = 90;
+      const dustGeo = new THREE.BufferGeometry();
+      const dustPos = new Float32Array(dustCount * 3);
+      for (let i = 0; i < dustCount; i++) {
+        const r = 3.5 + Math.random() * 3;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos((Math.random() * 2) - 1);
+        dustPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        dustPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.6;
+        dustPos[i * 3 + 2] = r * Math.cos(phi);
+      }
+      dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+      const dustMat = new THREE.PointsMaterial({ color: 0x58a6ff, size: 0.02, transparent: true, opacity: 0.35 });
+      const dust = new THREE.Points(dustGeo, dustMat);
+      group.add(dust);
+
+      let composer = null;
+      try {
+        if (THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass) {
+          composer = new THREE.EffectComposer(renderer);
+          composer.addPass(new THREE.RenderPass(scene, camera));
+          const bloom = new THREE.UnrealBloomPass(
+            new THREE.Vector2(wrap.clientWidth, wrap.clientHeight), 0.6, 0.6, 0.3
+          );
+          composer.addPass(bloom);
+        }
+      } catch (e) { composer = null; }
+
+      function onResize() {
+        camera.aspect = wrap.clientWidth / wrap.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+        if (composer) composer.setSize(wrap.clientWidth, wrap.clientHeight);
+      }
+      window.addEventListener('resize', onResize);
+
+      let t = 0;
+      function animate() {
+        requestAnimationFrame(animate);
+        t += 0.005;
+        group.rotation.y += 0.0022;
+        group.rotation.x += 0.0008;
+        dust.rotation.y += 0.0004;
+        nodes.forEach(n => {
+          const a = n.angle + t * n.speed;
+          n.mesh.position.set(
+            Math.cos(a) * orbitR,
+            Math.sin(a * 1.3) * n.tilt * 2,
+            Math.sin(a) * orbitR
+          );
+        });
+        if (composer) composer.render(); else renderer.render(scene, camera);
+      }
+      animate();
+    })();
+  </script>
+</body>
+
+</html>

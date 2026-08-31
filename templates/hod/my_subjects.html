@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}My Subjects | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Hero */
+.hod-hero{background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  padding:24px 28px;margin-bottom:1.5rem;position:relative;overflow:hidden}
+.hod-hero::before{content:'';position:absolute;top:-50px;right:-50px;width:180px;height:180px;
+  background:radial-gradient(circle,rgba(88,166,255,.12),transparent 70%);pointer-events:none}
+.hod-hero h3{font-weight:800;font-size:1.4rem;margin-bottom:4px;
+  background:linear-gradient(135deg,#e6edf3,#58a6ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hod-hero p{font-size:13px;color:var(--muted);margin:0}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.5rem}
+@media(max-width:540px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.s-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:16px;text-align:center;position:relative;overflow:hidden;transition:transform .2s}
+.s-card:hover{transform:translateY(-2px)}
+.s-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px}
+.s-card.c-blue::after{background:linear-gradient(90deg,#58a6ff,#388bfd)}
+.s-card.c-purple::after{background:linear-gradient(90deg,#a371f7,#8957e5)}
+.s-card.c-yellow::after{background:linear-gradient(90deg,#d2991c,#b8860b)}
+.s-card .slbl{font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.08em;margin-bottom:8px}
+.s-card .sval{font-size:28px;font-weight:800;line-height:1}
+
+/* Notice */
+.notice{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);
+  border-radius:12px;padding:13px 16px;margin-bottom:1.5rem;
+  display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--text)}
+.notice i{color:#58a6ff;font-size:16px;flex-shrink:0;margin-top:1px}
+
+/* Semester group */
+.sem-grp{margin-bottom:1.8rem}
+.sem-hdr{display:flex;align-items:center;gap:12px;margin-bottom:12px;
+  padding-bottom:10px;border-bottom:1px solid var(--border)}
+.sem-badge{background:rgba(88,166,255,.12);color:#58a6ff;border-radius:8px;
+  padding:4px 12px;font-size:11px;font-weight:800;font-family:'Space Mono',monospace}
+.sem-count{font-size:12px;color:var(--muted)}
+
+/* Subject card */
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  overflow:hidden;margin-bottom:10px;transition:box-shadow .2s,border-color .2s;display:flex}
+.sc:hover{box-shadow:0 4px 20px rgba(88,166,255,.08);border-color:rgba(88,166,255,.3)}
+.sc-accent{width:4px;flex-shrink:0;background:linear-gradient(180deg,#58a6ff,#388bfd)}
+.sc-body{flex:1;padding:14px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.sc-icon{width:44px;height:44px;border-radius:12px;flex-shrink:0;
+  background:rgba(88,166,255,.1);color:#58a6ff;
+  display:flex;align-items:center;justify-content:center;font-size:18px}
+.sc-info{flex:1;min-width:0}
+.sc-name{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px}
+.sc-meta{display:flex;gap:14px;flex-wrap:wrap}
+.mc{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;
+  display:flex;align-items:center;gap:4px}
+.mc i{font-size:11px}
+.asgn-badge{font-size:10px;padding:4px 10px;border-radius:20px;font-weight:700;
+  font-family:'Space Mono',monospace;flex-shrink:0;
+  background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.btn-up{font-size:12px;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;
+  background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);
+  color:#58a6ff;transition:all .15s;text-decoration:none;flex-shrink:0}
+.btn-up:hover{background:rgba(88,166,255,.22);color:#58a6ff}
+
+/* Empty */
+.es{text-align:center;padding:4rem;color:var(--muted)}
+.es i{font-size:3rem;display:block;margin-bottom:12px;opacity:.35}
+.es h5{font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text)}
+.es p{font-size:13px}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero -->
+<div class="hod-hero">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+      <h3><i class="bi bi-journal-bookmark-fill me-2"></i>My Assigned Subjects</h3>
+      <p>Subjects officially assigned to you by your HOD · Upload attendance for each subject</p>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="loadData()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="s-card c-blue">  <div class="slbl">TOTAL SUBJECTS</div><div class="sval" style="color:#58a6ff" id="sTotal">—</div></div>
+  <div class="s-card c-purple"><div class="slbl">SEMESTERS</div>     <div class="sval" style="color:#a371f7" id="sSems">—</div></div>
+  <div class="s-card c-yellow"><div class="slbl">SECTIONS</div>      <div class="sval" style="color:#d2991c" id="sSecs">—</div></div>
+</div>
+
+<!-- Notice -->
+<div class="notice">
+  <i class="bi bi-info-circle-fill"></i>
+  <div>These subjects have been <strong>officially assigned</strong> to you by your HOD.
+  Please upload attendance sheets regularly. You will receive a <strong>bell notification</strong> whenever a new subject is assigned or removed.</div>
+</div>
+
+<!-- Subject list -->
+<div id="subjectsList">
+  <div class="es"><i class="bi bi-hourglass-split"></i>Loading your subjects…</div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const COLORS=['#58a6ff','#3fb950','#a371f7','#d2991c','#f85149','#56d364','#ffa657','#79c0ff'];
+const GRADS=[
+  'linear-gradient(180deg,#58a6ff,#388bfd)',
+  'linear-gradient(180deg,#3fb950,#2ea043)',
+  'linear-gradient(180deg,#a371f7,#8957e5)',
+  'linear-gradient(180deg,#d2991c,#b8860b)',
+  'linear-gradient(180deg,#f85149,#da3633)',
+];
+
+async function loadData(){
+  try {
+    const d=await(await fetch('/hod/api/my-subjects')).json();
+    if(!d.success){renderEmpty(d.message||'Could not load.');return;}
+    renderAll(d.assignments);
+  } catch { renderEmpty('Network error — please refresh.'); }
+}
+
+function renderEmpty(msg){
+  document.getElementById('subjectsList').innerHTML=`
+    <div class="es"><i class="bi bi-journal-x"></i>
+      <h5>No Subjects Assigned Yet</h5>
+      <p>${msg||'Your HOD has not assigned any subjects yet.<br>You will receive a bell notification when one is assigned.'}</p>
+    </div>`;
+  ['sTotal','sSems','sSecs'].forEach(id=>document.getElementById(id).textContent='0');
+}
+
+function renderAll(list){
+  if(!list.length){renderEmpty();return;}
+  const sems=new Set(list.map(a=>a.semester));
+  const secs=new Set(list.map(a=>a.section).filter(s=>s&&s!=='All'));
+  document.getElementById('sTotal').textContent=list.length;
+  document.getElementById('sSems').textContent=sems.size;
+  document.getElementById('sSecs').textContent=secs.size||'—';
+
+  const grouped={};
+  list.forEach(a=>{if(!grouped[a.semester])grouped[a.semester]=[];grouped[a.semester].push(a);});
+  const keys=Object.keys(grouped).map(Number).sort((a,b)=>a-b);
+
+  document.getElementById('subjectsList').innerHTML=keys.map(sem=>`
+    <div class="sem-grp">
+      <div class="sem-hdr">
+        <span class="sem-badge">SEMESTER ${sem}</span>
+        <span class="sem-count">${grouped[sem].length} subject${grouped[sem].length!==1?'s':''}</span>
+      </div>
+      ${grouped[sem].map((a,i)=>card(a,i)).join('')}
+    </div>`).join('');
+}
+
+function card(a,i){
+  const sec=a.section&&a.section!=='All'?`Section ${a.section}`:'All Sections';
+  const grad=GRADS[i%GRADS.length];
+  return `
+  <div class="sc">
+    <div class="sc-accent" style="background:${grad}"></div>
+    <div class="sc-body">
+      <div class="sc-icon" style="background:${grad.replace('linear-gradient(180deg,','').split(',')[0]}22;color:${grad.replace('linear-gradient(180deg,','').split(',')[0]}">
+        <i class="bi bi-journal-text"></i>
+      </div>
+      <div class="sc-info">
+        <div class="sc-name">${a.subject}</div>
+        <div class="sc-meta">
+          <span class="mc"><i class="bi bi-mortarboard"></i>Semester ${a.semester}</span>
+          <span class="mc"><i class="bi bi-people"></i>${sec}</span>
+          <span class="mc"><i class="bi bi-calendar-plus"></i>Assigned ${a.assigned_at}</span>
+        </div>
+      </div>
+      <span class="asgn-badge"><i class="bi bi-check-circle me-1"></i>Assigned</span>
+      <a class="btn-up" href="/attendance/mark"><i class="bi bi-upload me-1"></i>Upload Attendance</a>
+    </div>
+  </div>`;
+}
+
+loadData();
+</script>
+{% endblock %}

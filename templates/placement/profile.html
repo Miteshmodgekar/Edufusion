@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+{% block title %}Placement | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .score-ring-wrap { text-align: center; margin: .5rem 0 1rem; }
+  .readiness-bar { height: 10px; border-radius: 5px; background: var(--surface2); overflow: hidden; margin: 6px 0; }
+  .readiness-fill { height: 100%; border-radius: 5px; transition: width .6s; background: var(--accent); }
+  .readiness-fill.mid { background: var(--warn); }
+  .readiness-fill.low { background: var(--danger); }
+  .skill-pill { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 12px; margin: 3px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: 'Space Mono', monospace; cursor: pointer; transition: all .2s; }
+  .skill-pill.selected { background: rgba(63,185,80,.15); border-color: rgba(63,185,80,.4); color: var(--accent); }
+  .internship-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; }
+  .internship-card .company { font-size: 14px; font-weight: 500; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .dot-ongoing   { background: var(--accent); }
+  .dot-completed { background: var(--accent2); }
+  .progress-seg { display: flex; gap: 2px; margin: .75rem 0; }
+  .seg { flex: 1; height: 6px; border-radius: 2px; }
+  .seg.filled-cgpa { background: var(--accent2); }
+  .seg.filled-att  { background: var(--accent); }
+  .seg.filled-skill{ background: var(--warn); }
+  .seg.filled-cert { background: var(--danger); }
+  .seg.empty       { background: var(--border); }
+  .weight-row { display: flex; justify-content: space-between; font-size:11px; color:var(--muted); margin-bottom:2px; }
+  .stat-box { background: var(--surface2); border-radius: 10px; padding: 1rem 1.25rem; }
+  .stat-box .label { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; margin-bottom: 4px; }
+  .stat-box .value { font-size: 26px; font-weight: 600; color: var(--text); }
+  .eligibility-check { display: flex; align-items: center; gap: 8px; font-size:13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .eligibility-check:last-child { border-bottom: none; }
+  .check-icon { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+  .check-pass { background: rgba(63,185,80,.2); color: var(--accent); }
+  .check-fail { background: rgba(248,81,73,.2); color: var(--danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Placement & Internship</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Readiness score · Eligibility check · Internship tracker</p>
+  </div>
+  <span class="badge-accent mono">STUDENT</span>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-box"><div class="label">READINESS SCORE</div><div class="value" style="color:var(--accent)" id="statScore">—</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box"><div class="label">ELIGIBILITY</div><div class="value" id="statElig">—</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box"><div class="label">CGPA</div><div class="value" id="statCgpa">—</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-box"><div class="label">INTERNSHIPS</div><div class="value" style="color:var(--accent2)" id="statIntern">—</div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Profile Form -->
+  <div class="col-md-5">
+    <div class="card p-4 mb-3">
+      <h6 style="font-weight:500;margin-bottom:1.25rem">Update profile</h6>
+
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">CGPA (out of 10)</label>
+        <input type="number" class="form-control" id="inp_cgpa" min="0" max="10" step="0.01" value="7.8" oninput="calcReadiness()">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">ACTIVE BACKLOGS</label>
+        <input type="number" class="form-control" id="inp_backlogs" min="0" value="0" oninput="calcReadiness()">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">ATTENDANCE % (avg)</label>
+        <input type="number" class="form-control" id="inp_att" min="0" max="100" value="82" oninput="calcReadiness()">
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Auto-filled from the live attendance sheet — adjust here just to test what-if scenarios.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SKILLS (click to toggle)</label>
+        <div id="skillPills">
+          {% set skills = ['Python','Java','C++','DSA','SQL','ML/AI','React','Flask','Git','Linux','AWS','Docker','HTML/CSS','Node.js','MongoDB'] %}
+          {% for skill in skills %}
+          <span class="skill-pill" onclick="toggleSkill(this,'{{ skill }}')">{{ skill }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">INTERESTS (click to toggle)</label>
+        <div id="interestPills">
+          {% set interests = ['Web Development','AI / ML','Data Science','Cybersecurity','Cloud Computing','Mobile Apps','DevOps','Game Development','UI/UX Design','Embedded Systems','Blockchain','Product Management'] %}
+          {% for interest in interests %}
+          <span class="skill-pill" onclick="toggleInterest(this,'{{ interest }}')">{{ interest }}</span>
+          {% endfor %}
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:5px">
+          Powers your <a href="/placement/career-assistant" style="color:var(--accent2)">Career Assistant</a> suggestions.
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">CERTIFICATIONS</label>
+        <input type="text" class="form-control" id="inp_certs" placeholder="e.g. AWS Cloud, Google ML, NPTEL" oninput="calcReadiness()">
+      </div>
+      <button class="btn btn-primary w-100" onclick="saveProfile()">
+        <i class="bi bi-save me-2"></i>Save profile
+      </button>
+    </div>
+
+    <!-- Add Internship -->
+    <div class="card p-4">
+      <h6 style="font-weight:500;margin-bottom:1.25rem">Add internship</h6>
+      <div class="mb-2">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">COMPANY</label>
+        <input type="text" class="form-control form-control-sm" id="i_company" placeholder="e.g. Infosys, TCS, Startup">
+      </div>
+      <div class="mb-2">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">ROLE</label>
+        <input type="text" class="form-control form-control-sm" id="i_role" placeholder="e.g. Web Dev Intern">
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">DURATION (weeks)</label>
+          <input type="number" class="form-control form-control-sm" id="i_weeks" value="8" min="1">
+        </div>
+        <div class="col-6">
+          <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">STIPEND (₹/month)</label>
+          <input type="number" class="form-control form-control-sm" id="i_stipend" placeholder="Optional">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">STATUS</label>
+        <select class="form-select form-select-sm" id="i_status">
+          <option value="ongoing">Ongoing</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <button class="btn btn-outline-secondary w-100 btn-sm" onclick="addInternship()">
+        <i class="bi bi-plus-circle me-1"></i>Add internship
+      </button>
+    </div>
+  </div>
+
+  <!-- Readiness + Internships -->
+  <div class="col-md-7">
+    <!-- Readiness Score Card -->
+    <div class="card p-4 mb-3">
+      <h6 style="font-weight:500;margin-bottom:1rem">Readiness score breakdown</h6>
+      <div class="row align-items-center">
+        <div class="col-4">
+          <div class="score-ring-wrap">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface2)" stroke-width="10"/>
+              <circle id="scoreRing" cx="60" cy="60" r="50" fill="none" stroke="var(--accent)" stroke-width="10"
+                stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="100"
+                transform="rotate(-90 60 60)"/>
+              <text id="scoreText" x="60" y="65" text-anchor="middle" font-size="24" font-weight="600" fill="var(--accent)">72</text>
+            </svg>
+            <div style="font-size:12px;color:var(--muted)">out of 100</div>
+          </div>
+        </div>
+        <div class="col-8">
+          <div id="scoreBreakdown"></div>
+          <div class="progress-seg" id="scoreSeg"></div>
+          <div class="weight-row">
+            <span style="color:var(--accent2)">CGPA 50%</span>
+            <span style="color:var(--warn)">Skills 30%</span>
+            <span style="color:var(--danger)">Certs 10%</span>
+            <span style="color:var(--muted)">Att 10%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Eligibility checks -->
+      <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:8px">ELIGIBILITY CHECKLIST</div>
+        <div id="eligibilityChecks"></div>
+      </div>
+    </div>
+
+    <!-- Internships List -->
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="card-header rounded">INTERNSHIP HISTORY</div>
+        <span id="internCount" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="internshipList"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedSkills = [];
+let selectedInterests = [];
+let internships = [];
+let profileLoaded = false;
+
+// ── Skill toggle ──────────────────────────────────────────────────────────
+function toggleSkill(el, skill) {
+  if (selectedSkills.includes(skill)) {
+    selectedSkills = selectedSkills.filter(s => s !== skill);
+    el.classList.remove('selected');
+  } else {
+    selectedSkills.push(skill);
+    el.classList.add('selected');
+  }
+  document.querySelectorAll('#skillPills .skill-pill').forEach(p => {
+    p.classList.toggle('selected', selectedSkills.includes(p.textContent.trim()));
+  });
+  calcReadiness();
+}
+
+// ── Interest toggle ───────────────────────────────────────────────────────
+function toggleInterest(el, interest) {
+  if (selectedInterests.includes(interest)) {
+    selectedInterests = selectedInterests.filter(s => s !== interest);
+    el.classList.remove('selected');
+  } else {
+    selectedInterests.push(interest);
+    el.classList.add('selected');
+  }
+  document.querySelectorAll('#interestPills .skill-pill').forEach(p => {
+    p.classList.toggle('selected', selectedInterests.includes(p.textContent.trim()));
+  });
+}
+
+// ── Calculate readiness ───────────────────────────────────────────────────
+function calcReadiness() {
+  const cgpa     = Math.min(10, Math.max(0, parseFloat(document.getElementById('inp_cgpa').value) || 0));
+  const backlogs = parseInt(document.getElementById('inp_backlogs').value) || 0;
+  const att      = Math.min(100, Math.max(0, parseFloat(document.getElementById('inp_att').value) || 0));
+  const certs    = document.getElementById('inp_certs').value.split(',').filter(c => c.trim()).length;
+
+  const cgpaScore  = parseFloat(((cgpa / 10) * 50).toFixed(1));
+  const attScore   = parseFloat(((att / 100) * 10).toFixed(1));
+  const skillScore = parseFloat((Math.min(selectedSkills.length / 10, 1) * 30).toFixed(1));
+  const certScore  = parseFloat((Math.min(certs / 5, 1) * 10).toFixed(1));
+  const total      = Math.round(cgpaScore + attScore + skillScore + certScore);
+
+  const eligible = cgpa >= 6.0 && backlogs === 0;
+
+  // Update stats
+  document.getElementById('statScore').textContent = total;
+  document.getElementById('statCgpa').textContent  = cgpa.toFixed(2);
+  document.getElementById('statElig').innerHTML    = eligible
+    ? '<span style="color:var(--accent)">Eligible</span>'
+    : '<span style="color:var(--danger)">Not eligible</span>';
+  document.getElementById('statIntern').textContent = internships.length;
+
+  // Score ring
+  const ring = document.getElementById('scoreRing');
+  const offset = 314 - (314 * total / 100);
+  ring.setAttribute('stroke-dashoffset', offset);
+  const color = total >= 70 ? 'var(--accent)' : total >= 40 ? 'var(--warn)' : 'var(--danger)';
+  ring.setAttribute('stroke', color);
+  document.getElementById('scoreText').textContent = total;
+  document.getElementById('scoreText').setAttribute('fill', color);
+
+  // Breakdown bars
+  const breakdownEl = document.getElementById('scoreBreakdown');
+  breakdownEl.innerHTML = [
+    { label:'CGPA', score:cgpaScore, max:50, color:'var(--accent2)' },
+    { label:'Skills', score:skillScore, max:30, color:'var(--warn)' },
+    { label:'Certifications', score:certScore, max:10, color:'var(--danger)' },
+    { label:'Attendance (info)', score:attScore, max:10, color:'var(--muted)' },
+  ].map(b => `
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span style="font-size:11px;color:var(--muted);min-width:90px">${b.label}</span>
+      <div class="readiness-bar" style="flex:1">
+        <div class="readiness-fill" style="width:${(b.score/b.max)*100}%;background:${b.color}"></div>
+      </div>
+      <span style="font-size:12px;font-weight:500;min-width:36px;text-align:right;color:var(--text)">${b.score}/${b.max}</span>
+    </div>`).join('');
+
+  // Eligibility checks
+  const checks = [
+    { label:'CGPA ≥ 6.0', pass: cgpa >= 6.0, value: cgpa.toFixed(2) },
+    { label:'No active backlogs', pass: backlogs === 0, value: backlogs + ' backlog(s)' },
+    { label:'At least 1 skill', pass: selectedSkills.length >= 1, value: selectedSkills.length + ' skill(s)' },
+  ];
+  document.getElementById('eligibilityChecks').innerHTML = checks.map(c => `
+    <div class="eligibility-check">
+      <div class="check-icon ${c.pass ? 'check-pass' : 'check-fail'}">${c.pass ? '✓' : '✗'}</div>
+      <span style="flex:1">${c.label}</span>
+      <span style="font-size:12px;color:${c.pass ? 'var(--accent)' : 'var(--danger)'}">${c.value}</span>
+    </div>`).join('');
+}
+
+// ── Add Internship ────────────────────────────────────────────────────────
+async function addInternship() {
+  const company = document.getElementById('i_company').value.trim();
+  const role    = document.getElementById('i_role').value.trim();
+  const weeks   = parseInt(document.getElementById('i_weeks').value) || 0;
+  const stipend = parseInt(document.getElementById('i_stipend').value) || 0;
+  const status  = document.getElementById('i_status').value;
+  if (!company || !role) { alert('Company and role are required.'); return; }
+
+  try {
+    const res  = await fetch('/placement/internship', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company, role, duration_weeks: weeks, stipend, status }),
+    });
+    const data = await res.json();
+    if (!data.success) { alert(data.message || 'Could not add internship.'); return; }
+
+    internships.push({
+      id: data.internship.id, company, role, weeks, stipend, status,
+    });
+    document.getElementById('i_company').value = '';
+    document.getElementById('i_role').value    = '';
+    renderInternships();
+    calcReadiness();
+  } catch (e) {
+    alert('Network error — could not save the internship. Please try again.');
+  }
+}
+
+// ── Render internships ────────────────────────────────────────────────────
+function renderInternships() {
+  const el = document.getElementById('internshipList');
+  if (!internships.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted)">No internships added yet.</p>';
+    return;
+  }
+  document.getElementById('internCount').textContent = internships.length + ' record(s)';
+  el.innerHTML = internships.map((i, idx) => `
+    <div class="internship-card">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="company" style="color:var(--text)">${i.company}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${i.role}</div>
+        </div>
+        <div style="text-align:right">
+          <span class="status-dot dot-${i.status}"></span>
+          <span style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted)">${i.status.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="d-flex gap-3 mt-2" style="font-size:12px;color:var(--muted)">
+        <span><i class="bi bi-clock me-1"></i>${i.weeks} weeks</span>
+        ${i.stipend ? `<span><i class="bi bi-currency-rupee me-1"></i>₹${i.stipend.toLocaleString('en-IN')}/mo</span>` : ''}
+        <span style="margin-left:auto;cursor:pointer;color:var(--danger)" onclick="removeInternship(${i.id})">
+          <i class="bi bi-trash"></i>
+        </span>
+      </div>
+    </div>`).join('');
+}
+
+async function removeInternship(id) {
+  try {
+    const res  = await fetch(`/placement/internship/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) { alert(data.message || 'Could not remove internship.'); return; }
+  } catch (e) {
+    alert('Network error — could not remove the internship.');
+    return;
+  }
+  internships = internships.filter(i => i.id !== id);
+  renderInternships();
+  calcReadiness();
+}
+
+// ── Save profile ──────────────────────────────────────────────────────────
+async function saveProfile() {
+  const payload = {
+    cgpa:           parseFloat(document.getElementById('inp_cgpa').value),
+    backlogs:       parseInt(document.getElementById('inp_backlogs').value) || 0,
+    skills:         selectedSkills.join(','),
+    interests:      selectedInterests.join(','),
+    certifications: document.getElementById('inp_certs').value,
+  };
+  try {
+    const res  = await fetch('/placement/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('Profile saved! Readiness: ' + data.profile.readiness_score + '%');
+    } else {
+      alert(data.message || 'Could not save profile. Please try again.');
+    }
+  } catch (e) {
+    alert('Network error — the profile was NOT saved. Please check your connection and try again.');
+  }
+}
+
+// ── Load real profile + live attendance on page open ──────────────────────
+async function loadProfile() {
+  try {
+    const res  = await fetch('/placement/api/profile', { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+    if (!data.success) return;
+
+    // Attendance % — always live, read-only reflection of the Excel sheet
+    document.getElementById('inp_att').value = data.attendance_pct || 0;
+
+    if (data.profile) {
+      document.getElementById('inp_cgpa').value     = data.profile.cgpa ?? 7.5;
+      document.getElementById('inp_backlogs').value = data.profile.backlogs ?? 0;
+      document.getElementById('inp_certs').value    = data.profile.certifications || '';
+      selectedSkills = (data.profile.skills || '').split(',').map(s => s.trim()).filter(Boolean);
+      document.querySelectorAll('#skillPills .skill-pill').forEach(p => {
+        p.classList.toggle('selected', selectedSkills.includes(p.textContent.trim()));
+      });
+      selectedInterests = (data.profile.interests || '').split(',').map(s => s.trim()).filter(Boolean);
+      document.querySelectorAll('#interestPills .skill-pill').forEach(p => {
+        p.classList.toggle('selected', selectedInterests.includes(p.textContent.trim()));
+      });
+      internships = (data.profile.internships || []).map(i => ({
+        id: i.id, company: i.company, role: i.role,
+        weeks: i.duration_weeks || 0, stipend: i.stipend || 0, status: i.status,
+      }));
+    }
+  } catch (e) {
+    console.error('Could not load existing profile:', e);
+  } finally {
+    profileLoaded = true;
+    renderInternships();
+    calcReadiness();
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadProfile();
+</script>
+{% endblock %}
