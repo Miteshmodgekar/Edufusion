@@ -62,6 +62,14 @@ def create_app(config_class=Config):
     app.register_blueprint(notify_bp,      url_prefix="/notify")
     app.register_blueprint(hod_bp,         url_prefix="/hod")
 
+    # ── Auto-create DB tables on first startup (works on Railway/production) ──
+    with app.app_context():
+        try:
+            db.create_all()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[DB] create_all skipped: {e}")
+
     @app.route("/")
     def index():
         from flask import render_template
