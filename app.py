@@ -62,10 +62,15 @@ def create_app(config_class=Config):
     app.register_blueprint(notify_bp,      url_prefix="/notify")
     app.register_blueprint(hod_bp,         url_prefix="/hod")
 
-    # ── Auto-create DB tables on first startup (works on Railway/production) ──
+    # ── Auto-create DB tables only if they don't exist (safe for multi-worker) ──
     with app.app_context():
         try:
-            db.create_all()
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            if not inspector.has_table("users"):
+                db.create_all()
+                import logging
+                logging.getLogger(__name__).info("[DB] Tables created successfully.")
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"[DB] create_all skipped: {e}")
