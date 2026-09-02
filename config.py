@@ -46,8 +46,11 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_recycle": 280,
-        "pool_pre_ping": True,
+        "pool_recycle":  280,    # recycle before Railway's 5min timeout
+        "pool_pre_ping": True,   # test connection before use
+        "pool_size":     10,     # maintain 10 persistent connections
+        "max_overflow":  20,     # allow 20 extra under load
+        "pool_timeout":  10,     # wait max 10s for a connection
     }
 
     # ── File Uploads ───────────────────────────────────────────────────────
