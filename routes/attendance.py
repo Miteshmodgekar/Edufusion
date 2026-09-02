@@ -861,18 +861,66 @@ def api_mark_save():
         return jsonify({"success": False, "message": "Can't mark attendance for a future date."}), 400
 
     valid_status = {"present", "absent", "od"}
-    saved, defaulters = 0, []
+
+    # ── Build clean entry list ────────────────────────────────────────────────
+    clean_entries = [
+        (int(e["student_id"]), e["status"].strip().lower())
+        for e in entries
+        if e.get("student_id") and (e.get("status") or "").strip().lower() in valid_status
+    ]
+    student_ids = [sid for sid, _ in clean_entries]
+
+    if not student_ids:
+        return jsonify({"success": False, "message": "No valid entries."}), 400
 
     try:
-        for entry in entries:
-            sid    = entry.get("student_id")
-            status = (entry.get("status") or "").strip().lower()
-            if not sid or status not in valid_status:
-                continue
+        # ── BULK FETCH 1: existing records for this date ──────────────────────
+        existing_recs = {
+            r.student_id: r
+            for r in AttendanceRecord.query.filter(
+                AttendanceRecord.subject    == subject,
+                AttendanceRecord.date       == target_date,
+                AttendanceRecord.student_id.in_(student_ids),
+            ).all()
+        }
 
-            rec = AttendanceRecord.query.filter_by(
-                student_id=sid, subject=subject, date=target_date
-            ).first()
+        # ── BULK FETCH 2: all history for recomputing summaries ───────────────
+        all_history = AttendanceRecord.query.filter(
+            AttendanceRecord.subject    == subject,
+            AttendanceRecord.semester   == semester,
+            AttendanceRecord.student_id.in_(student_ids),
+        ).all()
+
+        # Group history by student (excluding today's old record — we'll re-add)
+        from collections import defaultdict
+        history_by_student = defaultdict(list)
+        for r in all_history:
+            if r.date != target_date:   # exclude today — we're overwriting it
+                history_by_student[r.student_id].append(r.status)
+
+        # ── BULK FETCH 3: existing summaries ──────────────────────────────────
+        existing_summaries = {
+            s.student_id: s
+            for s in AttendanceSummary.query.filter(
+                AttendanceSummary.subject    == subject,
+                AttendanceSummary.semester   == semester,
+                AttendanceSummary.student_id.in_(student_ids),
+            ).all()
+        }
+
+        # ── BULK FETCH 4: student name map for defaulter list ─────────────────
+        student_map = {
+            u.id: u
+            for u in User.query.filter(User.id.in_(student_ids)).all()
+        }
+
+        # ── Apply changes ─────────────────────────────────────────────────────
+        saved, defaulters = 0, []
+        threshold = Config.ATTENDANCE_THRESHOLD
+
+        for sid, status in clean_entries:
+            # Upsert attendance record
+            rec = existing_recs.get(sid)
             if rec:
                 rec.status      = status
                 rec.semester    = semester
@@ -887,24 +935,37 @@ def api_mark_save():
                 db.session.add(rec)
             saved += 1
 
-        db.session.flush()
+            # Recompute summary in Python (no extra DB hit)
+            statuses = history_by_student[sid] + [status]
+            counted  = [s for s in statuses if s in ("present", "absent")]
+            total    = len(counted)
+            attended = sum(1 for s in counted if s == "present")
+            pct      = round((attended / total) * 100, 2) if total else 0.0
+            is_def   = total > 0 and pct < threshold
 
-        # ── Recompute rolling summaries for every student touched today ────
-        for entry in entries:
-            sid = entry.get("student_id")
-            if not sid:
-                continue
-            summary = _recompute_summary(sid, subject, semester, section)
-            if summary.is_defaulter:
-                student = User.query.get(sid)
-                if student:
+            summary = existing_summaries.get(sid)
+            if not summary:
+                summary = AttendanceSummary(
+                    student_id=sid, subject=subject, semester=semester, section=section,
+                )
+                db.session.add(summary)
+
+            summary.section          = section
+            summary.total_classes    = total
+            summary.classes_attended = attended
+            summary.attendance_pct   = pct
+            summary.is_defaulter     = is_def
+            summary.required_classes = summary.calculate_required_classes(threshold) if total else 0
+
+            if is_def:
+                stu = student_map.get(sid)
+                if stu:
                     defaulters.append({
-                        "roll_number": student.roll_number, "name": student.name,
-                        "attendance_pct": summary.attendance_pct,
+                        "roll_number": stu.roll_number, "name": stu.name,
+                        "attendance_pct": pct,
                     })
 
-        # ── Log this in SheetRegistry too, so "last synced by / at" widgets
-        #    on the student dashboard keep working exactly as with Excel ────
+        # ── Update SheetRegistry ──────────────────────────────────────────────
         reg = SheetRegistry.query.filter_by(
             subject=subject, semester=semester, section=section
         ).first()
@@ -925,19 +986,15 @@ def api_mark_save():
 
         db.session.commit()
 
-        # ── Notify newly-flagged defaulters, same as the Excel path ────────
+        # ── Notify defaulters (background — don't block the response) ─────────
         try:
             from utils.notifications import notify_low_attendance
             for d in defaulters:
-                student = User.query.filter(
-                    func.upper(User.roll_number) == (d["roll_number"] or "").upper(),
-                    User.role == "student"
-                ).first()
-                summary = AttendanceSummary.query.filter_by(
-                    student_id=student.id, subject=subject, semester=semester
-                ).first() if student else None
-                if student and summary:
-                    notify_low_attendance(student, summary)
+                stu = next((u for u in student_map.values()
+                            if u.roll_number and u.roll_number.upper() == (d["roll_number"] or "").upper()), None)
+                summary = existing_summaries.get(stu.id) if stu else None
+                if stu and summary:
+                    notify_low_attendance(stu, summary)
         except Exception as e:
             import logging
             logging.error(f"Error triggering notifications: {e}")
@@ -954,8 +1011,8 @@ def api_mark_save():
     })
 
 
-
 # ── Download attendance sheet as Excel ───────────────────────────────────────
+
 
 @attendance_bp.route("/api/download-sheet", methods=["GET"])
 @login_required
