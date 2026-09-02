@@ -422,15 +422,20 @@ async function saveAttendance() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
   try {
     const res = await fetch('/attendance/api/mark-save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         subject, semester, section, date,
         entries: rosterData.map(s => ({ student_id: s.id, status: s.status })),
       }),
     });
+    clearTimeout(timeout);
     const data = await res.json();
     const msg = document.getElementById('saveMsg');
 
@@ -445,7 +450,13 @@ async function saveAttendance() {
       msg.innerHTML = `<span style="color:var(--danger)">${data.message || 'Save failed.'}</span>`;
     }
   } catch (e) {
-    document.getElementById('saveMsg').innerHTML = '<span style="color:var(--danger)">Network error saving attendance.</span>';
+    clearTimeout(timeout);
+    const msg = document.getElementById('saveMsg');
+    if (e.name === 'AbortError') {
+      msg.innerHTML = '<span style="color:var(--warn)"><i class="bi bi-exclamation-triangle me-1"></i>Server took too long. Please try again.</span>';
+    } else {
+      msg.innerHTML = '<span style="color:var(--danger)">Network error saving attendance.</span>';
+    }
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-cloud-check me-2"></i>Save Attendance';
