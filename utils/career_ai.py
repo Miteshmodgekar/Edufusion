@@ -16,6 +16,7 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_MODEL  = "gemini-3.5-flash-lite"
 MAX_HISTORY   = 10
 MAX_TOKENS    = 1024
+MAX_HISTORY_MESSAGES = MAX_HISTORY   # alias kept for backward compatibility
 
 
 def build_system_prompt(student, profile, avg_attendance, open_drives):
