@@ -74,7 +74,7 @@ class Config:
 
     # ── AI Career Assistant (Groq — free tier, fast, no card required) ──
     GROQ_API_KEY    = os.environ.get("GROQ_API_KEY", "")
-    CAREER_AI_MODEL = os.environ.get("CAREER_AI_MODEL", "llama3-70b-8192")
+    CAREER_AI_MODEL = os.environ.get("CAREER_AI_MODEL", "compound-beta")
 
     # ── PWA / Push Notifications ───────────────────────────────────────────────
     VAPID_PUBLIC_KEY   = os.environ.get("VAPID_PUBLIC_KEY",  "")
