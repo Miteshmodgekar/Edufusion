@@ -72,9 +72,12 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@cse.edu")
     MAIL_SUPPRESS_SEND  = os.environ.get("MAIL_SUPPRESS_SEND", "true").lower() not in ("false", "0", "no")
 
-    # ── AI Career Assistant (Groq — free tier, fast, no card required) ──
+    # ── AI Career Assistant ─────────────────────────────────────────────────
+    # Primary: Google Gemini (1M TPM free — get key at aistudio.google.com)
+    GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "")
+    # Fallback: Groq (8K TPM free)
     GROQ_API_KEY    = os.environ.get("GROQ_API_KEY", "")
-    CAREER_AI_MODEL = os.environ.get("CAREER_AI_MODEL", "compound-beta")
+    CAREER_AI_MODEL = os.environ.get("CAREER_AI_MODEL", "gemini-2.0-flash")
 
     # ── PWA / Push Notifications ───────────────────────────────────────────────
     VAPID_PUBLIC_KEY   = os.environ.get("VAPID_PUBLIC_KEY",  "")

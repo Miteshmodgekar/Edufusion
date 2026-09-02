@@ -260,7 +260,7 @@ def career_chat():
     system_prompt = build_system_prompt(current_user, profile, avg_att, open_drives)
 
     success, reply = send_career_chat(
-        Config.GROQ_API_KEY, Config.CAREER_AI_MODEL,
+        Config.GEMINI_API_KEY or Config.GROQ_API_KEY, Config.CAREER_AI_MODEL,
         system_prompt, clean_history, user_message
     )
 
