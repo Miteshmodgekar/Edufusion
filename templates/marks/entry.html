@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% block title %}CIE Marks Management — EduFusion{% endblock %}
+{% block extra_css %}
+<style>
+.marks-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px; height:100%; }
+.marks-card h5 { font-weight:700; margin-bottom:6px; }
+.marks-card p  { font-size:12px; color:var(--muted); margin-bottom:20px; }
+.step-badge { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+              font-weight:800;font-size:13px;margin-bottom:12px; }
+.step1 .step-badge { background:rgba(63,185,80,.15);  color:#3fb950; }
+.step2 .step-badge { background:rgba(88,166,255,.15); color:#58a6ff; }
+.filter-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+.fg label { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; letter-spacing:.4px; display:block; margin-bottom:4px; }
+.type-pills { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.type-pill { padding:6px 14px; border-radius:20px; border:1.5px solid var(--border); font-size:11px;
+             cursor:pointer; transition:all .15s; background:var(--surface2); color:var(--text); font-weight:600; }
+.type-pill:hover { border-color:var(--accent2); color:var(--accent2); }
+.type-pill.active { border-color:var(--accent2); background:rgba(88,166,255,.12); color:var(--accent2); }
+.type-pill.active-green { border-color:#3fb950; background:rgba(63,185,80,.12); color:#3fb950; }
+.subtype-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.subtype-pill { padding:5px 12px; border-radius:14px; border:1.5px solid var(--border); font-size:11px;
+                cursor:pointer; transition:all .15s; background:var(--surface); color:var(--muted); }
+.subtype-pill:hover { border-color:var(--accent2); color:var(--accent2); }
+.subtype-pill.active { border-color:#f0883e; background:rgba(240,136,62,.1); color:#f0883e; }
+.format-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+              padding:12px 16px; margin-bottom:16px; font-size:11px; color:var(--muted); line-height:1.7; }
+.format-box strong { color:var(--text); }
+.preview-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); margin-top:16px; }
+.preview-table { width:100%; border-collapse:collapse; font-size:11px; min-width:700px; }
+.preview-table th { background:var(--surface2); padding:7px 10px; color:var(--muted);
+                    font-family:'Space Mono',monospace; font-size:10px; border-bottom:1px solid var(--border); text-align:center; }
+.preview-table td { padding:6px 10px; border-bottom:1px solid var(--border); text-align:center; }
+.preview-table td.name { text-align:left; }
+.badge-ia1 { background:rgba(63,185,80,.1);  color:#3fb950; }
+.badge-ia2 { background:rgba(88,166,255,.1); color:#58a6ff; }
+.badge-lab { background:rgba(208,136,255,.1); color:#d088ff; }
+.upload-drop { border:2px dashed var(--border); border-radius:12px; padding:36px 20px;
+               text-align:center; cursor:pointer; transition:border-color .2s, background .2s; }
+.upload-drop:hover, .upload-drop.dragover { border-color:var(--accent2); background:rgba(88,166,255,.04); }
+.upload-drop i { font-size:40px; color:var(--muted); display:block; margin-bottom:10px; }
+#fileInput { display:none; }
+.err-list { max-height:120px; overflow-y:auto; font-size:11px; font-family:'Space Mono',monospace; color:#f85149; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-3">
+  <div>
+    <h4 style="margin:0 0 4px"><i class="bi bi-journal-richtext" style="color:#3fb950"></i> CIE Marks Management</h4>
+    <p style="margin:0;font-size:12px;color:var(--muted)">VTU Internal Assessment · Download template → Fill marks → Upload · Supports IPCC, CC, Lab, Activity &amp; Open Elective subjects</p>
+  </div>
+  <a href="/marks/direct" class="btn btn-success">
+    <i class="bi bi-pencil-square me-2"></i>Enter Marks Directly
+    <span style="font-size:10px;opacity:.75;margin-left:6px;display:block;font-family:'Space Mono',monospace">No Excel needed</span>
+  </a>
+</div>
+
+<!-- ── Subject Setup ──────────────────────────────────────────────── -->
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-bottom:20px">
+
+  <!-- Row 1: Basic fields -->
+  <div class="filter-row" style="margin-bottom:16px">
+    <div class="fg" style="flex:1;min-width:180px">
+      <label>SUBJECT NAME</label>
+      <input id="subjectInput" type="text" class="form-control form-control-sm" placeholder="e.g. Operating Systems">
+    </div>
+    <div class="fg" style="width:120px">
+      <label>SUBJECT CODE</label>
+      <input id="subjectCode" type="text" class="form-control form-control-sm" placeholder="e.g. BCS303">
+    </div>
+    <div class="fg" style="flex:1;min-width:160px">
+      <label>FACULTY NAME</label>
+      <input id="facultyName" type="text" class="form-control form-control-sm" placeholder="e.g. Prof. Abhilasha J.">
+    </div>
+    <div class="fg" style="width:85px">
+      <label>SEMESTER</label>
+      <select id="semSelect" class="form-select form-select-sm">
+        {% for i in range(1,9) %}<option value="{{ i }}">Sem {{ i }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fg" style="width:75px">
+      <label>SECTION</label>
+      <select id="secSelect" class="form-select form-select-sm">
+        {% for s in ['A','B','C','D','E'] %}<option>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fg" style="width:95px">
+      <label>ACAD. YEAR</label>
+      <input id="acYear" type="text" class="form-control form-control-sm" value="2024-25">
+    </div>
+  </div>
+
+  <!-- Row 2: Subject type selector -->
+  <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.4px;margin-bottom:8px">SUBJECT CATEGORY</div>
+  <div class="type-pills">
+    <div class="type-pill active-green" id="pill-ipcc" onclick="selectCategory('ipcc')">
+      <i class="bi bi-cpu"></i> IPCC
+    </div>
+    <div class="type-pill" id="pill-cc" onclick="selectCategory('cc')">
+      <i class="bi bi-book"></i> CC (Core Course)
+    </div>
+  </div>
+
+  <!-- Sub-type -->
+  <div id="subtypeWrap">
+    <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.4px;margin-bottom:8px">SUBJECT TYPE</div>
+    <div class="subtype-row" id="ipccSubtypes">
+      <div class="subtype-pill active" id="sub-ipcc_theory"   onclick="selectType('ipcc_theory')">Theory</div>
+      <div class="subtype-pill"        id="sub-ipcc_lab"      onclick="selectType('ipcc_lab')">Lab (Theory + Lab IA)</div>
+    </div>
+    <div class="subtype-row" id="ccSubtypes" style="display:none">
+      <div class="subtype-pill" id="sub-cc_theory"   onclick="selectType('cc_theory')">Theory</div>
+      <div class="subtype-pill" id="sub-cc_activity" onclick="selectType('cc_activity')">Activity (5 Modules)</div>
+      <div class="subtype-pill" id="sub-cc_oe"       onclick="selectType('cc_oe')">Open Elective</div>
+    </div>
+  </div>
+
+  <!-- Format info box (dynamic) -->
+  <div class="format-box" id="formatBox"></div>
+
+</div>
+
+<!-- ── Step Cards ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-3">
+  <!-- Step 1 -->
+  <div class="col-md-6">
+    <div class="marks-card step1">
+      <div class="step-badge">1</div>
+      <h5>Download Marks Template</h5>
+      <p>Downloads an Excel sheet pre-filled with all students from the selected Semester &amp; Section, in the exact format for the selected subject type.</p>
+      <button class="btn btn-success w-100" onclick="downloadTemplate()">
+        <i class="bi bi-file-earmark-excel"></i> Download Excel Template
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="col-md-6">
+    <div class="marks-card step2">
+      <div class="step-badge">2</div>
+      <h5>Upload Filled Excel Sheet</h5>
+      <p>After entering marks in Excel, upload the file here. The system will automatically read and save all student marks to the database.</p>
+
+      <div class="upload-drop" id="dropZone" onclick="document.getElementById('fileInput').click()"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="handleDrop(event)">
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+        <i class="bi bi-cloud-upload"></i>
+        <div id="dropLabel" style="font-size:13px;color:var(--muted)">Click or drag &amp; drop the filled Excel file here</div>
+        <div id="fileName" style="font-size:11px;color:var(--accent2);margin-top:6px"></div>
+      </div>
+      <button class="btn btn-primary w-100 mt-3" id="uploadBtn" onclick="uploadFile()" disabled>
+        <i class="bi bi-upload"></i> Upload &amp; Save Marks
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Result -->
+<div id="uploadResult" style="display:none" class="mb-3">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px">
+    <div id="uploadMsg" style="font-size:13px;font-weight:600;margin-bottom:8px"></div>
+    <div class="err-list" id="errList"></div>
+    <button class="btn btn-sm btn-outline-secondary mt-2" onclick="loadPreview()">
+      <i class="bi bi-eye"></i> Preview Saved Marks
+    </button>
+  </div>
+</div>
+
+<!-- Preview Table -->
+<div id="previewWrap" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <span style="font-size:13px;font-weight:600">Saved Marks Preview</span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadPreview()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  </div>
+  <div class="preview-wrap">
+    <table class="preview-table">
+      <thead id="previewHead"></thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _selectedFile = null;
+let _currentType  = 'ipcc_theory';
+let _currentCat   = 'ipcc';
+
+const FORMAT_INFO = {
+  ipcc_theory: {
+    label: 'IPCC — Theory (e.g. BCS301)',
+    desc: `<strong>Both IA1 &amp; IA2 in one sheet</strong><br>
+      Q1 (a,b,c,d) + Q2 (a,b,c,d) → Module-1 Best (MAX Q1,Q2) · max <strong>25M</strong><br>
+      Q3 (a,b,c,d) + Q4 (a,b,c,d) → Module-2 Best (MAX Q3,Q4) · max <strong>25M</strong><br>
+      IA Total = Module-1 + Module-2 → <strong>Scaled to 25M</strong><br>
+      CIE = Avg(IA1_scaled, IA2_scaled) + Assignment (<strong>25M</strong>)`
+  },
+  cc_theory: {
+    label: 'CC — Theory (e.g. BCS302, BCS304, BCS306A)',
+    desc: `<strong>Both IA1 &amp; IA2 in one sheet</strong><br>
+      Q1 (a,b,c,d) + Q2 (a,b,c,d) → Module-1 Best (MAX Q1,Q2) · max <strong>25M</strong><br>
+      Q3 (a,b,c,d) + Q4 (a,b,c,d) → Module-2 Best (MAX Q3,Q4) · max <strong>25M</strong><br>
+      IA Total = Module-1 + Module-2 → <strong>Scaled to 15M</strong><br>
+      CIE = IA1_scaled + IA2_scaled + Assignment (<strong>20M</strong>)`
+  },
+  ipcc_lab: {
+    label: 'IPCC — Lab Subject (e.g. BCS303)',
+    desc: `<strong>Both IA1 &amp; IA2 in one sheet + Lab IA</strong><br>
+      Q1-Q4 same as CC Theory → each IA <strong>Scaled to 15M</strong><br>
+      Assignment = <strong>10M</strong>  ·  Lab IA = <strong>25M</strong><br>
+      CIE = IA1_scaled + IA2_scaled + Lab IA + Assignment`
+  },
+  cc_activity: {
+    label: 'CC — Activity / Social (e.g. BSCK307)',
+    desc: `<strong>5 Modules × 20M = 100M Total</strong><br>
+      Module 1 (20M) · Module 2 (20M) · Module 3 (20M) · Module 4 (20M) · Module 5 (20M)<br>
+      CIE Total = Sum of all 5 modules`
+  },
+  cc_oe: {
+    label: 'CC — Open Elective (e.g. BCS3058A)',
+    desc: `<strong>Gen 30M + CIE 20M = Total 50M</strong><br>
+      Gen marks (out of 30) + CIE marks (out of 20)<br>
+      Total = Gen + CIE`
+  }
+};
+
+function g(id){ return document.getElementById(id); }
+
+function selectCategory(cat){
+  _currentCat = cat;
+  g('pill-ipcc').className = 'type-pill' + (cat==='ipcc' ? ' active-green' : '');
+  g('pill-cc').className   = 'type-pill' + (cat==='cc'   ? ' active' : '');
+
+  g('ipccSubtypes').style.display = cat==='ipcc' ? 'flex' : 'none';
+  g('ccSubtypes').style.display   = cat==='cc'   ? 'flex' : 'none';
+
+  // Select first subtype of this category
+  if(cat==='ipcc') selectType('ipcc_theory');
+  else             selectType('cc_theory');
+}
+
+function selectType(type){
+  _currentType = type;
+  // Reset all subtype pills
+  ['ipcc_theory','ipcc_lab','cc_theory','cc_activity','cc_oe'].forEach(t => {
+    const el = g('sub-' + t);
+    if(el) el.className = 'subtype-pill' + (t===type ? ' active' : '');
+  });
+  // Update format box
+  const info = FORMAT_INFO[type] || {};
+  g('formatBox').innerHTML = `<strong>${info.label || type}</strong><br>${info.desc || ''}`;
+}
+
+function handleDrop(e){
+  e.preventDefault();
+  g('dropZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if(file) handleFile(file);
+}
+
+function handleFile(file){
+  if(!file) return;
+  _selectedFile = file;
+  g('fileName').textContent = file.name;
+  g('dropLabel').textContent = 'File selected:';
+  g('uploadBtn').disabled = false;
+}
+
+async function downloadTemplate(){
+  const subj = g('subjectInput').value.trim();
+  const sem  = g('semSelect').value;
+  const sec  = g('secSelect').value;
+  if(!sem || !sec){ showToast('warning','Missing fields','Please select Semester and Section.'); return; }
+
+  const params = new URLSearchParams({
+    subject:       subj,
+    subject_code:  g('subjectCode').value.trim(),
+    semester:      sem,
+    section:       sec,
+    academic_year: g('acYear').value.trim(),
+    subject_type:  _currentType,
+    faculty_name:  g('facultyName').value.trim(),
+  });
+
+  // Show a loading state on the button
+  const btn = document.querySelector('[onclick="downloadTemplate()"]');
+  const origText = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating…'; }
+
+  try {
+    const res = await fetch(`/marks/api/template?${params}`);
+    if(!res.ok){
+      // Try to read error JSON
+      let errMsg = `Server error ${res.status}`;
+      try { const j = await res.json(); errMsg = j.error || j.message || errMsg; } catch{}
+      showToast('danger', 'Download Failed', errMsg);
+      return;
+    }
+    // Trigger browser download from blob
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    // Get filename from Content-Disposition header if available
+    const cd   = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    a.download = match ? match[1].replace(/['"]/g,'') : `CIE_Marks_Sem${sem}_${sec}.xlsx`;
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('success', 'Downloaded', 'Excel template saved to your Downloads folder.');
+  } catch(e){
+    showToast('danger', 'Network Error', e.message || 'Could not reach server.');
+  } finally {
+    if(btn){ btn.disabled = false; btn.innerHTML = origText; }
+  }
+}
+
+async function uploadFile(){
+  if(!_selectedFile){ showToast('warning','','Select a file first.'); return; }
+  const subj = g('subjectInput').value.trim();
+  const sem  = g('semSelect').value;
+  const sec  = g('secSelect').value;
+  if(!subj){ showToast('warning','','Enter a subject name.'); return; }
+
+  const fd = new FormData();
+  fd.append('file',          _selectedFile);
+  fd.append('subject',       subj);
+  fd.append('subject_code',  g('subjectCode').value.trim());
+  fd.append('semester',      sem);
+  fd.append('section',       sec);
+  fd.append('academic_year', g('acYear').value.trim());
+  fd.append('subject_type',  _currentType);
+
+  const btn = g('uploadBtn');
+  btn.disabled=true; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Uploading…';
+
+  try{
+    const res  = await fetch('/marks/api/upload', {method:'POST', body:fd});
+    const data = await res.json();
+    g('uploadResult').style.display = 'block';
+    const ok = data.success;
+    g('uploadMsg').innerHTML = ok
+      ? `<span style="color:#3fb950"><i class="bi bi-check-circle-fill"></i> ${data.message}</span>`
+      : `<span style="color:#f85149"><i class="bi bi-x-circle-fill"></i> ${data.message}</span>`;
+    g('errList').innerHTML = (data.errors||[]).map(e=>`<div>⚠ ${e}</div>`).join('');
+    if(ok){ showToast('success','Upload complete!', data.message); loadPreview(); }
+    else  { showToast('danger','Upload failed', data.message); }
+  }catch(e){ showToast('danger','Error',e.message); }
+  finally{ btn.disabled=false; btn.innerHTML='<i class="bi bi-upload"></i> Upload &amp; Save Marks'; }
+}
+
+async function loadPreview(){
+  const subj = g('subjectInput').value.trim();
+  const sem  = g('semSelect').value;
+  const sec  = g('secSelect').value;
+  if(!subj||!sem||!sec) return;
+
+  const params = new URLSearchParams({subject:subj,semester:sem,section:sec});
+  const res  = await fetch(`/marks/api/roster?${params}`);
+  const data = await res.json();
+  if(!data.success || !data.rows.length){ g('previewWrap').style.display='none'; return; }
+
+  const fmt = v => v!=null ? parseFloat(v).toFixed(1) : '—';
+  const rows = data.rows;
+  const st   = rows[0]?.subject_type || 'cc_theory';
+
+  // Build headers and rows dynamically based on type
+  let hdr = `<tr><th>#</th><th>USN</th><th style="text-align:left">Name</th>`;
+  let body = '';
+
+  if(['ipcc_theory','cc_theory','ipcc_lab'].includes(st)){
+    hdr += `<th class="badge-ia1">IA1 Q1</th><th class="badge-ia1">IA1 Q2</th>
+            <th class="badge-ia1">IA1 Q3</th><th class="badge-ia1">IA1 Q4</th>
+            <th class="badge-ia1">IA1 /50</th><th class="badge-ia1">IA1 Scaled</th>
+            <th class="badge-ia2">IA2 Q1</th><th class="badge-ia2">IA2 Q2</th>
+            <th class="badge-ia2">IA2 Q3</th><th class="badge-ia2">IA2 Q4</th>
+            <th class="badge-ia2">IA2 /50</th><th class="badge-ia2">IA2 Scaled</th>`;
+    if(st==='ipcc_lab') hdr += `<th class="badge-lab">Lab IA /25</th>`;
+    hdr += `<th>Assign</th><th style="font-weight:700">CIE Total</th></tr>`;
+    body = rows.map((m,i) => {
+      let row = `<tr>
+        <td>${i+1}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:11px">${m.roll_number||'—'}</td>
+        <td class="name">${m.student_name}</td>
+        <td class="badge-ia1">${fmt(m.ia1_q1_total)}</td>
+        <td class="badge-ia1">${fmt(m.ia1_q2_total)}</td>
+        <td class="badge-ia1">${fmt(m.ia1_q3_total)}</td>
+        <td class="badge-ia1">${fmt(m.ia1_q4_total)}</td>
+        <td class="badge-ia1" style="font-weight:700">${fmt(m.ia1_total)}</td>
+        <td class="badge-ia1">${fmt(m.ia1_scaled)}</td>
+        <td class="badge-ia2">${fmt(m.ia2_q1_total)}</td>
+        <td class="badge-ia2">${fmt(m.ia2_q2_total)}</td>
+        <td class="badge-ia2">${fmt(m.ia2_q3_total)}</td>
+        <td class="badge-ia2">${fmt(m.ia2_q4_total)}</td>
+        <td class="badge-ia2" style="font-weight:700">${fmt(m.ia2_total)}</td>
+        <td class="badge-ia2">${fmt(m.ia2_scaled)}</td>`;
+      if(st==='ipcc_lab') row += `<td class="badge-lab">${fmt(m.lab_ia)}</td>`;
+      row += `<td>${fmt(m.assignment)}</td>
+        <td style="font-weight:700">${fmt(m.total_cie)}</td></tr>`;
+      return row;
+    }).join('');
+  } else if(st==='cc_activity'){
+    hdr += `<th>Mod 1</th><th>Mod 2</th><th>Mod 3</th><th>Mod 4</th><th>Mod 5</th>
+            <th style="font-weight:700">Total /100</th></tr>`;
+    body = rows.map((m,i) => `<tr>
+      <td>${i+1}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:11px">${m.roll_number||'—'}</td>
+      <td class="name">${m.student_name}</td>
+      <td>${fmt(m.mod1)}</td><td>${fmt(m.mod2)}</td><td>${fmt(m.mod3)}</td>
+      <td>${fmt(m.mod4)}</td><td>${fmt(m.mod5)}</td>
+      <td style="font-weight:700">${fmt(m.total_cie)}</td></tr>`).join('');
+  } else if(st==='cc_oe'){
+    hdr += `<th>Gen /30</th><th>CIE /20</th><th style="font-weight:700">Total /50</th></tr>`;
+    body = rows.map((m,i) => `<tr>
+      <td>${i+1}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:11px">${m.roll_number||'—'}</td>
+      <td class="name">${m.student_name}</td>
+      <td>${fmt(m.oe_gen)}</td><td>${fmt(m.oe_cie)}</td>
+      <td style="font-weight:700">${fmt(m.total_cie)}</td></tr>`).join('');
+  }
+
+  g('previewHead').innerHTML = hdr;
+  g('previewBody').innerHTML = body;
+  g('previewWrap').style.display = 'block';
+}
+
+// Initialize
+selectCategory('ipcc');
+</script>
+{% endblock %}

@@ -348,6 +348,9 @@
     <a class="nav-link {% if request.path.startswith('/leave/apply') %}active{% endif %}" href="/leave/apply">
       <i class="bi bi-file-earmark-text"></i> Apply Leave
     </a>
+    <a class="nav-link {% if request.path.startswith('/marks/my') %}active{% endif %}" href="/marks/my">
+      <i class="bi bi-bar-chart-line"></i> My Marks
+    </a>
 
     <div class="sidebar-section">AI & ML</div>
     <a class="nav-link {% if request.path.startswith('/ml/predict') %}active{% endif %}" href="/ml/predict">
@@ -378,6 +381,9 @@
     <a class="nav-link {% if request.path.startswith('/attendance/defaulters') %}active{% endif %}" href="/attendance/defaulters">
       <i class="bi bi-exclamation-triangle"></i> Defaulters
     </a>
+    <a class="nav-link {% if request.path.startswith('/marks/') and not request.path.startswith('/marks/my') %}active{% endif %}" href="/marks/">
+      <i class="bi bi-journal-richtext"></i> Internal Marks
+    </a>
 
     <div class="sidebar-section">APPROVALS</div>
     <a class="nav-link {% if request.path.startswith('/leave/pending/mentor') %}active{% endif %}" href="/leave/pending/mentor">
@@ -385,6 +391,9 @@
     </a>
     <a class="nav-link {% if request.path.startswith('/leave/mentor/report') %}active{% endif %}" href="/leave/mentor/report">
       <i class="bi bi-file-earmark-bar-graph"></i> Leave Report
+    </a>
+    <a class="nav-link {% if request.path.startswith('/attendance/mentor-sheet') %}active{% endif %}" href="/attendance/mentor-sheet">
+      <i class="bi bi-journal-text"></i> Mentor Sheet
     </a>
     <a class="nav-link {% if request.path.startswith('/project') %}active{% endif %}" href="/project/">
       <i class="bi bi-kanban"></i> Projects

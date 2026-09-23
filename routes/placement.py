@@ -204,7 +204,7 @@ def career_assistant_page():
     if not current_user.is_student:
         return jsonify({"success": False, "message": "Students only."}), 403
     return render_template("placement/career_assistant.html",
-                            ai_configured=bool(Config.GROQ_API_KEY))
+                            ai_configured=bool(Config.GEMINI_API_KEY or Config.GROQ_API_KEY))
 
 
 @placement_bp.route("/api/career-chat", methods=["POST"])

@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+{% block title %}Mentor Sheet — EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Page layout ─────────────────────────────────────────────────────── */
+  .ms-page { max-width: 1280px; margin: 0 auto; }
+
+  /* ── Hero header ──────────────────────────────────────────────────────── */
+  .ms-hero {
+    background: linear-gradient(135deg, rgba(63,185,80,.12) 0%, rgba(88,166,255,.08) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .ms-hero-left { display: flex; align-items: center; gap: 1rem; }
+  .ms-hero-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: linear-gradient(135deg, #3fb950, #2ea043);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: #0d1117; flex-shrink: 0;
+  }
+  .ms-hero-title { font-size: 20px; font-weight: 700; color: var(--heading); margin: 0; }
+  .ms-hero-sub { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+
+  /* ── College header card ──────────────────────────────────────────────── */
+  .ms-college-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-bottom: 1.25rem;
+  }
+  .ms-college-header .college-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px; font-weight: 700;
+    color: var(--heading);
+    margin-bottom: 2px;
+  }
+  .ms-college-header .college-sub {
+    font-size: 11px; color: var(--muted);
+    line-height: 1.6;
+  }
+  .ms-college-header .college-dept {
+    font-size: 13px; font-weight: 600;
+    color: var(--accent); margin-top: 6px;
+  }
+
+  /* ── Controls bar ─────────────────────────────────────────────────────── */
+  .ms-controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .ms-controls label { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: .5px; margin-bottom: 4px; display: block; }
+  .ms-controls input, .ms-controls select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    min-width: 160px;
+  }
+  .ms-controls input:focus, .ms-controls select:focus {
+    outline: none;
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 2px rgba(88,166,255,.15);
+  }
+  .ms-mentor-info { margin-left: auto; text-align: right; }
+  .ms-mentor-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .ms-mentor-label { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; letter-spacing: .5px; }
+
+  /* ── Table card ───────────────────────────────────────────────────────── */
+  .ms-table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .ms-table-card .card-header {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: .5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* ── The actual sheet table ───────────────────────────────────────────── */
+  .mentor-sheet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .mentor-sheet-table thead th {
+    background: linear-gradient(135deg, rgba(63,185,80,.12), rgba(88,166,255,.06));
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: .5px;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .mentor-sheet-table thead th.col-wide { min-width: 160px; }
+  .mentor-sheet-table tbody td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    vertical-align: middle;
+    color: var(--text);
+    transition: background .15s;
+  }
+  .mentor-sheet-table tbody tr:hover td { background: rgba(255,255,255,.02); }
+  .mentor-sheet-table tbody td.sn { text-align: center; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 11px; width: 46px; }
+  .mentor-sheet-table tbody td.locked { color: var(--text); font-weight: 600; background: rgba(63,185,80,.04); }
+  .mentor-sheet-table tbody td.usn-cell { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent2); }
+
+  /* ── Editable cells ───────────────────────────────────────────────────── */
+  .editable {
+    min-width: 100px;
+    outline: none;
+    border-radius: 6px;
+    transition: background .2s, box-shadow .2s;
+    cursor: text;
+  }
+  .editable:empty::before {
+    content: attr(data-placeholder);
+    color: var(--muted);
+    opacity: .5;
+    font-style: italic;
+    font-size: 11px;
+    pointer-events: none;
+  }
+  .editable:focus {
+    background: rgba(88,166,255,.07);
+    box-shadow: inset 0 0 0 1px rgba(88,166,255,.4);
+    padding: 4px 6px;
+  }
+
+  /* Date input inside table */
+  .date-input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 12px;
+    width: 140px;
+    cursor: pointer;
+    outline: none;
+    padding: 0;
+  }
+  .date-input:focus { background: rgba(88,166,255,.07); border-radius: 4px; padding: 2px 4px; }
+
+  /* ── Status chip ──────────────────────────────────────────────────────── */
+  .chip-ok   { background: rgba(63,185,80,.15); color: var(--accent); border-radius: 20px; padding: 2px 10px; font-size: 10px; font-family: 'Space Mono', monospace; }
+  .chip-warn { background: rgba(210,153,34,.15); color: var(--warn);   border-radius: 20px; padding: 2px 10px; font-size: 10px; font-family: 'Space Mono', monospace; }
+  .chip-none { background: var(--surface2); color: var(--muted); border-radius: 20px; padding: 2px 10px; font-size: 10px; font-family: 'Space Mono', monospace; }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
+  .btn-save-all {
+    background: linear-gradient(135deg, #3fb950, #2ea043);
+    border: none; color: #0d1117; font-weight: 700;
+    border-radius: 10px; padding: 10px 24px; font-size: 13px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    transition: opacity .2s, box-shadow .2s, transform .15s;
+    box-shadow: 0 4px 16px rgba(63,185,80,.25);
+  }
+  .btn-save-all:hover { opacity: .9; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(63,185,80,.35); }
+  .btn-save-all:active { transform: translateY(0); }
+  .btn-save-all:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .btn-print {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 10px 20px;
+    font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all .2s;
+  }
+  .btn-print:hover { border-color: var(--muted); background: var(--surface); }
+
+  /* ── Empty state ──────────────────────────────────────────────────────── */
+  .ms-empty {
+    text-align: center; padding: 3rem 2rem;
+    color: var(--muted); font-size: 13px;
+  }
+  .ms-empty i { font-size: 36px; display: block; margin-bottom: .75rem; color: var(--border); }
+
+  /* ── Footer bar ───────────────────────────────────────────────────────── */
+  .ms-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem;
+  }
+  .ms-save-info { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* ══ Print styles ════════════════════════════════════════════════════════ */
+  @media print {
+    .sidebar, .navbar, .ms-hero, .ms-controls .btn-save-all,
+    .ms-controls .btn-print, .ms-footer, .card-header .badge,
+    #toastStack, #cursorDot, #cursorRing, #appPreloader { display: none !important; }
+    .main-content { margin-left: 0 !important; padding: 0 !important; }
+    body { background: #fff !important; color: #000 !important; }
+    .ms-college-header { border: none; padding: .5rem 0; }
+    .ms-college-header .college-name { color: #000 !important; }
+    .ms-college-header .college-sub, .ms-college-header .college-dept { color: #333 !important; }
+    .ms-table-card { border: none; border-radius: 0; }
+    .mentor-sheet-table thead th {
+      background: #eee !important; color: #000 !important;
+      border: 1px solid #aaa !important; font-size: 9px;
+    }
+    .mentor-sheet-table tbody td {
+      border: 1px solid #aaa !important; color: #000 !important;
+      background: #fff !important; font-size: 11px;
+    }
+    .mentor-sheet-table tbody td.locked { background: #f5f5f5 !important; }
+    .editable { background: transparent !important; box-shadow: none !important; }
+    .print-mentor-info { display: block !important; }
+    .ms-controls { display: none !important; }
+    .ms-print-meta { display: flex !important; }
+  }
+  .ms-print-meta {
+    display: none;
+    align-items: center; justify-content: space-between;
+    font-size: 12px; margin-bottom: 8px; color: #000;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ms-page">
+
+  <!-- Hero -->
+  <div class="ms-hero">
+    <div class="ms-hero-left">
+      <div class="ms-hero-icon"><i class="bi bi-journal-text"></i></div>
+      <div>
+        <div class="ms-hero-title">Mentor Attendance Sheet</div>
+        <div class="ms-hero-sub">Weekly attendance tracking for your assigned mentees</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem;">
+      <span class="badge-accent">
+        <i class="bi bi-people"></i>&nbsp;
+        {{ mentees|length }} Mentee{{ 's' if mentees|length != 1 else '' }}
+      </span>
+    </div>
+  </div>
+
+  <!-- College header (visible + print) -->
+  <div class="ms-college-header">
+    <div class="college-name">Jain College of Engineering &amp; Research,</div>
+    <div class="college-sub">
+      Udyambag, Belagavi.<br>
+      (Approved by AICTE, New Delhi, Affiliated to VTU Belagavi &amp; Recognised by Govt. of Karnataka)<br>
+      NBA Accredited Programmes – ECE &amp; ME
+    </div>
+    <div class="college-dept">DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING</div>
+  </div>
+
+  <!-- Print-only meta line -->
+  <div class="ms-print-meta">
+    <span><strong>NAME OF THE MENTOR:</strong> {{ mentor.name }}</span>
+    <span id="printDate"><strong>DATE:</strong> <span id="printDateVal"></span></span>
+  </div>
+
+  <!-- Controls -->
+  <div class="ms-controls">
+    <div>
+      <label>NAME OF THE MENTOR</label>
+      <input type="text" id="mentorNameDisplay" value="{{ mentor.name }}" readonly
+             style="min-width:220px;font-weight:600;background:var(--surface2);opacity:.85;">
+    </div>
+    <div>
+      <label>DATE</label>
+      <input type="date" id="sheetDate" style="min-width:160px;">
+    </div>
+    <div>
+      <label>PERIOD / WEEK LABEL</label>
+      <input type="text" id="weekLabel" placeholder="e.g. Week 1 · 15–20 Sep 2025" style="min-width:220px;">
+    </div>
+    <div class="ms-mentor-info d-none d-md-block">
+      <div class="ms-mentor-label">MENTOR</div>
+      <div class="ms-mentor-name">{{ mentor.name }}</div>
+    </div>
+  </div>
+
+  <!-- Table Card -->
+  <div class="ms-table-card">
+    <div class="card-header">
+      WEEKLY ATTENDANCE TRACKER
+      <span id="lastSavedBadge" class="chip-none" style="display:none"></span>
+    </div>
+
+    {% if mentees %}
+    <div style="overflow-x:auto;">
+      <table class="mentor-sheet-table" id="mentorSheetTable">
+        <thead>
+          <tr>
+            <th style="width:46px;">SI NO</th>
+            <th class="col-wide" style="min-width:180px;">NAME</th>
+            <th style="min-width:120px;">USN</th>
+            <th style="min-width:130px;">WEEKLY<br>ATTENDANCE</th>
+            <th class="col-wide" style="min-width:200px;">REASON FOR<br>LOW ATTENDANCE</th>
+            <th style="min-width:150px;">DATE OF COMMUNICATION<br>WITH PARENTS</th>
+            <th class="col-wide" style="min-width:200px;">REMARKS / COMMUNICATION<br>WITH PARENTS</th>
+          </tr>
+        </thead>
+        <tbody id="sheetBody">
+          {% for student in mentees %}
+          <tr data-student-id="{{ student.id }}">
+            <td class="sn">{{ loop.index }}</td>
+            <td class="locked">{{ student.name | upper }}</td>
+            <td class="locked usn-cell">{{ student.roll_number or '—' }}</td>
+            <td class="editable" contenteditable="true"
+                data-field="weekly_attendance"
+                data-placeholder="e.g. 85%"></td>
+            <td class="editable" contenteditable="true"
+                data-field="reason_for_low"
+                data-placeholder="Enter reason..."></td>
+            <td style="text-align:center;">
+              <input type="date" class="date-input" data-field="date_of_communication">
+            </td>
+            <td class="editable" contenteditable="true"
+                data-field="remarks"
+                data-placeholder="Remarks..."></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="ms-empty">
+      <i class="bi bi-people"></i>
+      <div style="font-weight:600;color:var(--text);margin-bottom:.5rem;">No mentees assigned yet</div>
+      <div>Ask your admin to assign students to you as mentor.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Footer bar -->
+  {% if mentees %}
+  <div class="ms-footer">
+    <div class="ms-save-info" id="saveInfo">Data auto-loads from previous sessions</div>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+      <button class="btn-print magnetic" onclick="window.print()">
+        <i class="bi bi-printer"></i> Print Sheet
+      </button>
+      <button class="btn-save-all magnetic" id="btnSaveAll" onclick="saveAll()">
+        <i class="bi bi-cloud-upload"></i> Save All
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+</div><!-- /.ms-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  // ── Set today's date as default ───────────────────────────────────────────
+  const todayISO = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  document.getElementById('sheetDate').value = todayISO;
+  document.getElementById('printDateVal') &&
+    (document.getElementById('printDateVal').textContent = new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'}));
+
+  // ── Load saved data from server ──────────────────────────────────────────
+  async function loadSavedData() {
+    try {
+      const res = await fetch('/attendance/api/mentor-sheet/data');
+      const json = await res.json();
+      if (!json.success || !json.rows.length) return;
+
+      const tbody = document.getElementById('sheetBody');
+      if (!tbody) return;
+
+      // Build lookup: student_id → row data
+      const map = {};
+      json.rows.forEach(r => { map[r.student_id] = r; });
+
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const sid = parseInt(tr.dataset.studentId);
+        const saved = map[sid];
+        if (!saved) return;
+
+        // Populate editable cells
+        tr.querySelectorAll('[data-field]').forEach(el => {
+          const field = el.dataset.field;
+          if (el.tagName === 'INPUT') {
+            el.value = saved[field] || '';
+          } else {
+            el.textContent = saved[field] || '';
+          }
+        });
+      });
+
+      // Load week label if any row has one
+      const sample = json.rows[0];
+      if (sample && sample.week_label) {
+        document.getElementById('weekLabel').value = sample.week_label;
+      }
+
+      setInfo('Loaded previously saved data ✓', 'var(--accent)');
+    } catch (e) {
+      console.warn('[MentorSheet] Could not load saved data:', e);
+    }
+  }
+
+  // ── Save all rows ─────────────────────────────────────────────────────────
+  window.saveAll = async function () {
+    const btn = document.getElementById('btnSaveAll');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving…';
+
+    const tbody = document.getElementById('sheetBody');
+    if (!tbody) { btn.disabled = false; return; }
+
+    const weekLabel = document.getElementById('weekLabel').value.trim();
+    const rows = [];
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const sid = parseInt(tr.dataset.studentId);
+      if (!sid) return;
+
+      const row = { student_id: sid };
+      tr.querySelectorAll('[data-field]').forEach(el => {
+        const field = el.dataset.field;
+        row[field] = el.tagName === 'INPUT' ? el.value : el.textContent.trim();
+      });
+      rows.push(row);
+    });
+
+    try {
+      const res = await fetch('/attendance/api/mentor-sheet/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows, week_label: weekLabel }),
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        showToast('success', 'Saved', json.message || 'Sheet saved successfully.');
+        const now = new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+        setInfo(`Last saved at ${now}`, 'var(--accent)');
+        const badge = document.getElementById('lastSavedBadge');
+        if (badge) {
+          badge.textContent = `Saved ${now}`;
+          badge.className = 'chip-ok';
+          badge.style.display = '';
+        }
+        if (json.errors && json.errors.length) {
+          json.errors.forEach(e => showToast('warning', 'Warning', e));
+        }
+      } else {
+        showToast('danger', 'Error', json.message || 'Could not save sheet.');
+        setInfo('Save failed — check console.', 'var(--danger)');
+      }
+    } catch (e) {
+      showToast('danger', 'Network Error', 'Could not reach server.');
+      setInfo('Network error.', 'var(--danger)');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Save All';
+    }
+  };
+
+  // ── Keyboard shortcut: Ctrl+S / Cmd+S ─────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      window.saveAll();
+    }
+  });
+
+  // ── Helper: update info text ──────────────────────────────────────────────
+  function setInfo(msg, color) {
+    const el = document.getElementById('saveInfo');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = color || 'var(--muted)';
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', loadSavedData);
+})();
+</script>
+{% endblock %}

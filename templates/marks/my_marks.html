@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}My Internal Marks — EduFusion{% endblock %}
+{% block extra_css %}
+<style>
+.marks-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px; transition:border-color .2s, box-shadow .2s; }
+.marks-card:hover { border-color:rgba(88,166,255,.3); box-shadow:0 4px 20px rgba(0,0,0,.25); }
+.subject-title { font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px; }
+.subject-meta  { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; }
+.ia-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:16px; }
+@media(max-width:600px){ .ia-grid { grid-template-columns:1fr 1fr; } }
+.ia-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center; }
+.ia-box .score { font-size:26px; font-weight:800; font-family:'Space Mono',monospace; line-height:1; }
+.ia-box .label { font-size:10px; color:var(--muted); margin-top:4px; }
+.ia-box .max   { font-size:11px; color:var(--muted); }
+.ia1-box { border-color:rgba(63,185,80,.3); }
+.ia1-box .score { color:#3fb950; }
+.ia2-box { border-color:rgba(88,166,255,.3); }
+.ia2-box .score { color:#58a6ff; }
+.asgn-box { border-color:rgba(210,153,34,.3); }
+.asgn-box .score { color:#d29922; }
+.total-box { grid-column:1/-1; background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(88,166,255,.08));
+             border-color:rgba(63,185,80,.3); padding:18px; }
+.total-box .score { font-size:34px; color:var(--text); }
+
+/* Breakdown accordion */
+.breakdown-toggle { background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; padding:4px 0; display:flex; align-items:center; gap:5px; margin-top:10px; }
+.breakdown-toggle:hover { color:var(--text); }
+.breakdown-body { display:none; margin-top:10px; }
+.breakdown-body.show { display:block; }
+.sub-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:6px; }
+.sub-cell { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px; text-align:center; }
+.sub-cell .sv { font-size:14px; font-weight:700; font-family:'Space Mono',monospace; color:var(--text); }
+.sub-cell .sl { font-size:9px; color:var(--muted); margin-top:2px; }
+
+.empty-state { text-align:center; padding:80px 20px; }
+.empty-state i { font-size:56px; color:var(--muted); display:block; margin-bottom:16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+  <div>
+    <h4 style="margin:0 0 4px"><i class="bi bi-bar-chart-line" style="color:#58a6ff"></i> My Internal Marks</h4>
+    <p style="margin:0;font-size:12px;color:var(--muted)">VTU CIE — IA1 + IA2 + Assignment per subject</p>
+  </div>
+</div>
+
+<div id="loadingState" style="text-align:center;padding:40px;color:var(--muted)">
+  <div class="spinner-border spinner-border-sm" role="status"></div>
+  <span style="margin-left:8px;font-size:13px">Loading your marks...</span>
+</div>
+
+<div id="marksContainer" style="display:none"></div>
+
+<div class="empty-state" id="emptyState" style="display:none">
+  <i class="bi bi-clipboard2-x"></i>
+  <div style="font-size:15px;font-weight:600;margin-bottom:8px">No marks recorded yet</div>
+  <div style="font-size:12px;color:var(--muted)">Your faculty hasn't entered marks yet. Check back later.</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadMyMarks(){
+  try {
+    const res  = await fetch('/marks/api/my');
+    const data = await res.json();
+    document.getElementById('loadingState').style.display = 'none';
+    if(!data.success || !data.marks.length){
+      document.getElementById('emptyState').style.display = 'block'; return;
+    }
+    renderMarks(data.marks);
+    document.getElementById('marksContainer').style.display = 'block';
+  } catch(e){
+    document.getElementById('loadingState').innerHTML = '<span style="color:var(--danger)">Failed to load marks. Please refresh.</span>';
+  }
+}
+
+function fmt(v){ return v != null ? parseFloat(v).toFixed(1) : '—'; }
+
+function renderIAGrid(m){
+  const st  = m.subject_type || 'cc_theory';
+  const cie = parseFloat(m.total_cie || 0);
+  const asgn = m.assignment != null ? parseFloat(m.assignment) : null;
+
+  if(st === 'ipcc_theory'){
+    const ia1sc = parseFloat(m.ia1_scaled || 0);
+    const ia2sc = parseFloat(m.ia2_scaled || 0);
+    return `<div class="ia-grid">
+      <div class="ia-box ia1-box">
+        <div class="score">${ia1sc.toFixed(1)}</div>
+        <div class="max">/ 25 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia1_total)}/50)</span></div>
+        <div class="label">Internal Assessment 1</div>
+      </div>
+      <div class="ia-box ia2-box">
+        <div class="score">${ia2sc.toFixed(1)}</div>
+        <div class="max">/ 25 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia2_total)}/50)</span></div>
+        <div class="label">Internal Assessment 2</div>
+      </div>
+      <div class="ia-box asgn-box">
+        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
+        <div class="max">/ 25</div>
+        <div class="label">Assignment</div>
+      </div>
+      <div class="ia-box total-box">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+
+  } else if(st === 'cc_theory'){
+    const ia1sc = parseFloat(m.ia1_scaled || 0);
+    const ia2sc = parseFloat(m.ia2_scaled || 0);
+    return `<div class="ia-grid">
+      <div class="ia-box ia1-box">
+        <div class="score">${ia1sc.toFixed(1)}</div>
+        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia1_total)}/50)</span></div>
+        <div class="label">Internal Assessment 1</div>
+      </div>
+      <div class="ia-box ia2-box">
+        <div class="score">${ia2sc.toFixed(1)}</div>
+        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia2_total)}/50)</span></div>
+        <div class="label">Internal Assessment 2</div>
+      </div>
+      <div class="ia-box asgn-box">
+        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
+        <div class="max">/ 20</div>
+        <div class="label">Assignment</div>
+      </div>
+      <div class="ia-box total-box">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+
+  } else if(st === 'ipcc_lab'){
+    // IPCC: best IA(15) + Assignment(10) + Lab IA(25) = 50
+    const ia1sc   = parseFloat(m.ia1_scaled || 0);
+    const ia2sc   = parseFloat(m.ia2_scaled || 0);
+    const bestIA  = Math.max(ia1sc, ia2sc);
+    const labIA   = m.lab_ia != null ? parseFloat(m.lab_ia) : null;
+    const ia1Best = ia1sc >= ia2sc;
+    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <div class="ia-box ia1-box" style="${ia1Best ? 'border-color:rgba(63,185,80,.5);box-shadow:0 0 8px rgba(63,185,80,.15)' : 'opacity:.7'}">
+        <div class="score">${ia1sc.toFixed(1)}</div>
+        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia1_total)}/50)</span></div>
+        <div class="label">IA 1${ia1Best ? ' ★ Best' : ''}</div>
+      </div>
+      <div class="ia-box ia2-box" style="${!ia1Best ? 'border-color:rgba(88,166,255,.5);box-shadow:0 0 8px rgba(88,166,255,.15)' : 'opacity:.7'}">
+        <div class="score" style="color:#58a6ff">${ia2sc.toFixed(1)}</div>
+        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia2_total)}/50)</span></div>
+        <div class="label">IA 2${!ia1Best ? ' ★ Best' : ''}</div>
+      </div>
+      <div class="ia-box asgn-box">
+        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
+        <div class="max">/ 10</div>
+        <div class="label">Assignment</div>
+      </div>
+      <div class="ia-box" style="border-color:rgba(208,136,255,.3)">
+        <div class="score" style="color:#d088ff">${labIA != null ? labIA.toFixed(1) : '—'}</div>
+        <div class="max">/ 25</div>
+        <div class="label">Lab IA</div>
+      </div>
+      <div class="ia-box total-box" style="grid-column:1/-1">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 50 <span style="font-size:9px;opacity:.5">= Best IA(${bestIA.toFixed(1)}) + Assign + Lab</span></div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+
+  } else if(st === 'cc_activity'){
+    const MC = ['#3fb950','#58a6ff','#f0883e','#d088ff','#e8b600'];
+    let mods = '';
+    for(let j=1;j<=5;j++){
+      const v = m['mod'+j] != null ? parseFloat(m['mod'+j]).toFixed(1) : '—';
+      mods += `<div class="ia-box" style="border-color:${MC[j-1]}40">
+        <div class="score" style="color:${MC[j-1]}">${v}</div>
+        <div class="max">/ 20</div>
+        <div class="label">Module ${j}</div>
+      </div>`;
+    }
+    return `<div class="ia-grid" style="grid-template-columns:repeat(5,1fr)">
+      ${mods}
+      <div class="ia-box total-box" style="grid-column:1/-1">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 100</div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+
+  } else if(st === 'cc_oe'){
+    const gen   = m.oe_gen != null ? parseFloat(m.oe_gen).toFixed(1) : '—';
+    const oecie = m.oe_cie != null ? parseFloat(m.oe_cie).toFixed(1) : '—';
+    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr">
+      <div class="ia-box ia1-box">
+        <div class="score">${gen}</div>
+        <div class="max">/ 30</div>
+        <div class="label">General</div>
+      </div>
+      <div class="ia-box ia2-box">
+        <div class="score">${oecie}</div>
+        <div class="max">/ 20</div>
+        <div class="label">CIE</div>
+      </div>
+      <div class="ia-box total-box" style="grid-column:1/-1">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+
+  } else {
+    return `<div class="ia-grid">
+      <div class="ia-box ia1-box">
+        <div class="score">${fmt(m.ia1_total)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 1</div>
+      </div>
+      <div class="ia-box ia2-box">
+        <div class="score">${fmt(m.ia2_total)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 2</div>
+      </div>
+      <div class="ia-box asgn-box">
+        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
+        <div class="max">/ ${m.max_assignment||10}</div>
+        <div class="label">Assignment</div>
+      </div>
+      <div class="ia-box total-box">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+  }
+}
+
+function renderMarks(marks){
+  const container = document.getElementById('marksContainer');
+  container.innerHTML = marks.map((m, i) => {
+    const subType = (m.subject_type || 'theory').toLowerCase();
+    // Check using actual q1/q2/q3/q4 field names (new schema)
+    const hasIA1 = m.ia1_q1_a!=null||m.ia1_q2_a!=null||m.ia1_q3_a!=null||m.ia1_q4_a!=null;
+    const hasIA2 = m.ia2_q1_a!=null||m.ia2_q2_a!=null||m.ia2_q3_a!=null||m.ia2_q4_a!=null;
+
+    return `
+    <div class="marks-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+        <div>
+          <div class="subject-title">${m.subject}</div>
+          <div class="subject-meta">
+            ${m.subject_code ? m.subject_code + ' · ' : ''}Semester ${m.semester} · Section ${m.section||'—'}
+            ${m.academic_year ? ' · ' + m.academic_year : ''}
+          </div>
+        </div>
+        <span style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">
+          Updated: ${m.updated_at}
+        </span>
+      </div>
+
+      ${renderIAGrid(m)}
+
+      ${(hasIA1||hasIA2) ? `
+      <button class="breakdown-toggle" onclick="toggleBreakdown(${i})">
+        <i class="bi bi-chevron-down" id="chevron_${i}"></i> View detailed breakdown
+      </button>
+      <div class="breakdown-body" id="bd_${i}">
+        ${hasIA1 ? `
+        <div style="font-size:11px;font-weight:700;color:#3fb950;margin-bottom:6px;font-family:'Space Mono',monospace">IA1 BREAKDOWN</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">
+          &#x229E; MODULE 1 — Q1 or Q2 (attempt ONE) &nbsp;|&nbsp; &#x229E; MODULE 2 — Q3 or Q4 (attempt ONE)
+        </div>
+        <div class="sub-grid" style="margin-bottom:10px">
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q1_a)}</div><div class="sl">Q1 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q1_b)}</div><div class="sl">Q1 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q1_c)}</div><div class="sl">Q1 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q1_d)}</div><div class="sl">Q1 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia1_q1_total)}</div><div class="sl">Q1 Total</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q2_a)}</div><div class="sl">Q2 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q2_b)}</div><div class="sl">Q2 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q2_c)}</div><div class="sl">Q2 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#3fb950">${fmt(m.ia1_q2_d)}</div><div class="sl">Q2 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia1_q2_total)}</div><div class="sl">Q2 Total</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q3_a)}</div><div class="sl">Q3 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q3_b)}</div><div class="sl">Q3 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q3_c)}</div><div class="sl">Q3 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q3_d)}</div><div class="sl">Q3 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia1_q3_total)}</div><div class="sl">Q3 Total</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q4_a)}</div><div class="sl">Q4 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q4_b)}</div><div class="sl">Q4 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q4_c)}</div><div class="sl">Q4 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#f0883e">${fmt(m.ia1_q4_d)}</div><div class="sl">Q4 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia1_q4_total)}</div><div class="sl">Q4 Total</div></div>
+          <div class="sub-cell" style="grid-column:1/-1;background:rgba(63,185,80,.06);border-top:1px solid rgba(63,185,80,.2);padding-top:6px">
+            <div class="sv" style="color:#3fb950">${fmt(m.ia1_parta)}</div><div class="sl">Mod1 Best (/25)</div>
+          </div>
+          <div class="sub-cell" style="grid-column:1/-1;background:rgba(240,136,62,.06);border-top:1px solid rgba(240,136,62,.2);padding-top:6px">
+            <div class="sv" style="color:#f0883e">${fmt(m.ia1_partb)}</div><div class="sl">Mod2 Best (/25)</div>
+          </div>
+        </div>` : ''}
+        ${hasIA2 ? `
+        <div style="font-size:11px;font-weight:700;color:#58a6ff;margin-bottom:6px;font-family:'Space Mono',monospace">IA2 BREAKDOWN</div>
+        <div class="sub-grid">
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q1_a)}</div><div class="sl">Q1 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q1_b)}</div><div class="sl">Q1 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q1_c)}</div><div class="sl">Q1 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q1_d)}</div><div class="sl">Q1 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia2_q1_total)}</div><div class="sl">Q1 Total</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q2_a)}</div><div class="sl">Q2 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q2_b)}</div><div class="sl">Q2 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q2_c)}</div><div class="sl">Q2 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#58a6ff">${fmt(m.ia2_q2_d)}</div><div class="sl">Q2 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia2_q2_total)}</div><div class="sl">Q2 Total</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q3_a)}</div><div class="sl">Q3 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q3_b)}</div><div class="sl">Q3 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q3_c)}</div><div class="sl">Q3 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q3_d)}</div><div class="sl">Q3 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia2_q3_total)}</div><div class="sl">Q3 Total</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q4_a)}</div><div class="sl">Q4 · a</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q4_b)}</div><div class="sl">Q4 · b</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q4_c)}</div><div class="sl">Q4 · c</div></div>
+          <div class="sub-cell"><div class="sv" style="color:#d088ff">${fmt(m.ia2_q4_d)}</div><div class="sl">Q4 · d</div></div>
+          <div class="sub-cell"><div class="sv">${fmt(m.ia2_q4_total)}</div><div class="sl">Q4 Total</div></div>
+          <div class="sub-cell" style="grid-column:1/-1;background:rgba(88,166,255,.06);border-top:1px solid rgba(88,166,255,.2);padding-top:6px">
+            <div class="sv" style="color:#58a6ff">${fmt(m.ia2_parta)}</div><div class="sl">Mod1 Best (/25)</div>
+          </div>
+          <div class="sub-cell" style="grid-column:1/-1;background:rgba(208,136,255,.06);border-top:1px solid rgba(208,136,255,.2);padding-top:6px">
+            <div class="sv" style="color:#d088ff">${fmt(m.ia2_partb)}</div><div class="sl">Mod2 Best (/25)</div>
+          </div>
+        </div>` : ''}
+      </div>` : ''}
+
+      ${m.remarks ? `<div style="margin-top:12px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:10px"><i class="bi bi-chat-left-text"></i> ${m.remarks}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleBreakdown(i){
+  const bd = document.getElementById(`bd_${i}`);
+  const ch = document.getElementById(`chevron_${i}`);
+  bd.classList.toggle('show');
+  ch.className = bd.classList.contains('show') ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+
+loadMyMarks();
+</script>
+{% endblock %}

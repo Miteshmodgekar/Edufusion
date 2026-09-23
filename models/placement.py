@@ -106,8 +106,19 @@ class Project(db.Model):
 
     guide    = db.relationship("User", foreign_keys=[guide_id], backref="guided_projects")
     updates  = db.relationship("ProjectUpdate", backref="project", lazy=True)
+    members  = db.relationship("ProjectMember", backref="project", lazy=True,
+                               cascade="all, delete-orphan")
 
     def to_dict(self):
+        member_list = [
+            {
+                "student_id":   m.student_id,
+                "name":         m.student.name if m.student else "",
+                "usn":          m.student.roll_number if m.student else "",
+                "is_lead":      m.is_lead,
+            }
+            for m in self.members
+        ]
         return {
             "id":           self.id,
             "student_id":   self.student_id,
@@ -119,6 +130,7 @@ class Project(db.Model):
             "status":       self.status,
             "progress_pct": self.progress_pct,
             "semester":     self.semester,
+            "members":      member_list,
             "updates":      [u.to_dict() for u in self.updates],
         }
 
@@ -143,6 +155,28 @@ class ProjectUpdate(db.Model):
             "approved":      self.guide_approved,
             "comment":       self.guide_comment or "",
             "submitted_at":  self.submitted_at.strftime("%d %b %Y") if self.submitted_at else "",
+        }
+
+
+class ProjectMember(db.Model):
+    """Junction table — multiple students (2-4) per project."""
+    __tablename__ = "project_members"
+
+    id          = db.Column(db.Integer, primary_key=True)
+    project_id  = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
+    student_id  = db.Column(db.Integer, db.ForeignKey("users.id"),   nullable=False)
+    is_lead     = db.Column(db.Boolean, default=False)   # first member = project lead
+    joined_at   = db.Column(db.DateTime, default=_ist_now)
+
+    student = db.relationship("User", foreign_keys=[student_id])
+
+    def to_dict(self):
+        return {
+            "project_id": self.project_id,
+            "student_id": self.student_id,
+            "name":       self.student.name if self.student else "",
+            "usn":        self.student.roll_number if self.student else "",
+            "is_lead":    self.is_lead,
         }
 
 

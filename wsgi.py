@@ -1,4 +1,4 @@
-"""WSGI entry point for production (Railway / Render / Gunicorn)."""
+"""WSGI entry point for production (Gunicorn)."""
 import os
 os.environ.setdefault("FLASK_ENV", "production")
 

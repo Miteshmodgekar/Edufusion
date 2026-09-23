@@ -664,11 +664,12 @@ def _adjust_attendance(leave):
     if absent_records:
         affected_subjects = set(r.subject for r in absent_records)
         for r in absent_records:
-            r.status = "present"   # Credit leave day as present
+            r.status = "od"   # Credit leave day as On Duty (excused absence)
 
         db.session.flush()   # Push flips before recomputing summaries
 
         # Recompute each affected summary using P/(P+A) formula
+        # OD records are EXCLUDED from both total and attended (they are excused)
         for subject in affected_subjects:
             summary = (AttendanceSummary.query
                        .filter_by(student_id=leave.student_id, subject=subject)
@@ -679,6 +680,7 @@ def _adjust_attendance(leave):
             all_recs = (AttendanceRecord.query
                         .filter_by(student_id=leave.student_id, subject=subject)
                         .all())
+            # OD excluded — only P and A count toward attendance %
             present = sum(1 for r in all_recs if r.status == "present")
             absent  = sum(1 for r in all_recs if r.status == "absent")
             total   = present + absent

@@ -1073,8 +1073,8 @@ def api_download_sheet():
         present = sum(1 for v in cells.values() if v == "P")
         od      = sum(1 for v in cells.values() if v == "O")
         absent  = sum(1 for v in cells.values() if v == "A")
-        marked  = present + od + absent
-        pct     = round(((present + od) / marked) * 100, 1) if marked else 0.0
+        marked  = present + absent          # OD excluded from total (consistent with DB summary)
+        pct     = round((present / marked) * 100, 1) if marked else 0.0
         row = {
             "Roll No": s.roll_number or "",
             "Name":    s.name,
@@ -1644,3 +1644,111 @@ def api_sheets():
         "sheets":  [s.to_dict() for s in sheets],
     })
 
+
+# ── Mentor Sheet ─────────────────────────────────────────────────────────────
+
+@attendance_bp.route("/mentor-sheet", methods=["GET"])
+@login_required
+def mentor_sheet_page():
+    """Render the mentor attendance sheet page (faculty/hod only)."""
+    if current_user.is_student:
+        return jsonify({"success": False, "message": "Access denied."}), 403
+
+    # Load mentees for the current mentor
+    mentees = User.query.filter_by(
+        mentor_id=current_user.id, role="student"
+    ).order_by(User.name).all()
+
+    return render_template(
+        "attendance/mentor_sheet.html",
+        mentees=mentees,
+        mentor=current_user,
+    )
+
+
+@attendance_bp.route("/api/mentor-sheet/data", methods=["GET"])
+@login_required
+def api_mentor_sheet_data():
+    """Return all saved mentor sheet rows for the current mentor as JSON."""
+    if current_user.is_student:
+        return jsonify({"success": False, "message": "Access denied."}), 403
+
+    from models.mentor_sheet import MentorSheet
+    rows = MentorSheet.query.filter_by(mentor_id=current_user.id).all()
+    return jsonify({
+        "success": True,
+        "rows": [r.to_dict() for r in rows],
+    })
+
+
+@attendance_bp.route("/api/mentor-sheet/save", methods=["POST"])
+@login_required
+def api_mentor_sheet_save():
+    """Upsert mentor sheet rows. Expects JSON: {rows: [...], week_label: str}."""
+    if current_user.is_student:
+        return jsonify({"success": False, "message": "Access denied."}), 403
+
+    from models.mentor_sheet import MentorSheet
+    from datetime import date as _date_cls
+
+    data = request.get_json(silent=True) or {}
+    rows = data.get("rows", [])
+    week_label = data.get("week_label", "").strip()
+
+    saved = 0
+    errors = []
+
+    for row in rows:
+        student_id = row.get("student_id")
+        if not student_id:
+            continue
+
+        # Validate that this student is actually a mentee of current mentor
+        student = User.query.filter_by(
+            id=student_id, mentor_id=current_user.id, role="student"
+        ).first()
+        if not student:
+            errors.append(f"student_id {student_id} is not your mentee — skipped.")
+            continue
+
+        # Parse date_of_communication
+        doc_str = row.get("date_of_communication", "").strip()
+        doc_date = None
+        if doc_str:
+            try:
+                doc_date = _date_cls.fromisoformat(doc_str)
+            except ValueError:
+                pass
+
+        # Upsert: one record per student per mentor (latest wins)
+        record = MentorSheet.query.filter_by(
+            student_id=student_id, mentor_id=current_user.id
+        ).first()
+
+        if not record:
+            record = MentorSheet(
+                student_id=student_id,
+                mentor_id=current_user.id,
+            )
+            db.session.add(record)
+
+        record.week_label            = week_label or row.get("week_label", "")
+        record.weekly_attendance     = row.get("weekly_attendance", "")
+        record.reason_for_low        = row.get("reason_for_low", "")
+        record.date_of_communication = doc_date
+        record.remarks               = row.get("remarks", "")
+        record.updated_at            = _ist_now()
+        saved += 1
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    return jsonify({
+        "success":    True,
+        "saved":      saved,
+        "errors":     errors,
+        "message":    f"Saved {saved} record(s) successfully.",
+    })

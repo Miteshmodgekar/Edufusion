@@ -3,8 +3,10 @@
 
 {% block extra_css %}
 <style>
-  .proj-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:12px; }
-  .proj-top  { background:var(--surface2); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  /* ── Project cards ──────────────────────────────────────────────────────── */
+  .proj-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:12px; transition:border-color .2s; }
+  .proj-card:hover { border-color:rgba(88,166,255,.3); }
+  .proj-top  { background:var(--surface2); padding:12px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .proj-body { padding:14px 16px; }
   .progress-ring-sm { display:inline-block; vertical-align:middle; }
   .update-item { background:var(--surface2); border-radius:8px; padding:10px 12px; margin-bottom:6px; font-size:12px; }
@@ -17,6 +19,89 @@
   .stat-box { background:var(--surface2); border-radius:10px; padding:1rem 1.25rem; }
   .stat-box .label { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; margin-bottom:4px; }
   .stat-box .value { font-size:26px; font-weight:600; }
+
+  /* ── Member pills on card ───────────────────────────────────────────────── */
+  .member-avatars { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+  .member-pill { display:inline-flex; align-items:center; gap:5px; background:rgba(88,166,255,.1); border:1px solid rgba(88,166,255,.2); border-radius:20px; padding:3px 10px; font-size:11px; }
+  .member-pill.lead { background:rgba(63,185,80,.12); border-color:rgba(63,185,80,.25); }
+  .member-pill .usn { font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); }
+
+  /* ── Card action buttons ────────────────────────────────────────────────── */
+  .card-actions { display:flex; gap:6px; flex-shrink:0; }
+  .btn-card { background:none; border:1px solid var(--border); border-radius:7px; padding:5px 10px; font-size:11px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all .2s; color:var(--muted); }
+  .btn-card:hover { background:var(--surface); color:var(--text); border-color:var(--muted); }
+  .btn-card.del:hover { border-color:rgba(248,81,73,.5); color:var(--danger); background:rgba(248,81,73,.07); }
+  .btn-card.edit:hover { border-color:rgba(88,166,255,.4); color:var(--accent2); background:rgba(88,166,255,.07); }
+
+  /* ── Assign panel ───────────────────────────────────────────────────────── */
+  .assign-panel { border:1px solid var(--border); border-radius:14px; padding:1.25rem 1.5rem; margin-bottom:1.5rem; background:var(--surface); }
+  .assign-panel-title { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; letter-spacing:.5px; margin-bottom:1rem; }
+
+  /* ── Filters ────────────────────────────────────────────────────────────── */
+  .filter-row { display:flex; flex-wrap:wrap; gap:.75rem; align-items:flex-end; margin-bottom:1rem; }
+  .filter-row label { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; letter-spacing:.5px; display:block; margin-bottom:3px; }
+  .filter-row select, .filter-row input { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:6px 10px; font-size:13px; }
+  .filter-row select:focus, .filter-row input:focus { outline:none; border-color:var(--accent2); box-shadow:0 0 0 2px rgba(88,166,255,.15); }
+
+  /* ── Member search ──────────────────────────────────────────────────────── */
+  .member-search-wrap { position:relative; flex:1; min-width:220px; }
+  .member-search-input { width:100%; padding:8px 12px 8px 36px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px; outline:none; transition:border-color .2s,box-shadow .2s; }
+  .member-search-input:focus { border-color:var(--accent2); box-shadow:0 0 0 2px rgba(88,166,255,.15); }
+  .member-search-icon { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:14px; pointer-events:none; }
+  .student-dropdown { position:absolute; top:calc(100%+4px); left:0; right:0; z-index:200; background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.35); max-height:220px; overflow-y:auto; display:none; }
+  .student-dropdown.open { display:block; }
+  .student-dropdown-item { padding:9px 14px; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); transition:background .15s; }
+  .student-dropdown-item:last-child { border-bottom:none; }
+  .student-dropdown-item:hover { background:var(--surface2); }
+  .student-dropdown-item .s-name { font-weight:500; color:var(--text); }
+  .student-dropdown-item .s-meta { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; }
+  .dropdown-empty { padding:14px; text-align:center; font-size:12px; color:var(--muted); }
+
+  /* ── Member chips ───────────────────────────────────────────────────────── */
+  .chips-area { display:flex; flex-wrap:wrap; gap:8px; padding:10px; min-height:48px; background:var(--surface2); border-radius:10px; border:1px solid var(--border); margin-bottom:.75rem; align-items:center; }
+  .chips-area.empty::before { content:'Search and add students above (1 or more)'; color:var(--muted); font-size:12px; font-style:italic; }
+  .member-chip { display:inline-flex; align-items:center; gap:6px; background:rgba(63,185,80,.12); border:1px solid rgba(63,185,80,.3); border-radius:20px; padding:4px 10px; font-size:12px; font-weight:500; animation:chipIn .2s ease; }
+  @keyframes chipIn { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:scale(1)} }
+  .member-chip .chip-usn { font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); }
+  .member-chip .chip-remove { background:none; border:none; color:var(--muted); cursor:pointer; line-height:1; padding:0; font-size:14px; display:flex; align-items:center; transition:color .15s; }
+  .member-chip .chip-remove:hover { color:var(--danger); }
+  .chip-counter { font-size:11px; font-family:'Space Mono',monospace; color:var(--muted); margin-left:auto; white-space:nowrap; }
+
+  /* ── Bottom form row ────────────────────────────────────────────────────── */
+  .form-row { display:flex; flex-wrap:wrap; gap:.75rem; align-items:flex-end; }
+  .form-row .field { display:flex; flex-direction:column; }
+  .form-row label { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; letter-spacing:.5px; margin-bottom:3px; }
+  .form-row input, .form-row select { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:7px 10px; font-size:13px; outline:none; transition:border-color .2s; }
+  .form-row input:focus, .form-row select:focus { border-color:var(--accent2); }
+  .btn-assign { background:linear-gradient(135deg,#3fb950,#2ea043); border:none; color:#0d1117; font-weight:700; border-radius:10px; padding:9px 22px; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:opacity .2s,box-shadow .2s,transform .15s; box-shadow:0 4px 14px rgba(63,185,80,.25); white-space:nowrap; }
+  .btn-assign:hover { opacity:.9; transform:translateY(-1px); }
+  .btn-assign:active { transform:translateY(0); }
+  .btn-assign:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+
+  /* ── Edit Modal ─────────────────────────────────────────────────────────── */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(4px); z-index:2000; display:flex; align-items:center; justify-content:center; padding:1rem; }
+  .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:100%; max-width:560px; box-shadow:0 24px 64px rgba(0,0,0,.5); animation:modalIn .25s cubic-bezier(.16,1,.3,1); }
+  @keyframes modalIn { from{opacity:0;transform:translateY(16px) scale(.97)} to{opacity:1;transform:none} }
+  .modal-header { background:var(--surface2); border-bottom:1px solid var(--border); border-radius:16px 16px 0 0; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; }
+  .modal-header h6 { margin:0; font-family:'Space Mono',monospace; font-size:12px; color:var(--muted); letter-spacing:.5px; }
+  .modal-close { background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; line-height:1; padding:0; transition:color .15s; }
+  .modal-close:hover { color:var(--danger); }
+  .modal-body { padding:18px; }
+  .modal-footer { padding:12px 18px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+  .modal-field { margin-bottom:12px; }
+  .modal-field label { font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; letter-spacing:.5px; display:block; margin-bottom:4px; }
+  .modal-field input, .modal-field select { width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px; font-size:13px; outline:none; }
+  .modal-field input:focus, .modal-field select:focus { border-color:var(--accent2); box-shadow:0 0 0 2px rgba(88,166,255,.15); }
+  /* Edit modal chips area */
+  .modal-chips { display:flex; flex-wrap:wrap; gap:7px; padding:8px; min-height:42px; background:var(--surface2); border-radius:8px; border:1px solid var(--border); margin-top:4px; align-items:center; }
+  .btn-modal-save { background:linear-gradient(135deg,#3fb950,#2ea043); border:none; color:#0d1117; font-weight:700; border-radius:8px; padding:8px 20px; font-size:13px; cursor:pointer; transition:opacity .2s; }
+  .btn-modal-save:hover { opacity:.88; }
+  .btn-cancel { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 16px; font-size:13px; cursor:pointer; transition:all .2s; }
+  .btn-cancel:hover { border-color:var(--muted); }
+
+  /* ── Edit modal search dropdown ─────────────────────────────────────────── */
+  .edit-search-wrap { position:relative; }
+  .edit-search-wrap .student-dropdown { top:calc(100% + 2px); }
 </style>
 {% endblock %}
 
@@ -37,147 +122,421 @@
 </div>
 
 {% if current_user.role in ['faculty','hod','admin'] %}
-<div class="stat-box mb-4" style="border:1px solid var(--border);border-radius:12px;padding:1.25rem">
-  <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:12px">ASSIGN NEW PROJECT</div>
-  <div class="row g-2">
-    <div class="col-md-3">
-      <input id="pStudentUsn" class="form-control form-control-sm" placeholder="Student USN / Username">
-    </div>
-    <div class="col-md-4">
-      <input id="pTitle" class="form-control form-control-sm" placeholder="Project Title">
-    </div>
-    <div class="col-md-2">
-      <select id="pDomain" class="form-control form-control-sm" style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">
-        <option value="">Domain</option>
-        <option>Machine Learning</option>
-        <option>Deep Learning</option>
-        <option>Web Development</option>
-        <option>Mobile Development</option>
-        <option>Data Mining</option>
-        <option>Cloud Computing</option>
-        <option>Cybersecurity</option>
-        <option>IoT</option>
-        <option>Blockchain</option>
-        <option>Natural Language Processing</option>
-        <option>Computer Vision</option>
-        <option>Networking</option>
-        <option>Database Systems</option>
-        <option>Other</option>
+<!-- ══ Assign New Project panel ════════════════════════════════════════════ -->
+<div class="assign-panel">
+  <div class="assign-panel-title">ASSIGN NEW PROJECT &nbsp;·&nbsp; ADD ONE OR MORE STUDENTS</div>
+
+  <!-- Filter + search row -->
+  <div class="filter-row">
+    <div>
+      <label>FILTER BY SEMESTER</label>
+      <select id="filterSem" style="min-width:130px;" onchange="onFilterChange()">
+        <option value="">All Semesters</option>
+        {% for s in range(1,9) %}<option value="{{ s }}">Semester {{ s }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-md-1">
-      <input id="pSem" class="form-control form-control-sm" type="number" placeholder="Sem" min="1" max="8">
+    <div>
+      <label>FILTER BY SECTION</label>
+      <select id="filterSection" style="min-width:120px;" onchange="onFilterChange()">
+        <option value="">All Sections</option>
+        {% for sec in ['A','B','C','D','E'] %}<option value="{{ sec }}">Section {{ sec }}</option>{% endfor %}
+      </select>
     </div>
-    <div class="col-md-2">
-      <button class="btn btn-outline-secondary btn-sm w-100" onclick="assignProject()">
-        <i class="bi bi-plus-circle me-1"></i>Assign
+    <div class="member-search-wrap">
+      <label>SEARCH &amp; ADD STUDENTS</label>
+      <i class="bi bi-search member-search-icon"></i>
+      <input type="text" id="memberSearch" class="member-search-input"
+             placeholder="Type name or USN…"
+             autocomplete="off"
+             oninput="onSearch()"
+             onfocus="onSearch()">
+      <div class="student-dropdown" id="studentDropdown"></div>
+    </div>
+  </div>
+
+  <!-- Chips -->
+  <div class="chips-area empty" id="chipsArea"></div>
+
+  <!-- Title / Domain / Sem / Assign -->
+  <div class="form-row mt-3">
+    <div class="field" style="flex:1;min-width:200px;">
+      <label>PROJECT TITLE *</label>
+      <input id="pTitle" type="text" placeholder="Enter project title">
+    </div>
+    <div class="field" style="min-width:160px;">
+      <label>DOMAIN</label>
+      <select id="pDomain">
+        <option value="">— Domain —</option>
+        <option>Machine Learning</option><option>Deep Learning</option>
+        <option>Web Development</option><option>Mobile Development</option>
+        <option>Data Mining</option><option>Cloud Computing</option>
+        <option>Cybersecurity</option><option>IoT</option>
+        <option>Blockchain</option><option>Natural Language Processing</option>
+        <option>Computer Vision</option><option>Networking</option>
+        <option>Database Systems</option><option>Other</option>
+      </select>
+    </div>
+    <div class="field" style="min-width:90px;">
+      <label>SEMESTER</label>
+      <input id="pSem" type="number" placeholder="Sem" min="1" max="8" style="width:80px;">
+    </div>
+    <div class="field" style="align-self:flex-end;">
+      <button class="btn-assign magnetic" id="btnAssign" onclick="assignProject()">
+        <i class="bi bi-plus-circle"></i> Assign
       </button>
     </div>
   </div>
-  <div id="assignMsg" style="font-size:12px;margin-top:8px"></div>
+  <div id="assignMsg" style="font-size:12px;margin-top:8px;"></div>
 </div>
 {% endif %}
 
 <div id="projectList"><p style="font-size:13px;color:var(--muted)">Loading projects...</p></div>
+
+<!-- ══ Edit Modal ═════════════════════════════════════════════════════════ -->
+<div id="editModal" class="modal-overlay" style="display:none;" onclick="closeEditModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h6>EDIT PROJECT</h6>
+      <button class="modal-close" onclick="closeEditModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editProjectId">
+
+      <div class="modal-field">
+        <label>PROJECT TITLE *</label>
+        <input id="editTitle" type="text" placeholder="Project title">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="modal-field" style="flex:1;">
+          <label>DOMAIN</label>
+          <select id="editDomain">
+            <option value="">— Domain —</option>
+            <option>Machine Learning</option><option>Deep Learning</option>
+            <option>Web Development</option><option>Mobile Development</option>
+            <option>Data Mining</option><option>Cloud Computing</option>
+            <option>Cybersecurity</option><option>IoT</option>
+            <option>Blockchain</option><option>Natural Language Processing</option>
+            <option>Computer Vision</option><option>Networking</option>
+            <option>Database Systems</option><option>Other</option>
+          </select>
+        </div>
+        <div class="modal-field" style="width:90px;">
+          <label>SEMESTER</label>
+          <input id="editSem" type="number" min="1" max="8" placeholder="Sem">
+        </div>
+        <div class="modal-field" style="min-width:130px;">
+          <label>STATUS</label>
+          <select id="editStatus">
+            <option value="allocated">Allocated</option>
+            <option value="in_progress">In Progress</option>
+            <option value="review">In Review</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label>TEAM MEMBERS</label>
+        <!-- Edit search -->
+        <div class="edit-search-wrap" style="margin-bottom:8px;">
+          <input type="text" id="editMemberSearch" class="modal-field input"
+                 style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px;outline:none;"
+                 placeholder="Search to add more members…"
+                 oninput="onEditSearch()" onfocus="onEditSearch()"
+                 autocomplete="off">
+          <div class="student-dropdown" id="editStudentDropdown"></div>
+        </div>
+        <div class="modal-chips" id="editChipsArea"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-modal-save" onclick="saveEdit()"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+    </div>
+    <div id="editMsg" style="font-size:12px;padding:0 18px 12px;"></div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const role = "{{ current_user.role }}";
+const role    = "{{ current_user.role }}";
+const MAX_MEM = 10;
+let members   = [];   // [{id,name,usn}]  — assign panel
+let editMems  = [];   // [{id,name,usn}]  — edit modal
+let searchTmr = null;
+let editSearchTmr = null;
 
-async function assignProject() {
-  const usn   = document.getElementById('pStudentUsn')?.value.trim();
-  const title = document.getElementById('pTitle')?.value.trim();
-  const domain= document.getElementById('pDomain')?.value.trim();
-  const sem   = document.getElementById('pSem')?.value;
-  const msg   = document.getElementById('assignMsg');
+/* ══ Utility ═══════════════════════════════════════════════════════════════ */
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function getFilters() {
+  return {
+    sem:     document.getElementById('filterSem')?.value     || '',
+    section: document.getElementById('filterSection')?.value || '',
+  };
+}
 
-  if (!usn || !title) { msg.style.color='var(--danger)'; msg.textContent='Student USN and title are required.'; return; }
+/* ══ Assign panel — member search ══════════════════════════════════════════ */
+function onFilterChange() {
+  const q = document.getElementById('memberSearch')?.value || '';
+  if (q.length >= 1) fetchStudents(q, false);
+}
+function onSearch() {
+  clearTimeout(searchTmr);
+  const q = document.getElementById('memberSearch').value.trim();
+  if (!q) { closeDropdown('studentDropdown'); return; }
+  searchTmr = setTimeout(() => fetchStudents(q, false), 250);
+}
 
-  // Resolve USN → student_id
-  let studentId;
+async function fetchStudents(q, isEdit) {
+  const { sem, section } = isEdit ? { sem:'', section:'' } : getFilters();
+  const url = `/project/api/search-students?q=${encodeURIComponent(q)}&sem=${sem}&section=${encodeURIComponent(section)}`;
   try {
-    const r = await fetch(`/auth/api/user-by-usn?usn=${encodeURIComponent(usn)}`);
-    const d = await r.json();
-    if (!d.success) { msg.style.color='var(--danger)'; msg.textContent='Student not found: ' + usn; return; }
-    studentId = d.user.id;
-  } catch { msg.style.color='var(--danger)'; msg.textContent='Error looking up student.'; return; }
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (!data.success) return;
+    if (isEdit) renderDropdown(data.students, true);
+    else        renderDropdown(data.students, false);
+  } catch { /* ignore */ }
+}
+
+function renderDropdown(students, isEdit) {
+  const ddId   = isEdit ? 'editStudentDropdown' : 'studentDropdown';
+  const curMems = isEdit ? editMems : members;
+  const dd = document.getElementById(ddId);
+  if (!students.length) {
+    dd.innerHTML = '<div class="dropdown-empty">No students found</div>';
+    dd.classList.add('open'); return;
+  }
+  const ids = new Set(curMems.map(m => m.id));
+  dd.innerHTML = students.map(s => {
+    const added = ids.has(s.id);
+    const fn    = isEdit ? `editAddMember(${s.id},'${esc(s.name)}','${esc(s.usn)}')` : `addMember(${s.id},'${esc(s.name)}','${esc(s.usn)}')`;
+    return `<div class="student-dropdown-item" onclick="${added ? '' : fn}" style="cursor:${added?'default':'pointer'};${added?'opacity:.5':''}">
+      <div>
+        <div class="s-name">${esc(s.name)} ${added ? '<span style="color:var(--accent);font-size:10px">✓</span>' : ''}</div>
+        <div class="s-meta">${esc(s.usn)||'—'} · Sem ${s.semester||'?'} ${s.section ? '· '+s.section : ''}</div>
+      </div>
+      ${!added ? '<i class="bi bi-plus-circle" style="color:var(--accent);font-size:14px"></i>' : ''}
+    </div>`;
+  }).join('');
+  dd.classList.add('open');
+}
+
+function closeDropdown(id) {
+  document.getElementById(id)?.classList.remove('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.member-search-wrap'))  closeDropdown('studentDropdown');
+  if (!e.target.closest('.edit-search-wrap'))     closeDropdown('editStudentDropdown');
+});
+
+/* ══ Assign panel — chips ═══════════════════════════════════════════════════ */
+function addMember(id, name, usn) {
+  if (members.find(m => m.id === id)) return;
+  members.push({ id, name, usn });
+  renderChips('chipsArea', members, removeMember);
+  closeDropdown('studentDropdown');
+  document.getElementById('memberSearch').value = '';
+}
+function removeMember(id) {
+  members = members.filter(m => m.id !== id);
+  renderChips('chipsArea', members, removeMember);
+}
+
+function renderChips(areaId, list, removeFn) {
+  const area = document.getElementById(areaId);
+  if (!list.length) {
+    area.innerHTML = '';
+    area.classList.add('empty');
+    return;
+  }
+  area.classList.remove('empty');
+  const counter = `<span class="chip-counter">${list.length} member${list.length>1?'s':''}</span>`;
+  area.innerHTML = list.map((m, i) => `
+    <span class="member-chip">
+      ${i===0 ? '👑 ' : ''}
+      <span>${esc(m.name)}</span>
+      <span class="chip-usn">${esc(m.usn)}</span>
+      <button class="chip-remove" onclick="${removeFn.name}(${m.id})" title="Remove">×</button>
+    </span>`).join('') + counter;
+}
+
+/* ══ Assign project ═════════════════════════════════════════════════════════ */
+async function assignProject() {
+  const title  = document.getElementById('pTitle')?.value.trim();
+  const domain = document.getElementById('pDomain')?.value;
+  const sem    = document.getElementById('pSem')?.value;
+  const msg    = document.getElementById('assignMsg');
+
+  if (!members.length) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Add at least one student.'; return;
+  }
+  if (!title) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Project title is required.'; return;
+  }
+
+  const btn = document.getElementById('btnAssign');
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Assigning…';
 
   try {
     const res  = await fetch('/project/', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ student_id: studentId, title, domain, semester: sem ? parseInt(sem) : null }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body:   JSON.stringify({ member_ids: members.map(m => m.id), title, domain, semester: sem ? parseInt(sem) : null }),
     });
     const data = await res.json();
     if (data.success) {
       msg.style.color = 'var(--accent)';
-      msg.textContent = '✓ Project assigned successfully.';
-      document.getElementById('pStudentUsn').value = '';
-      document.getElementById('pTitle').value = '';
+      msg.textContent = `✓ "${title}" assigned to ${members.length} student(s)!`;
+      members = [];
+      renderChips('chipsArea', members, removeMember);
+      document.getElementById('pTitle').value  = '';
       document.getElementById('pDomain').value = '';
-      document.getElementById('pSem').value = '';
+      document.getElementById('pSem').value    = '';
+      loadProjects();
+      showToast('success', 'Project Assigned', title);
+    } else {
+      msg.style.color = 'var(--danger)'; msg.textContent = data.message || 'Failed.';
+    }
+  } catch {
+    msg.style.color = 'var(--danger)'; msg.textContent = 'Could not reach server.';
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-plus-circle"></i> Assign';
+  }
+}
+
+/* ══ Edit modal ═════════════════════════════════════════════════════════════ */
+function openEditModal(p) {
+  editMems = (p.members && p.members.length)
+    ? p.members.map(m => ({ id: m.student_id, name: m.name, usn: m.usn }))
+    : [];   // fallback for legacy projects with no member rows
+
+  document.getElementById('editProjectId').value = p.id;
+  document.getElementById('editTitle').value      = p.title;
+  document.getElementById('editDomain').value     = p.domain || '';
+  document.getElementById('editSem').value        = p.semester || '';
+  document.getElementById('editStatus').value     = p.status || 'allocated';
+  document.getElementById('editMsg').textContent  = '';
+  renderChips('editChipsArea', editMems, editRemoveMember);
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById('editModal')) return;
+  document.getElementById('editModal').style.display = 'none';
+  document.getElementById('editMemberSearch').value = '';
+  closeDropdown('editStudentDropdown');
+}
+
+// Edit modal member search
+function onEditSearch() {
+  clearTimeout(editSearchTmr);
+  const q = document.getElementById('editMemberSearch').value.trim();
+  if (!q) { closeDropdown('editStudentDropdown'); return; }
+  editSearchTmr = setTimeout(() => fetchStudents(q, true), 250);
+}
+
+function editAddMember(id, name, usn) {
+  if (editMems.find(m => m.id === id)) return;
+  editMems.push({ id, name, usn });
+  renderChips('editChipsArea', editMems, editRemoveMember);
+  closeDropdown('editStudentDropdown');
+  document.getElementById('editMemberSearch').value = '';
+}
+function editRemoveMember(id) {
+  editMems = editMems.filter(m => m.id !== id);
+  renderChips('editChipsArea', editMems, editRemoveMember);
+}
+
+async function saveEdit() {
+  const pid   = document.getElementById('editProjectId').value;
+  const title = document.getElementById('editTitle').value.trim();
+  const msg   = document.getElementById('editMsg');
+
+  if (!title) { msg.style.color='var(--danger)'; msg.textContent='Title is required.'; return; }
+  if (!editMems.length) { msg.style.color='var(--danger)'; msg.textContent='At least one member required.'; return; }
+
+  try {
+    const res  = await fetch(`/project/${pid}/edit`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body:   JSON.stringify({
+        title,
+        domain:     document.getElementById('editDomain').value,
+        semester:   document.getElementById('editSem').value ? parseInt(document.getElementById('editSem').value) : null,
+        status:     document.getElementById('editStatus').value,
+        member_ids: editMems.map(m => m.id),
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('success', 'Saved', `"${title}" updated.`);
+      document.getElementById('editModal').style.display = 'none';
       loadProjects();
     } else {
-      msg.style.color = 'var(--danger)';
-      msg.textContent = data.message || 'Failed to assign project.';
+      msg.style.color = 'var(--danger)'; msg.textContent = data.message || 'Save failed.';
     }
-  } catch { msg.style.color='var(--danger)'; msg.textContent='Could not reach server.'; }
+  } catch {
+    msg.style.color = 'var(--danger)'; msg.textContent = 'Network error.';
+  }
 }
 
-const demoProjects = [
-  { id:1, title:'AI-Based Attendance System', domain:'Machine Learning', status:'in_progress',
-    progress_pct:65, guide_name:'Dr. Priya Nair', semester:4,
-    updates:[
-      { week:1, text:'Finalized project scope and collected dataset.', approved:true, comment:'Good start.' },
-      { week:2, text:'Implemented data preprocessing pipeline using Pandas.', approved:true, comment:'Well done.' },
-      { week:3, text:'Built initial CNN model — 78% accuracy.', approved:false, comment:'' },
-    ]
-  },
-  { id:2, title:'E-Commerce Recommendation Engine', domain:'Data Mining', status:'review',
-    progress_pct:90, guide_name:'Dr. Priya Nair', semester:4,
-    updates:[
-      { week:1, text:'Literature survey completed.', approved:true, comment:'Good.' },
-      { week:2, text:'Dataset collected from Kaggle. EDA done.', approved:true, comment:'Excellent.' },
-    ]
-  },
-];
-
-function statusClass(s) {
-  return 's-' + s.replace(' ', '_');
+/* ══ Delete project ═════════════════════════════════════════════════════════ */
+async function deleteProject(id, title) {
+  if (!confirm(`Delete project "${title}"? This cannot be undone.`)) return;
+  try {
+    const res  = await fetch(`/project/${id}/delete`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) { showToast('success','Deleted',`"${title}" removed.`); loadProjects(); }
+    else showToast('danger','Error', data.message||'Could not delete.');
+  } catch { showToast('danger','Network','Could not reach server.'); }
 }
-function statusLabel(s) {
-  return { allocated:'Allocated', in_progress:'In Progress', review:'In Review', completed:'Completed' }[s] || s;
+
+/* ══ Render project cards ═══════════════════════════════════════════════════ */
+function statusClass(s) { return 's-' + s.replace(' ', '_'); }
+function statusLabel(s) { return { allocated:'Allocated', in_progress:'In Progress', review:'In Review', completed:'Completed' }[s] || s; }
+
+function renderMemberPills(mems) {
+  if (!mems || !mems.length) return '';
+  return `<div class="member-avatars">` + mems.map((m, i) => `
+    <span class="member-pill ${i===0?'lead':''}">
+      ${i===0?'👑 ':''}<span>${esc(m.name)}</span>
+      <span class="usn">${esc(m.usn)}</span>
+    </span>`).join('') + `</div>`;
 }
 
 function renderProjects(projects) {
-  document.getElementById('sTotal').textContent = projects.length;
+  document.getElementById('sTotal').textContent  = projects.length;
   document.getElementById('sActive').textContent = projects.filter(p => p.status === 'in_progress').length;
   document.getElementById('sDone').textContent   = projects.filter(p => p.status === 'completed').length;
   const avg = projects.reduce((s, p) => s + p.progress_pct, 0) / (projects.length || 1);
   document.getElementById('sAvg').textContent = Math.round(avg) + '%';
-
   document.getElementById('projectList').innerHTML = projects.map(p => renderCard(p)).join('');
 }
 
 function renderCard(p) {
-  const circ = 2 * Math.PI * 22;
-  const fill = circ - (circ * p.progress_pct / 100);
+  const circ  = 2 * Math.PI * 22;
+  const fill  = circ - (circ * p.progress_pct / 100);
   const color = p.progress_pct >= 80 ? 'var(--accent)' : p.progress_pct >= 40 ? 'var(--warn)' : 'var(--danger)';
 
-  const updatesHtml = (p.updates || []).map(u => `
+  const isFaculty = role !== 'student';
+
+  const updatesHtml = (p.updates||[]).map(u => `
     <div class="update-item">
       <div class="week">WEEK ${u.week}</div>
-      <div style="color:var(--text)">${u.text}</div>
+      <div style="color:var(--text)">${esc(u.text)}</div>
       ${u.approved
-        ? `<div style="color:var(--accent);font-size:11px;margin-top:4px"><i class="bi bi-check-circle me-1"></i>Guide approved${u.comment ? `: "${u.comment}"` : ''}</div>`
-        : role !== 'student'
+        ? `<div style="color:var(--accent);font-size:11px;margin-top:4px"><i class="bi bi-check-circle me-1"></i>Guide approved${u.comment?`: "${esc(u.comment)}"`:''}</div>`
+        : isFaculty
         ? `<div style="display:flex;gap:6px;margin-top:6px">
              <input id="gc_upd_${u.id}" style="flex:1;padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;outline:none" placeholder="Comment...">
              <button onclick="approveUpdate(${u.id})" style="padding:5px 10px;background:rgba(63,185,80,.15);border:1px solid rgba(63,185,80,.3);border-radius:6px;color:var(--accent);font-size:11px;cursor:pointer">Approve</button>
            </div>`
-        : '<div style="color:var(--warn);font-size:11px;margin-top:4px"><i class="bi bi-clock me-1"></i>Awaiting guide approval</div>'
-      }
+        : '<div style="color:var(--warn);font-size:11px;margin-top:4px"><i class="bi bi-clock me-1"></i>Awaiting guide approval</div>'}
     </div>`).join('');
 
   const submitUpdate = role === 'student' ? `
@@ -189,21 +548,44 @@ function renderCard(p) {
       </button>
     </div>` : '';
 
+  const actions = isFaculty ? `
+    <div class="card-actions">
+      <button class="btn-card edit" onclick='openEditModal(${JSON.stringify(p).replace(/'/g,"\\'")})'
+              title="Edit project">
+        <i class="bi bi-pencil"></i> Edit
+      </button>
+      <button class="btn-card del" onclick="deleteProject(${p.id}, '${esc(p.title)}')"
+              title="Delete project">
+        <i class="bi bi-trash"></i> Delete
+      </button>
+    </div>` : '';
+
+  const membersSection = (p.members && p.members.length)
+    ? `<div style="margin-bottom:6px">
+         <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">TEAM MEMBERS</div>
+         ${renderMemberPills(p.members)}
+       </div>`
+    : '';
+
   return `<div class="proj-card">
     <div class="proj-top">
-      <div>
-        <div style="font-size:14px;font-weight:500">${p.title}</div>
-        <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">${p.domain} · Guide: ${p.guide_name}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600">${esc(p.title)}</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">${esc(p.domain)} · Sem ${p.semester||'?'} · Guide: ${esc(p.guide_name)}</div>
+        ${membersSection}
       </div>
-      <div class="d-flex align-items-center gap-2">
-        <svg class="progress-ring-sm" width="52" height="52" viewBox="0 0 52 52">
-          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--surface)" stroke-width="5"/>
-          <circle cx="26" cy="26" r="22" fill="none" stroke="${color}" stroke-width="5"
-            stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${fill}"
-            transform="rotate(-90 26 26)"/>
-          <text x="26" y="30" text-anchor="middle" font-size="11" font-weight="600" fill="${color}">${p.progress_pct}%</text>
-        </svg>
-        <span class="status-pill ${statusClass(p.status)}">${statusLabel(p.status)}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+        <div class="d-flex align-items-center gap-2">
+          <svg class="progress-ring-sm" width="52" height="52" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="22" fill="none" stroke="var(--surface)" stroke-width="5"/>
+            <circle cx="26" cy="26" r="22" fill="none" stroke="${color}" stroke-width="5"
+              stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${fill}"
+              transform="rotate(-90 26 26)"/>
+            <text x="26" y="30" text-anchor="middle" font-size="11" font-weight="600" fill="${color}">${p.progress_pct}%</text>
+          </svg>
+          <span class="status-pill ${statusClass(p.status)}">${statusLabel(p.status)}</span>
+        </div>
+        ${actions}
       </div>
     </div>
     <div class="proj-body">
@@ -217,49 +599,48 @@ function renderCard(p) {
   </div>`;
 }
 
+/* ══ Submit / Approve weekly update ════════════════════════════════════════ */
 async function submitWeekUpdate(projectId) {
-  const text = document.getElementById('upd_' + projectId).value.trim();
-  if (!text) { alert('Please enter an update.'); return; }
-
+  const text = document.getElementById('upd_' + projectId)?.value.trim();
+  if (!text) { showToast('warning','','Please enter an update.'); return; }
   const weekNo = (allProjects.find(x => x.id === projectId)?.updates || []).length + 1;
   try {
     const res  = await fetch(`/project/${projectId}/update`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ week_number: weekNo, update_text: text }),
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body:   JSON.stringify({ week_number: weekNo, update_text: text }),
     });
     const data = await res.json();
-    if (data.success) { loadProjects(); }
-    else { alert(data.message || 'Failed to submit.'); }
-  } catch { alert('Could not reach server.'); }
+    if (data.success) { showToast('success','Submitted','Weekly update submitted.'); loadProjects(); }
+    else showToast('danger','Error', data.message||'Failed to submit.');
+  } catch { showToast('danger','Network','Could not reach server.'); }
 }
 
 async function approveUpdate(updateId) {
   const comment = document.getElementById('gc_upd_' + updateId)?.value || '';
   try {
     const res  = await fetch(`/project/update/${updateId}/approve`, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ approved: true, comment }),
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body:   JSON.stringify({ approved: true, comment }),
     });
     const data = await res.json();
-    if (data.success) { loadProjects(); }
-    else { alert(data.message || 'Failed to approve.'); }
-  } catch { alert('Could not reach server.'); }
+    if (data.success) { showToast('success','Approved','Update approved.'); loadProjects(); }
+    else showToast('danger','Error', data.message||'Failed to approve.');
+  } catch { showToast('danger','Network','Could not reach server.'); }
 }
 
+/* ══ Load projects ══════════════════════════════════════════════════════════ */
 let allProjects = [];
-
 async function loadProjects() {
   try {
     const res  = await fetch('/project/', { headers: { 'Accept': 'application/json' } });
     const data = await res.json();
     if (data.success && data.projects.length) {
-      allProjects = data.projects;
-      renderProjects(allProjects);
+      allProjects = data.projects; renderProjects(allProjects);
     } else {
       document.getElementById('projectList').innerHTML =
         '<p style="font-size:13px;color:var(--muted);text-align:center;padding:2rem">No projects assigned yet.</p>';
+      ['sTotal','sActive','sDone'].forEach(id => document.getElementById(id).textContent = '0');
+      document.getElementById('sAvg').textContent = '0%';
     }
   } catch {
     document.getElementById('projectList').innerHTML =

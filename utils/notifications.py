@@ -282,10 +282,14 @@ def send_push_to_all(student_ids: List[int], title: str,
 # ── Notification dispatch helpers ─────────────────────────────────────────────
 
 def notify_low_attendance(student, summary):
-    """Send email + push + in-app notification for low attendance."""
+    """Send email + push + in-app notification for low attendance.
+    Dedup: skips in-app notification if one was already sent in the last 24 hours
+    for the same student and subject (prevents spam on re-uploads).
+    """
+    from datetime import timedelta
     results = []
 
-    # In-App Notification
+    # In-App Notification — with 24h dedup
     if summary.attendance_pct < 75:
         body = f"Attendance in {summary.subject} is critically low ({summary.attendance_pct}%). You need {summary.required_classes} more classes to reach 85%."
         color = "#f85149"
@@ -293,16 +297,28 @@ def notify_low_attendance(student, summary):
         body = f"Attendance in {summary.subject} has dropped to {summary.attendance_pct}%. Please attend regular classes."
         color = "#d29922"
 
-    in_app = InAppNotification(
-        user_id = student.id,
-        title   = f"Low Attendance: {summary.subject}",
-        body    = body,
-        icon    = "bi-exclamation-triangle",
-        color   = color,
-        ref_url = "/attendance/my"
-    )
-    db.session.add(in_app)
-    db.session.commit()
+    title = f"Low Attendance: {summary.subject}"
+
+    # Check if we already sent this same notification in the last 24 hours
+    from datetime import datetime
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    recent = InAppNotification.query.filter(
+        InAppNotification.user_id == student.id,
+        InAppNotification.title   == title,
+        InAppNotification.created_at >= cutoff,
+    ).first()
+
+    if not recent:
+        in_app = InAppNotification(
+            user_id = student.id,
+            title   = title,
+            body    = body,
+            icon    = "bi-exclamation-triangle",
+            color   = color,
+            ref_url = "/attendance/my"
+        )
+        db.session.add(in_app)
+        db.session.commit()
 
     # Email
     html = email_low_attendance(
@@ -331,10 +347,11 @@ def notify_leave_decision(leave, action: str, comment: str, role: str):
     # In-App Notification
     color = "#3fb950" if action == "approve" else "#f85149"
     icon = "bi-check-circle" if action == "approve" else "bi-x-circle"
+    status_word = "approved" if action == "approve" else "rejected"
     in_app = InAppNotification(
         user_id = student.id,
-        title   = f"Leave {action.title()} by {role}",
-        body    = f"Your leave from {leave.from_date} to {leave.to_date} was {action}d. {comment}",
+        title   = f"Leave {status_word.title()} by {role}",
+        body    = f"Your leave from {leave.from_date} to {leave.to_date} was {status_word}. {comment}",
         icon    = icon,
         color   = color,
         ref_url = "/dashboard/"

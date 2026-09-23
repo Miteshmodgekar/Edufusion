@@ -1,0 +1,956 @@
+{% extends "base.html" %}
+{% block title %}Enter Marks Directly | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+.type-btn { border:1.5px solid var(--border); background:var(--surface2); color:var(--muted);
+            font-size:11px; padding:5px 14px; border-radius:20px; cursor:pointer;
+            transition:all .15s; font-family:'Space Mono',monospace; letter-spacing:.3px; }
+.type-btn:hover { border-color:var(--accent2); color:var(--accent2); }
+.type-btn.active { border-color:#3fb950; background:rgba(63,185,80,.12); color:#3fb950; font-weight:700; }
+
+/* ── Subject dropdown ── */
+.subj-dd-wrap { position:relative; }
+.subj-dd-trigger {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--surface); border:1.5px solid var(--border); border-radius:10px;
+  padding:10px 14px; cursor:pointer; font-size:14px; font-weight:500;
+  transition:border-color .15s; user-select:none;
+}
+.subj-dd-trigger:hover,.subj-dd-trigger.open { border-color:var(--accent2); }
+.subj-dd-trigger .dd-chevron { transition:transform .2s; color:var(--muted); font-size:12px; }
+.subj-dd-trigger.open .dd-chevron { transform:rotate(180deg); }
+.subj-dd-trigger .dd-placeholder { color:var(--muted); }
+.subj-dd-list {
+  position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:200;
+  background:var(--surface2); border:1.5px solid var(--border); border-radius:10px;
+  overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.35);
+  animation:ddFadeIn .15s ease;
+  display:none;
+}
+.subj-dd-list.open { display:block; }
+@keyframes ddFadeIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+.subj-dd-item {
+  padding:11px 16px; cursor:pointer; font-size:13px; font-weight:500;
+  border-bottom:1px solid var(--border); transition:background .12s;
+  display:flex; align-items:center; gap:10px;
+}
+.subj-dd-item:last-child { border-bottom:none; }
+.subj-dd-item:hover { background:rgba(88,166,255,.07); }
+.subj-dd-item.selected { background:rgba(63,185,80,.08); color:#3fb950; }
+.subj-dd-item.add-new { color:var(--accent2); font-style:normal; }
+.subj-dd-item.add-new:hover { background:rgba(88,166,255,.1); }
+.subj-type-badge {
+  display:inline-block; font-size:9px; font-family:'Space Mono',monospace;
+  padding:2px 8px; border-radius:10px; font-weight:700; white-space:nowrap;
+}
+.stb-ipcc_theory { background:rgba(63,185,80,.12); color:#3fb950; }
+.stb-cc_theory   { background:rgba(88,166,255,.12); color:#58a6ff; }
+.stb-ipcc_lab    { background:rgba(208,136,255,.12); color:#d088ff; }
+.stb-cc_activity { background:rgba(240,136,62,.12);  color:#f0883e; }
+.stb-cc_oe       { background:rgba(230,182,0,.12);    color:#e8b600; }
+.subj-fetching { font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; }
+
+/* Tab bar */
+.ia-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); }
+.ia-tab  { padding:10px 22px; font-size:12px; font-weight:600; font-family:'Space Mono',monospace;
+           letter-spacing:.4px; cursor:pointer; border-bottom:2px solid transparent;
+           margin-bottom:-2px; transition:all .15s; color:var(--muted); }
+.ia-tab:hover { color:var(--text); }
+.ia-tab.t1.active { border-color:#3fb950; color:#3fb950; }
+.ia-tab.t2.active { border-color:#58a6ff; color:#58a6ff; }
+.ia-tab.ts.active { border-color:#f0883e; color:#f0883e; }
+
+/* Grid table */
+.mg-wrap { overflow-x:auto; }
+.mg { width:100%; border-collapse:collapse; }
+.mg th {
+  font-size:10px; font-family:'Space Mono',monospace; color:var(--muted);
+  letter-spacing:.4px; padding:8px 8px 6px; border-bottom:2px solid var(--border);
+  background:var(--surface2); white-space:nowrap; text-align:center; position:sticky; top:0;
+}
+.mg th.tleft { text-align:left; }
+.mg td { padding:5px 4px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.mg tr:hover td { background:rgba(88,166,255,.03); }
+
+/* Module divider column */
+.mod-div { width:10px; background:var(--border)!important; padding:0!important; }
+
+/* Module header bands */
+.hm1 { background:rgba(63,185,80,.08)!important; color:#3fb950!important; border-bottom:2px solid rgba(63,185,80,.3)!important; }
+.hm2 { background:rgba(240,136,62,.08)!important; color:#f0883e!important; border-bottom:2px solid rgba(240,136,62,.3)!important; }
+/* Q alternates within module */
+.hq1 { background:rgba(63,185,80,.05)!important;  color:#3fb950!important; }
+.hq2 { background:rgba(88,166,255,.05)!important; color:#58a6ff!important; }
+.hq3 { background:rgba(240,136,62,.05)!important; color:#f0883e!important; }
+.hq4 { background:rgba(208,136,255,.05)!important;color:#d088ff!important; }
+/* OR label cell */
+.or-cell { background:var(--surface2)!important; }
+
+/* Mark inputs */
+.mi input {
+  width:50px; border:1.5px solid var(--border); border-radius:6px;
+  background:var(--surface); color:var(--text); font-size:13px;
+  text-align:center; padding:5px 2px; font-family:'Space Mono',monospace;
+  transition:border-color .15s, background .15s, opacity .2s;
+}
+.mi input:focus { outline:none; border-color:var(--accent2);
+                  box-shadow:0 0 0 2px rgba(88,166,255,.15); }
+.mi input.dirty { border-color:#f0883e; background:rgba(240,136,62,.06); }
+
+/* Question tint */
+.mi.mq1 input { border-color:rgba(63,185,80,.4);  background:rgba(63,185,80,.04); }
+.mi.mq2 input { border-color:rgba(88,166,255,.4); background:rgba(88,166,255,.04); }
+.mi.mq3 input { border-color:rgba(240,136,62,.4); background:rgba(240,136,62,.04); }
+.mi.mq4 input { border-color:rgba(208,136,255,.4);background:rgba(208,136,255,.04); }
+
+/* Locked (non-selected alternate) */
+.mi input.locked {
+  opacity:.28; pointer-events:none; background:var(--surface2)!important;
+  border-style:dashed!important;
+}
+
+/* Computed cells */
+.ct { text-align:center; font-family:'Space Mono',monospace; font-weight:700; font-size:12px; min-width:48px; }
+.ct.best1 { color:#3fb950; }
+.ct.best2 { color:#f0883e; }
+.ct.rawt  { color:var(--muted); font-size:11px; }
+.ct.sc1   { color:#3fb950; font-size:14px; }
+.ct.sc2   { color:#58a6ff; font-size:14px; }
+.ct.cie   { color:#f0883e; font-size:16px; font-weight:800; }
+
+/* Summary badges */
+.sb1 { background:rgba(63,185,80,.12); color:#3fb950; border-radius:6px;
+       font-family:'Space Mono',monospace; font-weight:700; padding:3px 8px; font-size:12px; }
+.sb2 { background:rgba(88,166,255,.12); color:#58a6ff; border-radius:6px;
+       font-family:'Space Mono',monospace; font-weight:700; padding:3px 8px; font-size:12px; }
+.sbc { background:rgba(240,136,62,.12); color:#f0883e; border-radius:8px;
+       font-family:'Space Mono',monospace; font-weight:800; padding:4px 10px; font-size:15px; }
+
+/* Roll badge */
+.rb { font-family:'Space Mono',monospace; font-size:11px; font-weight:600;
+      color:var(--accent2); background:rgba(88,166,255,.1);
+      border-radius:6px; padding:3px 8px; white-space:nowrap; }
+
+/* Stats chips */
+.sch { background:var(--surface2); border:1px solid var(--border);
+       border-radius:10px; padding:10px 14px; text-align:center; flex:1; min-width:90px; }
+.sch .v { font-size:24px; font-weight:800; line-height:1.1; }
+.sch .l { font-size:9px; font-family:'Space Mono',monospace; color:var(--muted);
+          letter-spacing:.6px; margin-top:2px; }
+
+/* Panel visibility */
+.tpanel { display:none; }
+.tpanel.active { display:block; }
+#rosterWrap { display:none; }
+#rosterWrap.show { display:block; }
+/* Active subject banner */
+#activeBanner { display:none; }
+#activeBanner.show { display:flex; }
+/* Subject section + form visibility */
+#subjSection { display:none; }
+#subjSection.show { display:block; }
+#subjDetailForm { display:none; }
+#subjDetailForm.show { display:block; }
+
+/* Module legend badge */
+.mod-badge {
+  display:inline-block; font-size:10px; font-weight:700;
+  font-family:'Space Mono',monospace; letter-spacing:.5px;
+  padding:2px 10px; border-radius:12px; margin-bottom:8px;
+}
+.mod-badge.m1 { background:rgba(63,185,80,.12); color:#3fb950; border:1px solid rgba(63,185,80,.3); }
+.mod-badge.m2 { background:rgba(240,136,62,.12); color:#f0883e; border:1px solid rgba(240,136,62,.3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+  <div>
+    <h4 class="mb-0" style="font-weight:700">
+      <i class="bi bi-grid-3x3-gap-fill" style="color:#3fb950"></i>&nbsp; Direct Marks Entry
+    </h4>
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 0">
+      VTU structure: Module-1 (Q1 <b>OR</b> Q2) &nbsp;&#x2022;&nbsp; Module-2 (Q3 <b>OR</b> Q4).
+      Fill one per module — the other locks automatically.
+    </p>
+  </div>
+  <a href="/marks/" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-file-earmark-excel me-1"></i>Excel Mode
+  </a>
+</div>
+
+<!-- Step 1: Semester + Section picker -->
+<div class="card p-4 mb-3">
+  <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:10px;letter-spacing:.5px">
+    STEP 1 — SELECT SEMESTER &amp; SECTION
+  </div>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">SEMESTER</label>
+      <select class="form-select form-select-sm" id="dSem" onchange="onSemSecChange()">
+        {% for i in range(1,9) %}<option value="{{ i }}" {% if i==4 %}selected{% endif %}>Sem {{ i }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">SECTION</label>
+      <select class="form-select form-select-sm" id="dSec" onchange="onSemSecChange()">
+        {% for s in ['A','B','C','D','E'] %}<option>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">ACAD. YEAR</label>
+      <input type="text" class="form-control form-control-sm" id="dAY" value="2024-25">
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: Subject dropdown -->
+<div id="subjSection">
+  <div class="card p-4 mb-3">
+    <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:10px;letter-spacing:.5px">
+      STEP 2 &mdash; SELECT SUBJECT
+      <span id="subjFetchBadge" style="margin-left:10px;font-size:10px;padding:2px 10px;border-radius:10px;
+        background:rgba(88,166,255,.1);color:var(--accent2);display:none">fetching...</span>
+    </div>
+
+    <!-- Custom dropdown -->
+    <div class="subj-dd-wrap" id="subjDDWrap">
+      <div class="subj-dd-trigger" id="subjDDTrigger" onclick="toggleDD()">
+        <span id="subjDDLabel" class="dd-placeholder">Choose a subject...</span>
+        <i class="bi bi-chevron-down dd-chevron" id="subjDDChevron"></i>
+      </div>
+      <div class="subj-dd-list" id="subjDDList"></div>
+    </div>
+
+    <!-- Subject detail form (shown after selection) -->
+    <div id="subjDetailForm">
+      <hr style="border-color:var(--border);margin:18px 0 16px">
+      <div class="row g-2 mb-3">
+        <div class="col-md-5">
+          <label class="form-label" style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">SUBJECT NAME</label>
+          <input type="text" class="form-control form-control-sm" id="dSubject" placeholder="e.g. Cryptography">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">SUBJECT CODE</label>
+          <input type="text" class="form-control form-control-sm" id="dCode" placeholder="e.g. BCS703">
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:8px">SUBJECT TYPE</div>
+      <div class="d-flex flex-wrap gap-2 mb-3" id="typeBtnGroup">
+        <button class="type-btn active" onclick="setType(this,'ipcc_lab')"><i class="bi bi-cpu"></i> IPCC (Theory+Lab)</button>
+        <button class="type-btn"        onclick="setType(this,'cc_theory')"><i class="bi bi-book"></i> CC Theory</button>
+        <button class="type-btn"        onclick="setType(this,'cc_activity')"><i class="bi bi-activity"></i> CC Activity</button>
+        <button class="type-btn"        onclick="setType(this,'cc_oe')"><i class="bi bi-mortarboard"></i> Open Elective</button>
+      </div>
+      <button class="btn btn-primary" id="loadBtn" onclick="loadStudents()">
+        <i class="bi bi-people me-2"></i>Load Students &amp; Show Grid
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Active subject banner (shown once students loaded) -->
+<div id="activeBanner" class="card p-3 mb-3 align-items-center gap-3 flex-wrap"
+     style="border-left:3px solid #3fb950;flex-direction:row">
+  <div>
+    <div id="bannerCode" style="font-size:10px;color:#3fb950;font-family:'Space Mono',monospace;font-weight:700"></div>
+    <div id="bannerName" style="font-size:15px;font-weight:700"></div>
+  </div>
+  <div id="bannerType" class="subj-type-badge ms-1"></div>
+  <button class="btn btn-outline-secondary btn-sm ms-auto" onclick="resetSubject()">
+    <i class="bi bi-arrow-left me-1"></i>Change Subject
+  </button>
+</div>
+
+
+<!-- Roster -->
+<div id="rosterWrap">
+  <!-- Stats + save -->
+  <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+    <div class="sch"><div class="v" id="cntFilled" style="color:#3fb950">0</div><div class="l">FILLED</div></div>
+    <div class="sch"><div class="v" id="cntEmpty"  style="color:var(--muted)">0</div><div class="l">EMPTY</div></div>
+    <div class="sch"><div class="v" id="cntTotal">0</div><div class="l">TOTAL</div></div>
+    <button class="btn btn-success ms-auto" id="saveBtn" onclick="saveMarks()" style="padding:10px 28px;font-weight:700">
+      <i class="bi bi-cloud-check me-2"></i>Save All Marks
+    </button>
+  </div>
+  <div id="saveMsg" class="mb-2" style="font-size:13px;min-height:22px"></div>
+
+  <!-- Tabs + panels -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="ia-tabs px-4 pt-3" style="background:var(--surface2)">
+      <div class="ia-tab t1 active" id="tab-ia1" onclick="switchTab('ia1')">IA 1 &mdash; 1st Internal</div>
+      <div class="ia-tab t2"        id="tab-ia2" onclick="switchTab('ia2')">IA 2 &mdash; 2nd Internal</div>
+      <div class="ia-tab ts"        id="tab-sum" onclick="switchTab('sum')">&#x2211;&nbsp; Summary</div>
+    </div>
+    <div style="padding:16px">
+      <div class="tpanel active" id="panel-ia1">
+        <div style="margin-bottom:10px;font-size:11px;color:var(--muted)">
+          <span class="mod-badge m1">MODULE 1</span> &nbsp; Q1 or Q2 &mdash; student attempts ONE.
+          &nbsp;&nbsp;
+          <span class="mod-badge m2">MODULE 2</span> &nbsp; Q3 or Q4 &mdash; student attempts ONE.
+          &nbsp;&nbsp; The unselected Q locks when the other is filled.
+        </div>
+        <div class="mg-wrap"><table class="mg"><thead id="hd1"></thead><tbody id="bd1"></tbody></table></div>
+      </div>
+      <div class="tpanel" id="panel-ia2">
+        <div style="margin-bottom:10px;font-size:11px;color:var(--muted)">
+          <span class="mod-badge m1">MODULE 1</span> &nbsp; Q1 or Q2.
+          &nbsp;&nbsp;<span class="mod-badge m2">MODULE 2</span> &nbsp; Q3 or Q4.
+        </div>
+        <div class="mg-wrap"><table class="mg"><thead id="hd2"></thead><tbody id="bd2"></tbody></table></div>
+      </div>
+      <div class="tpanel" id="panel-sum">
+        <div class="mg-wrap"><table class="mg"><thead id="hdS"></thead><tbody id="bdS"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-success w-100 mt-3" onclick="saveMarks()" style="font-weight:700;padding:12px">
+    <i class="bi bi-cloud-check me-2"></i>Save All Marks
+  </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ===============================================================
+   State
+   ============================================================= */
+let _type     = 'ipcc_theory';
+let _students = [];
+const SUBS    = ['a','b','c','d'];
+
+// Hidden inputs used internally (subject + code kept as JS vars)
+let _subject = '';
+let _code    = '';
+
+function g(id){ return document.getElementById(id); }
+
+const TYPE_ICONS = {
+  ipcc_theory:'bi-cpu', ipcc_lab:'bi-cpu', cc_theory:'bi-book',
+  cc_activity:'bi-activity', cc_oe:'bi-mortarboard'
+};
+const TYPE_LABELS = {
+  ipcc_theory:'IPCC Theory', ipcc_lab:'IPCC', cc_theory:'CC Theory',
+  cc_activity:'CC Activity', cc_oe:'Open Elective'
+};
+
+function setType(btn, type){
+  _type = type;
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function switchTab(t){
+  document.querySelectorAll('.ia-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tpanel').forEach(p => p.classList.remove('active'));
+  g('tab-' + t).classList.add('active');
+  g('panel-' + t).classList.add('active');
+}
+
+/* ===============================================================
+   Semester / Section change → fetch subjects
+   ============================================================= */
+let _allSubjects = []; // cache of fetched subjects
+
+function onSemSecChange(){
+  resetRoster();
+  closeDD();
+  // Reset dropdown label
+  const lbl = g('subjDDLabel');
+  lbl.textContent = 'Choose a subject...';
+  lbl.classList.add('dd-placeholder');
+  g('subjDetailForm').classList.remove('show');
+  g('activeBanner').classList.remove('show');
+  _subject = ''; _code = '';
+  fetchSubjects();
+}
+
+async function fetchSubjects(){
+  const sem = g('dSem').value;
+  const sec = g('dSec').value;
+  if(!sem || !sec) return;
+
+  const badge = g('subjFetchBadge');
+  badge.style.display = 'inline';
+  g('subjSection').classList.add('show');
+
+  try {
+    const p = new URLSearchParams({ semester:sem, section:sec });
+    const data = await (await fetch('/marks/api/subjects-by-sem?' + p)).json();
+    badge.style.display = 'none';
+    _allSubjects = data.subjects || [];
+    renderSubjectDropdown(_allSubjects);
+  } catch(e){
+    badge.style.display = 'none';
+    _allSubjects = [];
+    renderSubjectDropdown([]);
+  }
+}
+
+function renderSubjectDropdown(subjects){
+  const list = g('subjDDList');
+  let html = '';
+  subjects.forEach(s => {
+    const tbCls = 'stb-' + (s.subject_type || 'cc_theory');
+    const label = TYPE_LABELS[s.subject_type] || s.subject_type;
+    html += `<div class="subj-dd-item" onclick="selectSubjectFromDD(${JSON.stringify(s).replace(/"/g,'&quot;')})">
+      <span style="flex:1">${s.subject}</span>
+      <span class="subj-type-badge ${tbCls}">${label}</span>
+    </div>`;
+  });
+  // Always add "+ Add new subject" at bottom
+  html += `<div class="subj-dd-item add-new" onclick="showNewSubjEntry()">
+    <i class="bi bi-plus-circle me-2"></i>+ Add new subject
+  </div>`;
+  list.innerHTML = html;
+}
+
+/* ── Dropdown open/close ── */
+function toggleDD(){
+  const trigger = g('subjDDTrigger');
+  const list    = g('subjDDList');
+  const isOpen  = list.classList.contains('open');
+  if(isOpen){ closeDD(); } else {
+    trigger.classList.add('open');
+    list.classList.add('open');
+  }
+}
+function closeDD(){
+  g('subjDDTrigger').classList.remove('open');
+  g('subjDDList').classList.remove('open');
+}
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  if(!g('subjDDWrap')?.contains(e.target)) closeDD();
+});
+
+/* ── Subject selected from dropdown ── */
+function selectSubjectFromDD(s){
+  closeDD();
+  _subject = s.subject || '';
+  _code    = s.subject_code || '';
+  _type    = s.subject_type || 'cc_theory';
+
+  // Update trigger label
+  const lbl = g('subjDDLabel');
+  lbl.textContent = _subject;
+  lbl.classList.remove('dd-placeholder');
+
+  // Mark selected in list
+  g('subjDDList').querySelectorAll('.subj-dd-item').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+
+  // Pre-fill detail form
+  g('dSubject').value = _subject;
+  g('dCode').value    = _code;
+  setTypeActive(_type);
+
+  // Show detail form, hide banner until loaded
+  g('subjDetailForm').classList.add('show');
+  g('activeBanner').classList.remove('show');
+  resetRoster();
+}
+
+/* ── "Add new subject" chosen ── */
+function showNewSubjEntry(){
+  closeDD();
+  _subject = ''; _code = '';
+
+  const lbl = g('subjDDLabel');
+  lbl.textContent = '+ Add new subject';
+  lbl.classList.remove('dd-placeholder');
+
+  // Clear form
+  g('dSubject').value = '';
+  g('dCode').value    = '';
+  setTypeActive('ipcc_theory');
+
+  g('subjDetailForm').classList.add('show');
+  g('activeBanner').classList.remove('show');
+  resetRoster();
+  g('dSubject').focus();
+}
+
+/* ── Sync type buttons to a given type ── */
+function setTypeActive(type){
+  _type = type;
+  document.querySelectorAll('.type-btn').forEach(b => {
+    b.classList.remove('active');
+    // Find the type from its onclick
+    if(b.getAttribute('onclick')?.includes(`'${type}'`)) b.classList.add('active');
+  });
+}
+
+function resetSubject(){
+  resetRoster();
+  g('activeBanner').classList.remove('show');
+  g('subjDetailForm').classList.remove('show');
+  const lbl = g('subjDDLabel');
+  lbl.textContent = 'Choose a subject...';
+  lbl.classList.add('dd-placeholder');
+  _subject = ''; _code = '';
+}
+
+function resetRoster(){
+  g('rosterWrap').classList.remove('show');
+  ['hd1','bd1','hd2','bd2','hdS','bdS'].forEach(id => { const e=g(id); if(e) e.innerHTML=''; });
+  _students = [];
+}
+
+
+/* ===============================================================
+   Load students
+   ============================================================= */
+async function loadStudents(){
+  // Always read from the form fields — they are pre-filled when a subject is selected from dropdown
+  const subj = g('dSubject').value.trim();
+  const code  = g('dCode').value.trim();
+  const sem   = g('dSem').value;
+  const sec   = g('dSec').value;
+  if(!sem || !sec){ showToast('warning','','Select semester and section.'); return; }
+  if(!subj){ showToast('warning','','Enter or select a subject name.'); return; }
+
+  // Sync state vars
+  _subject = subj; _code = code;
+
+  const loadBtn = g('loadBtn');
+  if(loadBtn){ loadBtn.disabled = true;
+    loadBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Loading&hellip;'; }
+
+  try {
+    const p = new URLSearchParams({ semester:sem, section:sec, subject:subj, subject_type:_type });
+    const data = await (await fetch('/marks/api/students?' + p)).json();
+    if(!data.success){ showToast('danger','Error', data.message); return; }
+    _students = data.students || [];
+    g('cntTotal').textContent = _students.length;
+
+    const q4 = ['ipcc_theory','cc_theory','ipcc_lab'].includes(_type);
+    g('tab-ia1').style.display = q4 ? '' : 'none';
+    g('tab-ia2').style.display = q4 ? '' : 'none';
+
+    buildAll(_students, _type);
+    g('rosterWrap').classList.add('show');
+    switchTab(q4 ? 'ia1' : 'sum');
+    updateStats();
+
+    // Show active banner
+    const tbCls = 'stb-' + _type;
+    const label = TYPE_LABELS[_type] || _type;
+    g('bannerCode').textContent = _code || '—';
+    g('bannerName').textContent = _subject;
+    g('bannerType').textContent = label;
+    g('bannerType').className   = 'subj-type-badge ms-1 ' + tbCls;
+    g('activeBanner').classList.add('show');
+
+    showToast('success','', _students.length + ' students loaded.');
+  } catch(e){ showToast('danger','Error', e.message); }
+  finally{
+    if(loadBtn){ loadBtn.disabled = false;
+      loadBtn.innerHTML = '<i class="bi bi-people me-2"></i>Load Students &amp; Show Grid'; }
+  }
+}
+
+/* On page load — trigger subject fetch for default sem+section */
+document.addEventListener('DOMContentLoaded', () => fetchSubjects());
+
+/* ===============================================================
+   Table builders
+   ============================================================= */
+function inp(sid, field, val, qcls){
+  const v = (val != null && val !== '') ? val : '';
+  return `<td class="mi ${qcls}"><input type="number" min="0" max="25" step="0.5"
+    id="${sid}_${field}" value="${v}"
+    oninput="onChg(this,'${sid}','${field}')" tabindex="0"></td>`;
+}
+function ctd(id, cls){
+  return `<td class="ct ${cls}" id="${id}">&mdash;</td>`;
+}
+
+/* ── IA table with Module grouping and OR locking ── */
+function buildIATable(hdId, bdId, students, type, ia){
+  const scale = type === 'ipcc_theory' ? 25 : 15;
+  const scCls = ia === 'ia1' ? 'sc1' : 'sc2';
+
+  /* ── Header ── */
+  // Row 1: MODULE 1 | OR | MODULE 1 cont | divider | MODULE 2 | OR | MODULE 2 cont | Totals
+  //   MODULE 1 = Q1(4 subs) + Q1tot | OR | Q2(4 subs) + Q2tot | best1
+  //   MODULE 2 = Q3(4 subs) + Q3tot | OR | Q4(4 subs) + Q4tot | best2
+  let h = `<tr>
+    <th class="tleft" rowspan="3" style="min-width:90px">ROLL</th>
+    <th class="tleft" rowspan="3" style="min-width:145px">NAME</th>
+    <th colspan="10" class="hm1">&#x229E; MODULE 1 &mdash; Q1 or Q2 (attempt ONE)</th>
+    <th class="mod-div" rowspan="3"></th>
+    <th colspan="10" class="hm2">&#x229E; MODULE 2 &mdash; Q3 or Q4 (attempt ONE)</th>
+    <th rowspan="3" class="hm1" style="min-width:44px">/50</th>
+    <th rowspan="3" class="hm2" style="min-width:52px">&times;${type === 'ipcc_lab' ? 20 : scale}M</th>
+  </tr>
+  <tr>
+    <th colspan="4" class="hq1">Q1 (a b c d)</th>
+    <th class="hq1">Q1 Total</th>
+    <th class="or-cell" rowspan="2" style="font-size:13px;font-weight:900;color:var(--muted);padding:0 6px">OR</th>
+    <th colspan="4" class="hq2">Q2 (a b c d)</th>
+    <th class="hq2">Q2 Total</th>
+    <th colspan="4" class="hq3">Q3 (a b c d)</th>
+    <th class="hq3">Q3 Total</th>
+    <th class="or-cell" rowspan="2" style="font-size:13px;font-weight:900;color:var(--muted);padding:0 6px">OR</th>
+    <th colspan="4" class="hq4">Q4 (a b c d)</th>
+    <th class="hq4">Q4 Total</th>
+  </tr>
+  <tr>`;
+  // Sub-labels row: a b c d for each Q
+  ['hq1','hq2','hq3','hq4'].forEach((cls, qi) => {
+    SUBS.forEach(s => { h += `<th class="${cls}">${s}</th>`; });
+    h += `<th class="${cls}"></th>`;
+    if(qi === 1) h += `<th class="mod-div" style="display:none"></th>`; // placeholder for OR col
+  });
+  h += `</tr>`;
+  g(hdId).innerHTML = h;
+
+  /* ── Body ── */
+  let body = '';
+  students.forEach(st => {
+    const sid = 's' + st.student_id;
+    let row = `<tr>
+      <td><span class="rb">${st.roll_number || '&mdash;'}</span></td>
+      <td style="font-weight:500;min-width:140px">${st.name}</td>`;
+    /* Q1 */
+    SUBS.forEach(s => row += inp(sid, `${ia}_q1_${s}`, st[`${ia}_q1_${s}`], 'mq1'));
+    row += ctd(`${sid}_${ia}_qt1`, 'hq1');
+    /* OR spacer */
+    row += `<td class="or-cell" style="text-align:center;font-size:11px;font-weight:800;
+            color:var(--muted);padding:0 4px">OR</td>`;
+    /* Q2 */
+    SUBS.forEach(s => row += inp(sid, `${ia}_q2_${s}`, st[`${ia}_q2_${s}`], 'mq2'));
+    row += ctd(`${sid}_${ia}_qt2`, 'hq2');
+    /* Module divider */
+    row += `<td class="mod-div"></td>`;
+    /* Q3 */
+    SUBS.forEach(s => row += inp(sid, `${ia}_q3_${s}`, st[`${ia}_q3_${s}`], 'mq3'));
+    row += ctd(`${sid}_${ia}_qt3`, 'hq3');
+    /* OR spacer */
+    row += `<td class="or-cell" style="text-align:center;font-size:11px;font-weight:800;
+            color:var(--muted);padding:0 4px">OR</td>`;
+    /* Q4 */
+    SUBS.forEach(s => row += inp(sid, `${ia}_q4_${s}`, st[`${ia}_q4_${s}`], 'mq4'));
+    row += ctd(`${sid}_${ia}_qt4`, 'hq4');
+    /* Totals */
+    row += ctd(`${sid}_${ia}_tot`, 'rawt');
+    row += ctd(`${sid}_${ia}_sc`,  scCls);
+    // Hidden stored total — used by recompute() as fallback when Q subs are empty
+    const storedTotal = st[`${ia}_total`] != null ? parseFloat(st[`${ia}_total`]) : 0;
+    row += `<td style="display:none"><input type="hidden" id="${sid}_${ia}_total_stored" value="${storedTotal}"></td>`;
+    row += `</tr>`;
+    body += row;
+  });
+  g(bdId).innerHTML = body;
+  students.forEach(st => recompute('s' + st.student_id, type));
+  // Apply initial lock state
+  students.forEach(st => {
+    const sid = 's' + st.student_id;
+    checkLock(sid, ia, 'mod1');
+    checkLock(sid, ia, 'mod2');
+  });
+}
+
+/* ── Summary table ── */
+function buildSummaryTable(students, type){
+  const hasLab  = type === 'ipcc_lab';
+  const scale   = type === 'ipcc_theory' ? 25 : 15;  // ipcc_lab and cc_theory both scale to 15
+  const asgnMax = type === 'ipcc_theory' ? 25 : type === 'ipcc_lab' ? 10 : 20;
+  const showAsgn = (type !== 'cc_activity' && type !== 'cc_oe');
+
+  let h = `<tr>
+    <th class="tleft" style="min-width:90px">ROLL</th>
+    <th class="tleft" style="min-width:145px">NAME</th>
+    <th class="hm1">IA1 &times;${scale}M</th>
+    <th style="color:#58a6ff;background:rgba(88,166,255,.06)!important">IA2 &times;${scale}M</th>
+    ${showAsgn ? `<th>Assignment<br>/${asgnMax}</th>` : ''}
+    ${hasLab ? '<th style="color:#d088ff">Lab IA<br>/25</th>' : ''}
+    <th class="hm2" style="font-size:12px">CIE TOTAL<br><span style="font-size:9px;opacity:.6">/50</span></th>
+  </tr>`;
+  g('hdS').innerHTML = h;
+
+  let body = '';
+  students.forEach(st => {
+    const sid = 's' + st.student_id;
+    const asgnVal = st['assignment'] != null ? st['assignment'] : '';
+    const labVal  = st['lab_ia']     != null ? st['lab_ia']     : '';
+    body += `<tr>
+      <td><span class="rb">${st.roll_number || '&mdash;'}</span></td>
+      <td style="font-weight:500">${st.name}</td>
+      <td class="ct sc1" id="${sid}_sum_ia1sc">&mdash;</td>
+      <td class="ct" style="color:#58a6ff;font-size:14px;font-weight:700;text-align:center;font-family:'Space Mono',monospace"
+          id="${sid}_sum_ia2sc">&mdash;</td>
+      ${showAsgn ? `<td class="mi"><input type="number" min="0" max="${asgnMax}" step="0.5"
+        id="${sid}_assignment" value="${asgnVal}"
+        oninput="onChg(this,'${sid}','assignment')"
+        style="width:64px;border-radius:6px;padding:5px 4px;font-family:'Space Mono',monospace;
+        font-size:13px;text-align:center;border:1.5px solid var(--border);
+        background:var(--surface);color:var(--text)"></td>` : ''}
+      ${hasLab ? `<td class="mi"><input type="number" min="0" max="25" step="0.5"
+        id="${sid}_lab_ia" value="${labVal}"
+        oninput="onChg(this,'${sid}','lab_ia')"
+        style="width:64px;border-radius:6px;padding:5px 4px;font-family:'Space Mono',monospace;
+        font-size:13px;text-align:center;border:1.5px solid rgba(208,136,255,.4);
+        background:rgba(208,136,255,.04);color:var(--text)"></td>` : ''}
+      <td class="ct cie" id="${sid}_cie">&mdash;</td>
+    </tr>`;
+  });
+  g('bdS').innerHTML = body;
+  students.forEach(st => recompute('s' + st.student_id, type));
+}
+
+/* ── CC Activity ── */
+function buildActivityTable(students){
+  const MC = ['#3fb950','#58a6ff','#f0883e','#d088ff','#e8b600'];
+  let h = `<tr><th class="tleft">ROLL</th><th class="tleft">NAME</th>`;
+  for(let i=1;i<=5;i++) h += `<th style="color:${MC[i-1]}">MODULE ${i}<br>/20</th>`;
+  h += `<th class="hm2">TOTAL /100</th></tr>`;
+  g('hdS').innerHTML = h;
+  let body = '';
+  students.forEach(st => {
+    const sid = 's' + st.student_id;
+    body += `<tr><td><span class="rb">${st.roll_number||'&mdash;'}</span></td>
+      <td style="font-weight:500">${st.name}</td>`;
+    for(let i=1;i<=5;i++)
+      body += `<td class="mi"><input type="number" min="0" max="20" step="0.5"
+        id="${sid}_mod${i}" value="${st['mod'+i]!=null?st['mod'+i]:''}"
+        oninput="onChg(this,'${sid}','mod${i}')"
+        style="width:64px;border-radius:6px;padding:5px 4px;font-family:'Space Mono',monospace;
+        font-size:13px;text-align:center;border:1.5px solid ${MC[i-1]}40;
+        background:${MC[i-1]}0a;color:var(--text)"></td>`;
+    body += ctd(`${sid}_cie`, 'cie') + `</tr>`;
+  });
+  g('bdS').innerHTML = body;
+  students.forEach(st => recompute('s' + st.student_id, 'cc_activity'));
+}
+
+/* ── OE ── */
+function buildOETable(students){
+  g('hdS').innerHTML = `<tr>
+    <th class="tleft">ROLL</th><th class="tleft">NAME</th>
+    <th class="hq1">GEN /30</th>
+    <th class="hq2">CIE /20</th>
+    <th class="hm2">TOTAL /50</th></tr>`;
+  let body = '';
+  students.forEach(st => {
+    const sid = 's' + st.student_id;
+    const gv = st['oe_gen'] != null ? st['oe_gen'] : '';
+    const cv = st['oe_cie'] != null ? st['oe_cie'] : '';
+    body += `<tr><td><span class="rb">${st.roll_number||'&mdash;'}</span></td>
+      <td style="font-weight:500">${st.name}</td>
+      <td class="mi"><input type="number" min="0" max="30" step="0.5" id="${sid}_oe_gen" value="${gv}"
+        oninput="onChg(this,'${sid}','oe_gen')"
+        style="width:64px;border-radius:6px;padding:5px 4px;font-family:'Space Mono',monospace;
+        font-size:13px;text-align:center;border:1.5px solid rgba(63,185,80,.4);
+        background:rgba(63,185,80,.04);color:var(--text)"></td>
+      <td class="mi"><input type="number" min="0" max="20" step="0.5" id="${sid}_oe_cie" value="${cv}"
+        oninput="onChg(this,'${sid}','oe_cie')"
+        style="width:64px;border-radius:6px;padding:5px 4px;font-family:'Space Mono',monospace;
+        font-size:13px;text-align:center;border:1.5px solid rgba(88,166,255,.4);
+        background:rgba(88,166,255,.04);color:var(--text)"></td>
+      ${ctd(`${sid}_cie`,'cie')}</tr>`;
+  });
+  g('bdS').innerHTML = body;
+  students.forEach(st => recompute('s' + st.student_id, 'cc_oe'));
+}
+
+function buildAll(students, type){
+  ['hd1','bd1','hd2','bd2','hdS','bdS'].forEach(id => { const e=g(id); if(e) e.innerHTML=''; });
+  if(['ipcc_theory','cc_theory','ipcc_lab'].includes(type)){
+    buildIATable('hd1','bd1', students, type, 'ia1');
+    buildIATable('hd2','bd2', students, type, 'ia2');
+    buildSummaryTable(students, type);
+  } else if(type === 'cc_activity'){
+    buildActivityTable(students);
+  } else if(type === 'cc_oe'){
+    buildOETable(students);
+  }
+}
+
+/* ===============================================================
+   Lock logic — Module 1 (Q1/Q2), Module 2 (Q3/Q4)
+   ============================================================= */
+function hasAnyVal(sid, ia, q){
+  return SUBS.some(s => {
+    const v = parseFloat(g(`${sid}_${ia}_q${q}_${s}`)?.value);
+    return !isNaN(v) && v > 0;
+  });
+}
+
+function lockQ(sid, ia, q, lock){
+  SUBS.forEach(s => {
+    const el = g(`${sid}_${ia}_q${q}_${s}`);
+    if(el){ if(lock) el.classList.add('locked'); else el.classList.remove('locked'); }
+  });
+}
+
+function checkLock(sid, ia, mod){
+  if(mod === 'mod1'){
+    const q1has = hasAnyVal(sid, ia, 1);
+    const q2has = hasAnyVal(sid, ia, 2);
+    if(q1has && !q2has){ lockQ(sid,ia,2,true);  lockQ(sid,ia,1,false); }
+    else if(q2has && !q1has){ lockQ(sid,ia,1,true); lockQ(sid,ia,2,false); }
+    else { lockQ(sid,ia,1,false); lockQ(sid,ia,2,false); }
+  } else {
+    const q3has = hasAnyVal(sid, ia, 3);
+    const q4has = hasAnyVal(sid, ia, 4);
+    if(q3has && !q4has){ lockQ(sid,ia,4,true);  lockQ(sid,ia,3,false); }
+    else if(q4has && !q3has){ lockQ(sid,ia,3,true); lockQ(sid,ia,4,false); }
+    else { lockQ(sid,ia,3,false); lockQ(sid,ia,4,false); }
+  }
+}
+
+/* ===============================================================
+   Live recompute
+   ============================================================= */
+function fv(id){ const e = g(id); return e ? (parseFloat(e.value) || 0) : 0; }
+function setC(id, v){
+  const e = g(id);
+  if(e) e.textContent = (v != null && !isNaN(v)) ? v.toFixed(1) : '\u2014';
+}
+
+function recompute(sid, type){
+  if(['ipcc_theory','cc_theory','ipcc_lab'].includes(type)){
+    const scale = type === 'ipcc_theory' ? 25 : 15;  // ipcc_lab = 15M per IA
+
+    for(const ia of ['ia1','ia2']){
+      for(let q = 1; q <= 4; q++){
+        const tot = SUBS.reduce((s,x) => s + fv(`${sid}_${ia}_q${q}_${x}`), 0);
+        setC(`${sid}_${ia}_qt${q}`, tot);
+      }
+      const qt = q => parseFloat(g(`${sid}_${ia}_qt${q}`)?.textContent) || 0;
+      const b1  = Math.max(qt(1), qt(2));   // Module 1 best
+      const b2  = Math.max(qt(3), qt(4));   // Module 2 best
+      let raw = b1 + b2;
+
+      // Fallback: if all Q sub-fields are empty, use the stored ia_total from DB
+      if(raw === 0){
+        const hiddenEl = g(`${sid}_${ia}_total_stored`);
+        if(hiddenEl) raw = parseFloat(hiddenEl.value) || 0;
+      }
+
+      const sc  = Math.round(raw * scale / 50 * 10) / 10;
+      setC(`${sid}_${ia}_tot`, raw);
+      setC(`${sid}_${ia}_sc`,  sc);
+      // Mirror into summary tab
+      setC(`${sid}_sum_${ia}sc`, sc);
+    }
+    // CIE total
+    const ia1sc = parseFloat(g(`${sid}_ia1_sc`)?.textContent) || 0;
+    const ia2sc = parseFloat(g(`${sid}_ia2_sc`)?.textContent) || 0;
+    const asgn  = fv(`${sid}_assignment`);
+    if(type === 'ipcc_lab'){
+      // IPCC: best of IA1/IA2 (15M) + Assignment (10M) + Lab (25M) = 50
+      const labIA  = fv(`${sid}_lab_ia`);
+      const bestIA = Math.max(ia1sc, ia2sc);
+      setC(`${sid}_cie`, Math.round((bestIA + asgn + labIA) * 10) / 10);
+    } else {
+      let cie = (type === 'ipcc_theory')
+        ? Math.round((ia1sc + ia2sc) / 2 * 10) / 10 + asgn
+        : ia1sc + ia2sc + asgn;
+      setC(`${sid}_cie`, cie);
+    }
+  } else if(type === 'cc_activity'){
+    let t = 0; for(let i=1;i<=5;i++) t += fv(`${sid}_mod${i}`); setC(`${sid}_cie`, t);
+  } else if(type === 'cc_oe'){
+    setC(`${sid}_cie`, fv(`${sid}_oe_gen`) + fv(`${sid}_oe_cie`));
+  }
+}
+
+function onChg(el, sid, field){
+  el.classList.add('dirty');
+  // Determine if this is a Q-sub field to apply locking
+  const m = field.match(/^(ia[12])_q([1-4])_[abcd]$/);
+  if(m){
+    const ia = m[1], q = parseInt(m[2]);
+    checkLock(sid, ia, q <= 2 ? 'mod1' : 'mod2');
+  }
+  recompute(sid, _type);
+  updateStats();
+}
+
+function updateStats(){
+  let filled = 0, empty = 0;
+  _students.forEach(st => {
+    const v = g('s' + st.student_id + '_cie')?.textContent;
+    if(!v || v === '\u2014' || parseFloat(v) === 0) empty++; else filled++;
+  });
+  g('cntFilled').textContent = filled;
+  g('cntEmpty').textContent  = empty;
+}
+
+/* ===============================================================
+   Save
+   ============================================================= */
+async function saveMarks(){
+  // Use JS state variables (set when a card is clicked or manual form submitted)
+  const subj = _subject || (g('dSubject') ? g('dSubject').value.trim() : '');
+  const code  = _code   || (g('dCode')    ? g('dCode').value.trim()    : '');
+  const sem  = parseInt(g('dSem').value);
+  const sec  = g('dSec').value;
+  if(!subj){ showToast('warning','','Select or enter a subject name first.'); return; }
+
+  const rows = _students.map(st => {
+    const sid = 's' + st.student_id;
+    const row = { student_id: st.student_id };
+    if(['ipcc_theory','cc_theory','ipcc_lab'].includes(_type)){
+      for(const ia of ['ia1','ia2'])
+        for(let q=1;q<=4;q++)
+          for(const s of SUBS){
+            const f = `${ia}_q${q}_${s}`;
+            const v = parseFloat(g(`${sid}_${f}`)?.value);
+            row[f] = isNaN(v) ? null : v;
+          }
+      const av = parseFloat(g(`${sid}_assignment`)?.value);
+      row.assignment = isNaN(av) ? null : av;
+      if(_type === 'ipcc_lab'){
+        const lv = parseFloat(g(`${sid}_lab_ia`)?.value);
+        row.lab_ia = isNaN(lv) ? null : lv;
+      }
+    } else if(_type === 'cc_activity'){
+      for(let i=1;i<=5;i++){
+        const v = parseFloat(g(`${sid}_mod${i}`)?.value);
+        row['mod'+i] = isNaN(v) ? null : v;
+      }
+    } else if(_type === 'cc_oe'){
+      const gv = parseFloat(g(`${sid}_oe_gen`)?.value);
+      const cv = parseFloat(g(`${sid}_oe_cie`)?.value);
+      row.oe_gen = isNaN(gv) ? null : gv;
+      row.oe_cie = isNaN(cv) ? null : cv;
+    }
+    return row;
+  });
+
+  const payload = {
+    subject: subj, subject_code: code,
+    semester: sem, section: sec,
+    academic_year: g('dAY').value.trim(),
+    subject_type: _type, rows
+  };
+
+  const btn = g('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Saving&hellip;';
+  try {
+    const data = await (await fetch('/marks/api/save',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    })).json();
+    g('saveMsg').innerHTML = data.success
+      ? `<span style="color:#3fb950"><i class="bi bi-check-circle-fill me-1"></i>${data.message}</span>`
+      : `<span style="color:#f85149"><i class="bi bi-x-circle-fill me-1"></i>${data.message}</span>`;
+    if(data.success){
+      showToast('success','Saved!', data.message);
+      document.querySelectorAll('.dirty').forEach(e => e.classList.remove('dirty'));
+    } else showToast('danger','Error', data.message);
+  } catch(e){ showToast('danger','Error', e.message); }
+  finally{
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-check me-2"></i>Save All Marks';
+  }
+}
+</script>
+{% endblock %}

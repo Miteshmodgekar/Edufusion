@@ -1,22 +1,18 @@
 """
 AI Career Assistant
 ====================
-Uses Google Gemini (gemini-3.5-flash-lite) via the official google-genai SDK.
-- FREE tier: 1 million tokens per minute — no rate limits for normal usage
-- Get a free key: https://aistudio.google.com/app/apikey
-
-Falls back to Groq if GEMINI_API_KEY is not set.
+Uses Groq API (openai/gpt-oss-20b) — ultra-fast, free, no credit card.
+Get a free key: https://console.groq.com/keys
 """
 
+import re
 import requests
 
-# Groq fallback (OpenAI-compatible)
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-
-GEMINI_MODEL  = "gemini-3.5-flash-lite"
-MAX_HISTORY   = 10
-MAX_TOKENS    = 1024
-MAX_HISTORY_MESSAGES = MAX_HISTORY   # alias kept for backward compatibility
+GROQ_API_URL   = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL     = "openai/gpt-oss-20b"   # fastest clean model ~0.38s
+MAX_HISTORY    = 10
+MAX_TOKENS     = 1024
+MAX_HISTORY_MESSAGES = MAX_HISTORY  # backward compat alias
 
 
 def build_system_prompt(student, profile, avg_attendance, open_drives):
@@ -55,49 +51,35 @@ RULES:
 - Use bullet points. Be helpful and clear."""
 
 
-def _call_gemini(api_key, system_prompt, history, user_message):
-    """Call Google Gemini using the google-genai SDK."""
-    try:
-        from google import genai
-        from google.genai import types
+def send_career_chat(api_key, model, system_prompt, history, user_message):
+    """
+    Call Groq API. Returns (success: bool, reply_or_error: str).
+    """
+    import os
+    groq_key = os.environ.get("GROQ_API_KEY", "").strip()
 
-        client = genai.Client(api_key=api_key)
-
-        # Build conversation history for Gemini
-        contents = []
-        for msg in history[-MAX_HISTORY:]:
-            role = "user" if msg["role"] == "user" else "model"
-            contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
-        contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
-
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                max_output_tokens=MAX_TOKENS,
-            ),
+    if not groq_key:
+        return False, (
+            "Career Assistant not configured. "
+            "Add GROQ_API_KEY to .env. "
+            "Get a free key at https://console.groq.com/keys"
         )
-        return True, response.text
 
-    except Exception as e:
-        err = str(e)
-        if "quota" in err.lower() or "429" in err:
-            return False, "AI service is busy. Please try again in a moment."
-        return False, f"AI service error: {err[:150]}"
-
-
-def _call_groq(api_key, system_prompt, history, user_message):
-    """Fallback: call Groq's OpenAI-compatible API."""
     messages = [{"role": "system", "content": system_prompt}]
-    messages.extend({"role": m["role"], "content": m["content"]} for m in history[-6:])
+    messages.extend(
+        {"role": m["role"], "content": m["content"]}
+        for m in history[-MAX_HISTORY:]
+    )
     messages.append({"role": "user", "content": user_message})
 
     try:
         resp = requests.post(
             GROQ_API_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": "openai/gpt-oss-20b", "messages": messages, "max_tokens": 600},
+            headers={
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json",
+            },
+            json={"model": GROQ_MODEL, "messages": messages, "max_tokens": MAX_TOKENS},
             timeout=30,
         )
     except requests.exceptions.RequestException as e:
@@ -113,21 +95,10 @@ def _call_groq(api_key, system_prompt, history, user_message):
     choices = resp.json().get("choices", [])
     if not choices:
         return False, "The AI didn't return a response. Please try again."
-    return True, (choices[0].get("message", {}).get("content") or "").strip()
 
+    text = (choices[0].get("message", {}).get("content") or "").strip()
 
-def send_career_chat(api_key, model, system_prompt, history, user_message):
-    """
-    Main entry point. Uses Gemini if api_key looks like a Gemini key,
-    otherwise falls back to Groq.
-    Returns (success: bool, reply_or_error: str).
-    """
-    if not api_key:
-        return False, (
-            "Career Assistant not configured. "
-            "Admin needs to add GEMINI_API_KEY in Railway variables. "
-            "Get a free key at https://aistudio.google.com/app/apikey"
-        )
+    # Strip <think>…</think> blocks just in case model outputs reasoning
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
-    # Use Gemini SDK for all keys (it's the primary provider now)
-    return _call_gemini(api_key, system_prompt, history, user_message)
+    return True, text

@@ -48,6 +48,7 @@ def create_app(config_class=Config):
     from routes.drives       import drives_bp
     from routes.notifications import notify_bp
     from routes.hod          import hod_bp
+    from routes.marks        import marks_bp
 
     app.register_blueprint(auth_bp,        url_prefix="/auth")
     app.register_blueprint(attendance_bp,  url_prefix="/attendance")
@@ -61,6 +62,7 @@ def create_app(config_class=Config):
     app.register_blueprint(drives_bp,      url_prefix="/drives")
     app.register_blueprint(notify_bp,      url_prefix="/notify")
     app.register_blueprint(hod_bp,         url_prefix="/hod")
+    app.register_blueprint(marks_bp,       url_prefix="/marks")
 
     # ── Auto-create DB tables only if they don't exist (safe for multi-worker) ──
     with app.app_context():
@@ -112,6 +114,8 @@ def create_app(config_class=Config):
         import models.drive
         import models.faculty_subject
         import models.career_chat
+        import models.internal_marks
+        import models.mentor_sheet
         db.create_all()
         _auto_migrate(db)
         _seed_demo_data()
@@ -127,11 +131,27 @@ def create_app(config_class=Config):
 
 
 def _start_leave_scheduler(app):
-    """Register and start the APScheduler job for deferred leave adjustments."""
+    """Register and start the APScheduler job for deferred leave adjustments.
+
+    Guard: In Flask debug/reloader mode two processes are spawned.
+    WERKZEUG_RUN_MAIN is set to 'true' ONLY in the child (worker) process.
+    We only start the scheduler there so it runs exactly once.
+    """
+    import os, atexit
+
+    # When Flask reloader is active, only start scheduler in the worker process.
+    # In production (gunicorn / no reloader) WERKZEUG_RUN_MAIN is absent — allow.
+    reloader_active = os.environ.get("WERKZEUG_RUN_MAIN")
+    use_reloader    = app.config.get("USE_RELOADER", True)
+
+    if use_reloader and reloader_active != "true":
+        # Parent/monitor process — skip; child will handle it.
+        print("[SCHEDULER] Skipping in reloader parent process (will start in worker).")
+        return
+
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from apscheduler.triggers.cron import CronTrigger
-        from zoneinfo import ZoneInfo
 
         def _run_adjustment():
             """Inner function: runs inside app context so DB queries work."""
@@ -149,9 +169,17 @@ def _start_leave_scheduler(app):
             replace_existing = True,
         )
         scheduler.start()
-        print("[SCHEDULER] Leave adjustment job scheduled at 12:05 PM IST daily.")
+
+        # Ensure clean shutdown when this process exits
+        atexit.register(lambda: scheduler.shutdown(wait=False))
+
+        jobs = scheduler.get_jobs()
+        for j in jobs:
+            print(f"[SCHEDULER] Job '{j.name}' -> next run: {j.next_run_time}")
+        print("[SCHEDULER] Leave adjustment job scheduled at 12:05 PM IST daily. OK")
+
     except Exception as e:
-        print(f"[SCHEDULER] Warning: Could not start scheduler — {e}")
+        print(f"[SCHEDULER] Warning: Could not start scheduler -- {e}")
         print("  (Install APScheduler: pip install APScheduler==3.10.4)")
 
 
@@ -176,6 +204,39 @@ def _auto_migrate(db):
         "leave_requests": [
             ("adjust_after",    "DATETIME"),
             ("adjustment_note", "TEXT"),
+        ],
+        # New _d sub-part columns for internal marks (4 options a,b,c,d per part)
+        "internal_marks": [
+            ("ia1_q1_a","FLOAT"),("ia1_q1_b","FLOAT"),("ia1_q1_c","FLOAT"),("ia1_q1_d","FLOAT"),
+            ("ia1_q2_a","FLOAT"),("ia1_q2_b","FLOAT"),("ia1_q2_c","FLOAT"),("ia1_q2_d","FLOAT"),
+            ("ia1_q3_a","FLOAT"),("ia1_q3_b","FLOAT"),("ia1_q3_c","FLOAT"),("ia1_q3_d","FLOAT"),
+            ("ia1_q4_a","FLOAT"),("ia1_q4_b","FLOAT"),("ia1_q4_c","FLOAT"),("ia1_q4_d","FLOAT"),
+            ("ia2_q1_a","FLOAT"),("ia2_q1_b","FLOAT"),("ia2_q1_c","FLOAT"),("ia2_q1_d","FLOAT"),
+            ("ia2_q2_a","FLOAT"),("ia2_q2_b","FLOAT"),("ia2_q2_c","FLOAT"),("ia2_q2_d","FLOAT"),
+            ("ia2_q3_a","FLOAT"),("ia2_q3_b","FLOAT"),("ia2_q3_c","FLOAT"),("ia2_q3_d","FLOAT"),
+            ("ia2_q4_a","FLOAT"),("ia2_q4_b","FLOAT"),("ia2_q4_c","FLOAT"),("ia2_q4_d","FLOAT"),
+            # New subject_type support
+            ("subject_type", "VARCHAR(20)"),
+            ("lab_ia",  "FLOAT"),
+            ("mod1",    "FLOAT"),("mod2", "FLOAT"),("mod3", "FLOAT"),("mod4", "FLOAT"),("mod5", "FLOAT"),
+            ("oe_gen",  "FLOAT"),("oe_cie", "FLOAT"),
+        ],
+        # Mentor sheet
+        "mentor_sheet": [
+            ("week_label",            "VARCHAR(100)"),
+            ("weekly_attendance",     "VARCHAR(50)"),
+            ("reason_for_low",        "TEXT"),
+            ("date_of_communication", "DATE"),
+            ("remarks",               "TEXT"),
+            ("updated_at",            "DATETIME"),
+        ],
+        # Group project members
+        "project_members": [
+            ("id",         "INTEGER"),
+            ("project_id", "INTEGER"),
+            ("student_id", "INTEGER"),
+            ("is_lead",    "BOOLEAN"),
+            ("joined_at",  "DATETIME"),
         ],
     }
 
