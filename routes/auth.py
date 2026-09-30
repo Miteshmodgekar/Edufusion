@@ -31,12 +31,14 @@ def _make_reset_token(user):
     return _get_serializer().dumps(payload, salt=RESET_SALT)
 
 
-def _verify_reset_token(token, max_age=None):
+def _verify_reset_token(token, max_age=RESET_TOKEN_MAX_AGE):
     """Returns the User if the token is valid, unexpired, and still matches
     the account's current password hash. Raises SignatureExpired/BadSignature
-    the same way loads() would, or returns None if the user/hash no longer matches."""
+    the same way loads() would, or returns None if the user/hash no longer matches.
+    Fix #6: max_age defaults to RESET_TOKEN_MAX_AGE so tokens always expire.
+    Fix #1: use db.session.get() instead of deprecated Query.get()."""
     payload = _get_serializer().loads(token, salt=RESET_SALT, max_age=max_age)
-    user = User.query.get(payload.get("uid"))
+    user = db.session.get(User, payload.get("uid"))  # Fix #1: Query.get() removed in SQLAlchemy 2.0
     if not user or user.password_hash[-12:] != payload.get("pw"):
         return None
     return user

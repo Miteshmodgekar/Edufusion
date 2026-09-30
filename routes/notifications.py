@@ -28,7 +28,7 @@ def my_notifications():
 @notify_bp.route("/api/read/<int:notif_id>", methods=["POST"])
 @login_required
 def mark_read(notif_id):
-    notif = InAppNotification.query.get_or_404(notif_id)
+    notif = db.get_or_404(InAppNotification, notif_id)
     if notif.user_id != current_user.id:
         return jsonify({"success": False, "message": "Access denied."}), 403
     notif.is_read = True
@@ -36,14 +36,28 @@ def mark_read(notif_id):
     return jsonify({"success": True})
 
 
+@notify_bp.route("/api/get/<int:notif_id>", methods=["GET"])
+@login_required
+def get_notification(notif_id):
+    """Return a single in-app notification by ID (for the alert centre detail modal)."""
+    notif = db.get_or_404(InAppNotification, notif_id)
+    if notif.user_id != current_user.id:
+        return jsonify({"success": False, "message": "Access denied."}), 403
+    return jsonify({"success": True, "notification": notif.to_dict()})
+
+
 @notify_bp.route("/api/read-all", methods=["POST"])
 @login_required
 def mark_all_read():
-    (InAppNotification.query
-     .filter_by(user_id=current_user.id, is_read=False)
-     .update({"is_read": True}))
-    db.session.commit()
-    return jsonify({"success": True})
+    try:  # Fix #17: handle commit errors like clear_all_notifications() does
+        (InAppNotification.query
+         .filter_by(user_id=current_user.id, is_read=False)
+         .update({"is_read": True}))
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @notify_bp.route("/api/clear", methods=["DELETE"])

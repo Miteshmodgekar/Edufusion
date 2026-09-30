@@ -32,9 +32,13 @@
   <link rel="shortcut icon" href="/static/icons/icon-96.png" />
   <!-- Manifest -->
   <link rel="manifest" href="/manifest.json" />
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <!-- Local CSS (offline-first) — run download_libs.py once to populate these -->
+  <link rel="stylesheet" href="/static/lib/bootstrap/bootstrap.min.css"
+        onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css'" />
+  <link rel="stylesheet" href="/static/lib/icons/bootstrap-icons.min.css"
+        onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css'" />
+  <link rel="stylesheet" href="/static/lib/fonts/fonts.css"
+        onerror="this.onerror=null;this.href='https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap'" />
   <style>
     :root{--bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
           --accent:#3fb950;--accent2:#58a6ff;--text:#e6edf3;--muted:#8b949e;
@@ -172,16 +176,6 @@
        PREMIUM DESIGN SYSTEM — foundation (cursor, glass, toasts)
        ══════════════════════════════════════════════════════════ */
 
-    /* Custom cursor (desktop only) */
-    #cursorDot,#cursorRing{position:fixed;top:0;left:0;pointer-events:none;z-index:9999;
-                            border-radius:50%;transform:translate(-50%,-50%);}
-    #cursorDot{width:6px;height:6px;background:var(--accent);opacity:0;transition:opacity .2s;}
-    #cursorRing{width:32px;height:32px;border:1.5px solid rgba(63,185,80,.5);opacity:0;
-                transition:opacity .2s,width .2s,height .2s,border-color .2s,background .2s;}
-    #cursorRing.hovering{width:46px;height:46px;background:rgba(63,185,80,.08);border-color:var(--accent2);}
-    body.cursor-ready,body.cursor-ready a,body.cursor-ready button,body.cursor-ready .btn,
-    body.cursor-ready input,body.cursor-ready select,body.cursor-ready [role="button"]{cursor:none!important;}
-    @media (hover:none){ #cursorDot,#cursorRing{display:none!important;} body.cursor-ready{cursor:auto!important;} }
 
     /* Magnetic buttons (opt-in via .magnetic class) */
     .magnetic{transition:transform .15s ease;display:inline-block;}
@@ -253,8 +247,7 @@
 </head>
 <body>
 <div id="appPreloader"><div class="pre-bar"></div><div class="pre-mark">Edu<b>Fusion</b></div></div>
-<div id="cursorRing"></div>
-<div id="cursorDot"></div>
+
 <div id="toastStack"></div>
 
 <!-- Navbar -->
@@ -541,30 +534,7 @@
   });
   setTimeout(() => document.getElementById('appPreloader')?.classList.add('hide'), 1800); // safety fallback
 
-  // ---- Custom cursor ----
-  if (_hasHover && !_reduceMotion) {
-    document.body.classList.add('cursor-ready');
-    const dot = document.getElementById('cursorDot');
-    const ring = document.getElementById('cursorRing');
-    let mx = 0, my = 0, rx = 0, ry = 0;
-    document.addEventListener('mousemove', e => {
-      mx = e.clientX; my = e.clientY;
-      dot.style.opacity = '1'; ring.style.opacity = '1';
-      dot.style.left = mx + 'px'; dot.style.top = my + 'px';
-    });
-    document.addEventListener('mouseleave', () => { dot.style.opacity='0'; ring.style.opacity='0'; });
-    (function loop(){
-      rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
-      ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
-      requestAnimationFrame(loop);
-    })();
-    document.addEventListener('mouseover', e => {
-      if (e.target.closest('a,button,.btn,input,select,[role="button"]')) ring.classList.add('hovering');
-    });
-    document.addEventListener('mouseout', e => {
-      if (e.target.closest('a,button,.btn,input,select,[role="button"]')) ring.classList.remove('hovering');
-    });
-  }
+
 
   // ---- Magnetic buttons (opt-in via class="magnetic") ----
   function initMagnetic(root=document) {
@@ -606,8 +576,20 @@
       setTimeout(() => el.remove(), 280);
     };
     el.querySelector('.t-close').addEventListener('click', remove);
-    const timer = setTimeout(remove, duration);
-    el.addEventListener('mouseenter', () => clearTimeout(timer));
+
+    // Pause on hover, restart on mouse leave — always auto-dismisses
+    let _timer = setTimeout(remove, duration);
+    let _remaining = duration;
+    let _pausedAt;
+    el.addEventListener('mouseenter', () => {
+      clearTimeout(_timer);
+      _pausedAt = Date.now();
+    });
+    el.addEventListener('mouseleave', () => {
+      _remaining -= (Date.now() - _pausedAt);
+      if (_remaining > 0) _timer = setTimeout(remove, _remaining);
+      else remove();
+    });
   }
   window.showToast = showToast;
 
@@ -618,79 +600,6 @@
   });
 </script>
 <script>
-  // ══════════════════════════════════════════════════════════════
-  //  PWA — Service Worker + Install Prompt
-  // ══════════════════════════════════════════════════════════════
-  let _swRegistration = null;
-  let _deferredInstallPrompt = null;
-
-  // Capture install prompt
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    _deferredInstallPrompt = e;
-    // Show banner only if not dismissed before
-    if (!localStorage.getItem('pwaDismissed') && !localStorage.getItem('pwaInstalled')) {
-      const banner = document.getElementById('pwaInstallBanner');
-      if (banner) banner.style.display = 'flex';
-    }
-  });
-
-  // Hide banner after install
-  window.addEventListener('appinstalled', () => {
-    localStorage.setItem('pwaInstalled', '1');
-    const banner = document.getElementById('pwaInstallBanner');
-    if (banner) banner.style.display = 'none';
-    console.log('[PWA] App installed!');
-  });
-
-  function installPWA() {
-    if (!_deferredInstallPrompt) return;
-    _deferredInstallPrompt.prompt();
-    _deferredInstallPrompt.userChoice.then(choice => {
-      if (choice.outcome === 'accepted') {
-        localStorage.setItem('pwaInstalled', '1');
-        document.getElementById('pwaInstallBanner').style.display = 'none';
-      }
-      _deferredInstallPrompt = null;
-    });
-  }
-
-  function reloadForUpdate() {
-    if (_swRegistration?.waiting) {
-      _swRegistration.waiting.postMessage('SKIP_WAITING');
-    }
-    window.location.reload();
-  }
-
-  // Register service worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
-      .then(reg => {
-        _swRegistration = reg;
-        console.log('[PWA] SW registered, scope:', reg.scope);
-
-        // Check for updates
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New version ready — show update banner
-              const banner = document.getElementById('pwaUpdateBanner');
-              if (banner) banner.style.display = 'flex';
-            }
-          });
-        });
-      })
-      .catch(e => console.warn('[PWA] SW failed:', e));
-
-    // Listen for SW messages
-    navigator.serviceWorker.addEventListener('message', event => {
-      if (event.data?.type === 'SYNC_NOTIFICATIONS') {
-        loadNotifications();
-      }
-    });
-  }
-
   // ── Notification Bell ────────────────────────────────────────────────────
   async function loadNotifications() {
     try {
@@ -738,7 +647,9 @@
   }
 
   async function readNotif(id, url, el) {
+    // Mark as read on the server
     await fetch(`/notify/api/read/${id}`, { method: 'POST' }).catch(()=>{});
+    // Update UI immediately
     el.style.background = 'transparent';
     const dot = el.querySelector('[style*="border-radius:50%;background:#58a6ff"]');
     if (dot) dot.remove();
@@ -749,7 +660,8 @@
       badge.textContent = cur;
       if (cur <= 0) badge.style.display = 'none';
     }
-    if (url) { window.location.href = url; }
+    // Navigate to alert centre with this notification highlighted
+    window.location.href = `/alert/centre?notif=${id}`;
   }
 
   async function markAllRead() {

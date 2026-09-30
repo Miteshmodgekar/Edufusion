@@ -3,7 +3,7 @@
  * Handles: offline caching, push notifications, background sync
  */
 
-const CACHE_NAME    = 'edufusion-v1';
+const CACHE_NAME    = 'edufusion-v2';
 const OFFLINE_URL   = '/offline';
 
 // Assets to pre-cache on install (app shell)
@@ -60,6 +60,8 @@ self.addEventListener('fetch', event => {
       url.pathname.startsWith('/dashboard/api') ||
       url.pathname.startsWith('/alert/') ||
       url.pathname.startsWith('/auth/api') ||
+      url.pathname.startsWith('/marks/api') ||
+      url.pathname.startsWith('/notify/api') ||
       url.pathname.startsWith('/notify/')) {
     event.respondWith(
       fetch(request).catch(() => new Response(

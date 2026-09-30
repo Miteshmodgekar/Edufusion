@@ -137,7 +137,7 @@ def send_attendance_alerts():
             if not d["student_id"]:
                 skipped_unmatched += 1   # USN in the sheet doesn't match any account
                 continue
-            student = User.query.get(d["student_id"])
+            student = db.session.get(User, d["student_id"])
             if not student:
                 continue
             summary = SimpleNamespace(
@@ -157,7 +157,7 @@ def send_attendance_alerts():
     else:
         defaulters = AttendanceSummary.query.filter_by(is_defaulter=True).all()
         for s in defaulters:
-            student = User.query.get(s.student_id)
+            student = db.session.get(User, s.student_id)
             if student:
                 title = f"Low Attendance — {s.subject}"
                 body  = f"{s.subject}: {s.attendance_pct}% — Need {s.required_classes} more classes."

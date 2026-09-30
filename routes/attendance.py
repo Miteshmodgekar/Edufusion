@@ -61,7 +61,7 @@ def upload():
     file.save(save_path)
 
     subject    = request.form.get("subject", "Unknown")
-    semester   = int(request.form.get("semester", 1))
+    semester   = request.form.get("semester", 1, type=int) or 1  # Fix #5: safe int cast, no ValueError
     section    = request.form.get("section", "A")
     sheet_name = request.form.get("sheet_name") or None   # NEW — which tab to read
 
@@ -110,8 +110,11 @@ def upload():
                 import logging
                 logging.error(f"Error triggering notifications: {e}")
                 
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"[ATTENDANCE] SheetRegistry or notification error: {e}"
+            )  # Fix #3: log instead of silently swallowing
 
     return jsonify(result)
 
@@ -205,9 +208,9 @@ def live_upload():
         live_path = os.path.join(current_app.config["UPLOAD_FOLDER"], LIVE_SHEET_NAME)
         last_synced = None
         if os.path.exists(live_path):
-            last_synced = datetime.fromtimestamp(
-                os.path.getmtime(live_path)
-            ).strftime("%d %b %Y, %I:%M %p")
+            mtime = os.path.getmtime(live_path)
+            # Fix #12: Use IST timezone for display so the time is correct on UTC servers
+            last_synced = datetime.fromtimestamp(mtime, tz=_IST).strftime("%d %b %Y, %I:%M %p")
         return render_template("attendance/live_upload.html", last_synced=last_synced)
 
     if "file" not in request.files:
@@ -402,8 +405,10 @@ def process_attendance_excel(filepath, subject, semester, section, sheet_name=No
                             db.session.flush()   # get student.id without full commit
                             entry["auto_created"] = True
                             auto_created.append(roll)
-                    except Exception:
-                        pass   # auto-create failed silently; attendance still recorded in results
+                    except Exception as auto_err:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"[ATTENDANCE] Auto-create failed for roll '{roll}': {auto_err}")
 
                 # ── Save attendance summary ─────────────────────────────────
                 if student:
@@ -424,9 +429,13 @@ def process_attendance_excel(filepath, subject, semester, section, sheet_name=No
                         summary.attendance_pct   = pct
                         summary.is_defaulter     = is_def
                         summary.required_classes = needed
-                        db.session.commit()
+                        # Fix #4: do NOT commit here — accumulate all rows and commit once below
+                        db.session.flush()   # get IDs for auto-created students without committing
                         entry["db_saved"] = True
-                    except Exception:
+                    except Exception as flush_err:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"[ATTENDANCE] Row flush error: {flush_err}")
                         db.session.rollback()
 
                 results.append(entry)
@@ -437,6 +446,15 @@ def process_attendance_excel(filepath, subject, semester, section, sheet_name=No
                 # Bad row — log and skip without crashing the whole upload
                 skipped_rows.append({"row": int(idx) + 2, "reason": str(row_err)})
                 continue
+
+        # Fix #4: single commit for all rows — atomic and only 1 DB round-trip
+        try:
+            db.session.commit()
+        except Exception as commit_err:
+            db.session.rollback()
+            import logging
+            logging.getLogger(__name__).error(f"[ATTENDANCE] Bulk commit failed: {commit_err}")
+            return {"success": False, "message": f"Database error during save: {commit_err}"}
 
         db_saved_count = sum(1 for r in results if r.get("db_saved"))
         not_found      = [r["roll_number"] for r in results if not r.get("db_saved")]
@@ -1262,7 +1280,7 @@ def api_defaulters():
 
     enriched = []
     for r in records:
-        student = User.query.get(r.student_id)
+        student = db.session.get(User, r.student_id)
         if not student:
             continue   # orphaned summary row - skip to avoid undefined in UI
         subj = (r.subject or "").strip()

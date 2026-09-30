@@ -84,74 +84,20 @@ function renderIAGrid(m){
   const asgn = m.assignment != null ? parseFloat(m.assignment) : null;
 
   if(st === 'ipcc_theory'){
-    const ia1sc = parseFloat(m.ia1_scaled || 0);
-    const ia2sc = parseFloat(m.ia2_scaled || 0);
-    return `<div class="ia-grid">
-      <div class="ia-box ia1-box">
-        <div class="score">${ia1sc.toFixed(1)}</div>
-        <div class="max">/ 25 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia1_total)}/50)</span></div>
-        <div class="label">Internal Assessment 1</div>
-      </div>
-      <div class="ia-box ia2-box">
-        <div class="score">${ia2sc.toFixed(1)}</div>
-        <div class="max">/ 25 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia2_total)}/50)</span></div>
-        <div class="label">Internal Assessment 2</div>
-      </div>
-      <div class="ia-box asgn-box">
-        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
-        <div class="max">/ 25</div>
-        <div class="label">Assignment</div>
-      </div>
-      <div class="ia-box total-box">
-        <div class="score">${cie.toFixed(1)}</div>
-        <div class="max">/ 50</div>
-        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
-      </div>
-    </div>`;
-
-  } else if(st === 'cc_theory'){
-    const ia1sc = parseFloat(m.ia1_scaled || 0);
-    const ia2sc = parseFloat(m.ia2_scaled || 0);
-    return `<div class="ia-grid">
-      <div class="ia-box ia1-box">
-        <div class="score">${ia1sc.toFixed(1)}</div>
-        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia1_total)}/50)</span></div>
-        <div class="label">Internal Assessment 1</div>
-      </div>
-      <div class="ia-box ia2-box">
-        <div class="score">${ia2sc.toFixed(1)}</div>
-        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia2_total)}/50)</span></div>
-        <div class="label">Internal Assessment 2</div>
-      </div>
-      <div class="ia-box asgn-box">
-        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
-        <div class="max">/ 20</div>
-        <div class="label">Assignment</div>
-      </div>
-      <div class="ia-box total-box">
-        <div class="score">${cie.toFixed(1)}</div>
-        <div class="max">/ 50</div>
-        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
-      </div>
-    </div>`;
-
-  } else if(st === 'ipcc_lab'){
-    // IPCC: best IA(15) + Assignment(10) + Lab IA(25) = 50
-    const ia1sc   = parseFloat(m.ia1_scaled || 0);
-    const ia2sc   = parseFloat(m.ia2_scaled || 0);
-    const bestIA  = Math.max(ia1sc, ia2sc);
-    const labIA   = m.lab_ia != null ? parseFloat(m.lab_ia) : null;
-    const ia1Best = ia1sc >= ia2sc;
+    const ia1raw     = parseFloat(m.ia1_total || 0);         // raw /50
+    const ia2raw     = parseFloat(m.ia2_total || 0);         // raw /50
+    const labRaw     = m.lab_theory        != null ? parseFloat(m.lab_theory)        : null;
+    const labScaled  = m.lab_theory_scaled != null ? parseFloat(m.lab_theory_scaled) : null;
     return `<div class="ia-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-      <div class="ia-box ia1-box" style="${ia1Best ? 'border-color:rgba(63,185,80,.5);box-shadow:0 0 8px rgba(63,185,80,.15)' : 'opacity:.7'}">
-        <div class="score">${ia1sc.toFixed(1)}</div>
-        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia1_total)}/50)</span></div>
-        <div class="label">IA 1${ia1Best ? ' ★ Best' : ''}</div>
+      <div class="ia-box ia1-box">
+        <div class="score">${ia1raw.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 1</div>
       </div>
-      <div class="ia-box ia2-box" style="${!ia1Best ? 'border-color:rgba(88,166,255,.5);box-shadow:0 0 8px rgba(88,166,255,.15)' : 'opacity:.7'}">
-        <div class="score" style="color:#58a6ff">${ia2sc.toFixed(1)}</div>
-        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(raw ${fmt(m.ia2_total)}/50)</span></div>
-        <div class="label">IA 2${!ia1Best ? ' ★ Best' : ''}</div>
+      <div class="ia-box ia2-box">
+        <div class="score">${ia2raw.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 2</div>
       </div>
       <div class="ia-box asgn-box">
         <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
@@ -159,13 +105,81 @@ function renderIAGrid(m){
         <div class="label">Assignment</div>
       </div>
       <div class="ia-box" style="border-color:rgba(208,136,255,.3)">
-        <div class="score" style="color:#d088ff">${labIA != null ? labIA.toFixed(1) : '—'}</div>
-        <div class="max">/ 25</div>
-        <div class="label">Lab IA</div>
+        <div class="score" style="color:#d088ff">${labScaled != null ? labScaled.toFixed(1) : '—'}</div>
+        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(Raw: ${labRaw != null ? labRaw.toFixed(1) : '—'}/50)</span></div>
+        <div class="label">Lab Marks</div>
       </div>
       <div class="ia-box total-box" style="grid-column:1/-1">
         <div class="score">${cie.toFixed(1)}</div>
-        <div class="max">/ 50 <span style="font-size:9px;opacity:.5">= Best IA(${bestIA.toFixed(1)}) + Assign + Lab</span></div>
+        <div class="max">/ 50</div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+
+  } else if(st === 'cc_theory'){
+    // CC Theory: CIE = CEIL((IA1_raw + IA2_raw) / 4) + Asgn+Seminar (max 25) = 50
+    const ia1raw  = parseFloat(m.ia1_total || 0);
+    const ia2raw  = parseFloat(m.ia2_total || 0);
+    const iaScale = Math.ceil((ia1raw + ia2raw) / 4);   // combined scaled /25
+    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <div class="ia-box ia1-box">
+        <div class="score">${fmt(ia1raw)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 1</div>
+      </div>
+      <div class="ia-box ia2-box">
+        <div class="score">${fmt(ia2raw)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 2</div>
+      </div>
+      <div class="ia-box" style="background:rgba(240,200,80,.10);border-color:rgba(240,200,80,.3)">
+        <div class="score" style="color:#f0c850">${iaScale}</div>
+        <div class="max">/ 25</div>
+        <div class="label">IA Scaled</div>
+      </div>
+      <div class="ia-box asgn-box">
+        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
+        <div class="max">/ 25</div>
+        <div class="label">Asgn + Seminar</div>
+      </div>
+      <div class="ia-box total-box" style="grid-column:1/-1">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
+      </div>
+    </div>`;
+
+
+  } else if(st === 'ipcc_lab'){
+    // IPCC Lab: best IA(25M) + Assignment(10) + Lab(15) = 50
+    const ia1raw    = parseFloat(m.ia1_total || 0);
+    const ia2raw    = parseFloat(m.ia2_total || 0);
+    const labRaw    = m.lab_ia        != null ? parseFloat(m.lab_ia)        : null;
+    const labScaled = m.lab_ia_scaled != null ? parseFloat(m.lab_ia_scaled) : null;
+    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <div class="ia-box ia1-box">
+        <div class="score">${ia1raw.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 1</div>
+      </div>
+      <div class="ia-box ia2-box">
+        <div class="score" style="color:#58a6ff">${ia2raw.toFixed(1)}</div>
+        <div class="max">/ 50</div>
+        <div class="label">Internal Assessment 2</div>
+      </div>
+      <div class="ia-box asgn-box">
+        <div class="score">${asgn != null ? asgn.toFixed(1) : '—'}</div>
+        <div class="max">/ 10</div>
+        <div class="label">Assignment</div>
+      </div>
+      <div class="ia-box" style="border-color:rgba(208,136,255,.3)">
+        <div class="score" style="color:#d088ff">${labScaled != null ? labScaled.toFixed(1) : '—'}</div>
+        <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(Raw: ${labRaw != null ? labRaw.toFixed(1) : '—'}/50)</span></div>
+        <div class="label">Lab Marks</div>
+      </div>
+      <div class="ia-box total-box" style="grid-column:1/-1">
+        <div class="score">${cie.toFixed(1)}</div>
+        <div class="max">/ 50</div>
         <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
       </div>
     </div>`;

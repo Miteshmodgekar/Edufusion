@@ -52,7 +52,24 @@ def _student_data():
 
     leaves    = LeaveRequest.query.filter_by(student_id=sid).all()
     profile   = PlacementProfile.query.filter_by(student_id=sid).first()
-    projects  = Project.query.filter_by(student_id=sid).all()
+
+    # Include projects where student is owner OR a group member
+    from extensions import db as _db
+    from sqlalchemy import text as _text
+    owned_projects  = Project.query.filter_by(student_id=sid).all()
+    try:
+        member_ids = [row[0] for row in _db.session.execute(
+            _text("SELECT project_id FROM project_members WHERE student_id = :sid"),
+            {"sid": sid}
+        ).fetchall()]
+        member_projects = Project.query.filter(
+            Project.id.in_(member_ids),
+            Project.student_id != sid   # avoid duplicates
+        ).all() if member_ids else []
+    except Exception:
+        member_projects = []
+    projects = owned_projects + member_projects
+
     perfs     = StudentPerformance.query.filter_by(student_id=sid).all()
 
     return jsonify({

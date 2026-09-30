@@ -241,7 +241,7 @@
           <h6 style="font-weight:500;margin-bottom:1rem;color:var(--text)">Backup &amp; maintenance</h6>
           <div class="d-grid gap-2">
             <a href="/admin/export/db" class="btn btn-outline-secondary text-start btn-sm">
-              <i class="bi bi-download me-2"></i>Export database (.sqlite)
+              <i class="bi bi-download me-2"></i>Export database snapshot (.json)
             </a>
             <a href="/admin/report/full" class="btn btn-outline-secondary text-start btn-sm">
               <i class="bi bi-file-pdf me-2"></i>Generate full PDF report
@@ -294,6 +294,48 @@
   </div>
 
 </div>
+
+<!-- ── Transfer & Delete Modal ─────────────────────────────────────────────── -->
+<div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background:var(--surface2);border:1px solid var(--border);border-radius:14px">
+      <div class="modal-header" style="border-bottom:1px solid var(--border)">
+        <h5 class="modal-title" style="font-size:15px;font-weight:600;color:var(--text)">
+          <i class="bi bi-arrow-left-right me-2" style="color:var(--warn)"></i>Transfer &amp; Delete Staff
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Who is being deleted -->
+        <div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+          <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:4px">REMOVING</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text)" id="tm_name">—</div>
+          <div style="font-size:12px;color:var(--muted)" id="tm_role">—</div>
+        </div>
+
+        <!-- What will be transferred -->
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:'Space Mono',monospace">WHAT GETS TRANSFERRED TO REPLACEMENT</div>
+        <div id="tm_summary" style="margin-bottom:16px"></div>
+
+        <!-- Pick replacement -->
+        <label style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;display:block;margin-bottom:6px">ASSIGN REPLACEMENT</label>
+        <select class="form-select form-select-sm" id="tm_replacement" style="font-size:13px;margin-bottom:6px">
+          <option value="">— Select a staff member —</option>
+        </select>
+        <div style="font-size:11px;color:var(--muted)">All mentees, leave requests, uploads and drives will be reassigned to this person.</div>
+
+        <div id="tm_error" class="mt-2" style="font-size:12px;color:var(--danger)"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border)">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="tm_confirmBtn" onclick="confirmTransferDelete()">
+          <i class="bi bi-arrow-left-right me-1"></i>Transfer &amp; Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -342,10 +384,20 @@ function statusBadge(active) {
   return `<span class="${active?'badge-accent':'badge-danger'} mono">${active?'Active':'Inactive'}</span>`;
 }
 
-function actionBtn(id, active, role) {
+function actionBtn(id, active, role, username) {
+  // ROOT admin (username='admin') — controls the whole system, zero actions allowed
+  if (username === 'admin') {
+    return `
+      <span style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;padding:4px 8px"
+            title="System Administrator cannot be modified">
+        <i class="bi bi-shield-lock me-1"></i>System Admin
+      </span>`;
+  }
+
+  // Secondary admin — full controls, same as faculty
   const previewIcon = role === 'student' ? 'bi-mortarboard' :
                       role === 'hod'     ? 'bi-building'    :
-                      role === 'faculty' ? 'bi-person-badge' : 'bi-shield';
+                      role === 'faculty' ? 'bi-person-badge' : 'bi-shield-check';
   return `
     <a href="/admin/impersonate/${id}"
        class="btn btn-sm"
@@ -433,7 +485,7 @@ function applyFilters() {
             <td style="font-size:12px;color:var(--muted)">${u.department || '—'}</td>
             <td>${statusBadge(u.is_active)}</td>
             <td style="font-size:12px;color:var(--muted)">${u.last_login || '—'}</td>
-            <td>${actionBtn(u.id, u.is_active, u.role)}</td>
+            <td>${actionBtn(u.id, u.is_active, u.role, u.username)}</td>
           </tr>`).join('')
       : '<tr><td colspan="8" class="text-center" style="color:var(--muted);padding:1.5rem">No students match the filter.</td></tr>';
     document.getElementById('shownLabel').textContent =
@@ -458,7 +510,7 @@ function applyFilters() {
             <td style="font-size:12px;color:var(--muted)">${u.department || '—'}</td>
             <td>${statusBadge(u.is_active)}</td>
             <td style="font-size:12px;color:var(--muted)">${u.last_login || '—'}</td>
-            <td>${actionBtn(u.id, u.is_active, u.role)}</td>
+            <td>${actionBtn(u.id, u.is_active, u.role, u.username)}</td>
           </tr>`).join('')
       : '<tr><td colspan="8" class="text-center" style="color:var(--muted);padding:1.5rem">No staff match the filter.</td></tr>';
     document.getElementById('shownLabel').textContent =
@@ -476,20 +528,103 @@ async function toggleUser(id, currentActive) {
 
 async function deleteUser(id) {
   const user = _allUsers.find(u => u.id === id);
-  const label = user ? `${user.name} (${user.roll_number || user.username})` : 'this user';
-  if (!confirm(`Delete ${label}? This permanently removes their account and every attendance, leave, project and placement record tied to them. This cannot be undone.`)) return;
+  if (!user) return;
+
+  // Root System Administrator — completely protected
+  if (user.username === 'admin') {
+    alert('The System Administrator account cannot be deleted.');
+    return;
+  }
+
+  // Students — no dependents, simple confirm
+  if (user.role === 'student') {
+    const label = `${user.name} (${user.roll_number || user.username})`;
+    if (!confirm(`Delete ${label}?\n\nThis permanently removes their account and all attendance, leave, marks and placement records. This cannot be undone.`)) return;
+    try {
+      const res  = await fetch(`/admin/user/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) loadUsers();
+      else alert(data.message || 'Could not delete.');
+    } catch { alert('Network error.'); }
+    return;
+  }
+
+  // Staff (faculty / HOD / secondary admin) — must transfer first
+  openTransferModal(user);
+}
+
+function openTransferModal(user) {
+  // Fill user info
+  document.getElementById('tm_name').textContent = user.name;
+  document.getElementById('tm_role').textContent = `${user.role.toUpperCase()} · ${user.username}`;
+  document.getElementById('tm_error').textContent = '';
+
+  // Build summary of what will be transferred
+  const menteeCount  = _allUsers.filter(u => u.mentor_id === user.id).length;
+  const summaryHTML = [
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)">
+       <i class="bi bi-people" style="color:var(--accent2)"></i>
+       <span>${menteeCount} assigned mentee(s)</span>
+     </div>`,
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)">
+       <i class="bi bi-file-earmark-text" style="color:var(--warn)"></i>
+       <span>Leave requests where this person is mentor/HOD</span>
+     </div>`,
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;font-size:13px;color:var(--text)">
+       <i class="bi bi-file-excel" style="color:var(--accent)"></i>
+       <span>Uploaded attendance sheets &amp; placement drives</span>
+     </div>`,
+  ].join('');
+  document.getElementById('tm_summary').innerHTML = summaryHTML;
+
+  // Populate replacement dropdown — all staff except the user being deleted
+  const opts = _allUsers
+    .filter(u => u.role !== 'student' && u.id !== user.id && u.username !== 'admin')
+    .map(u => `<option value="${u.id}">${u.name} (${u.role} · ${u.username})</option>`)
+    .join('');
+  document.getElementById('tm_replacement').innerHTML =
+    '<option value="">— Select a staff member —</option>' + opts;
+
+  // Store target id on button for confirmation
+  document.getElementById('tm_confirmBtn').dataset.targetId = user.id;
+
+  new bootstrap.Modal(document.getElementById('transferModal')).show();
+}
+
+async function confirmTransferDelete() {
+  const targetId     = parseInt(document.getElementById('tm_confirmBtn').dataset.targetId);
+  const replacementId = parseInt(document.getElementById('tm_replacement').value);
+  const errEl        = document.getElementById('tm_error');
+  errEl.textContent  = '';
+
+  if (!replacementId) {
+    errEl.textContent = 'Please select a replacement staff member before proceeding.';
+    return;
+  }
+
+  const btn = document.getElementById('tm_confirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Transferring...';
 
   try {
-    const res  = await fetch(`/admin/user/${id}`, { method: 'DELETE' });
+    const res  = await fetch(`/admin/user/${targetId}/transfer-delete`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ replacement_id: replacementId }),
+    });
     const data = await res.json();
     if (data.success) {
+      bootstrap.Modal.getInstance(document.getElementById('transferModal')).hide();
       loadUsers();
     } else {
-      alert(data.message || 'Could not delete that user.');
+      errEl.textContent = data.message || 'Transfer failed.';
     }
-  } catch (e) {
-    alert('Network error deleting user.');
+  } catch {
+    errEl.textContent = 'Network error. Please try again.';
   }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-arrow-left-right me-1"></i>Transfer &amp; Delete';
 }
 
 async function loadLogs() {

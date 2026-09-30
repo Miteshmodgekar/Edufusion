@@ -1,6 +1,6 @@
 """
 Configuration — CSE Smart Academic Management System
-Supports both SQLite (default) and MySQL.
+Database: MySQL (default). SQLite is used for testing only.
 """
 
 import os
@@ -61,6 +61,9 @@ class Config:
     # ── Attendance Rules ───────────────────────────────────────────────────
     ATTENDANCE_THRESHOLD         = 85.0
     ATTENDANCE_WARNING_THRESHOLD = 75.0
+
+    # ── Placement Eligibility ──────────────────────────────────────────────
+    MIN_PLACEMENT_CGPA = 6.0   # Minimum CGPA required for placement eligibility
 
     # ── ML Paths ───────────────────────────────────────────────────────────
     ML_MODEL_PATH  = os.path.join(BASE_DIR, "ml", "model.pkl")

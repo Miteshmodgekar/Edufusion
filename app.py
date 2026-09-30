@@ -64,18 +64,27 @@ def create_app(config_class=Config):
     app.register_blueprint(hod_bp,         url_prefix="/hod")
     app.register_blueprint(marks_bp,       url_prefix="/marks")
 
-    # ── Auto-create DB tables only if they don't exist (safe for multi-worker) ──
+    # ── Create DB tables (models must be imported first so metadata is populated) ──
     with app.app_context():
+        import models.user
+        import models.attendance
+        import models.leave
+        import models.placement
+        import models.notification
+        import models.drive
+        import models.faculty_subject
+        import models.career_chat
+        import models.internal_marks
+        import models.mentor_sheet
         try:
-            from sqlalchemy import inspect, text
-            inspector = inspect(db.engine)
-            if not inspector.has_table("users"):
-                db.create_all()
-                import logging
-                logging.getLogger(__name__).info("[DB] Tables created successfully.")
+            db.create_all()
+            import logging
+            logging.getLogger(__name__).info("[DB] Tables verified/created successfully.")
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"[DB] create_all skipped: {e}")
+        _auto_migrate(db)
+        _seed_demo_data()
 
     @app.route("/")
     def index():
@@ -104,27 +113,7 @@ def create_app(config_class=Config):
         return send_from_directory("static", "manifest.json",
                                    mimetype="application/manifest+json")
 
-    with app.app_context():
-        # Import models here so metadata is populated before create_all
-        import models.user
-        import models.attendance
-        import models.leave
-        import models.placement
-        import models.notification
-        import models.drive
-        import models.faculty_subject
-        import models.career_chat
-        import models.internal_marks
-        import models.mentor_sheet
-        db.create_all()
-        _auto_migrate(db)
-        _seed_demo_data()
-
     # ── Background Scheduler: process deferred leave adjustments ─────────────────
-    # Faculty deadline = 12:00 PM IST every day.
-    # At 12:05 PM IST the scheduler wakes up, checks which subjects actually
-    # held class on each student's leave date (via AttendanceRecord), and only
-    # credits those subjects in attendance_summary.
     _start_leave_scheduler(app)
 
     return app
@@ -230,15 +219,17 @@ def _auto_migrate(db):
             ("remarks",               "TEXT"),
             ("updated_at",            "DATETIME"),
         ],
-        # Group project members
+        # Group project members — only ADD non-PK/FK columns.
+        # id, project_id, student_id are created by db.create_all() with
+        # proper constraints; ALTER TABLE cannot add them safely.
         "project_members": [
-            ("id",         "INTEGER"),
-            ("project_id", "INTEGER"),
-            ("student_id", "INTEGER"),
-            ("is_lead",    "BOOLEAN"),
-            ("joined_at",  "DATETIME"),
+            ("is_lead",   "BOOLEAN DEFAULT 0"),
+            ("joined_at", "DATETIME"),
         ],
     }
+
+    # Fix #15: detect dialect \u2014 SQLite doesn't support DEFAULT in ADD COLUMN
+    is_sqlite = db.engine.dialect.name == "sqlite"
 
     for table, columns in wanted_columns.items():
         if table not in inspector.get_table_names():
@@ -248,7 +239,11 @@ def _auto_migrate(db):
             if col_name in existing:
                 continue
             try:
-                db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
+                # SQLite: strip DEFAULT clause (not supported in ADD COLUMN)
+                col_def = col_type
+                if is_sqlite and "DEFAULT" in col_type.upper():
+                    col_def = col_type[:col_type.upper().index("DEFAULT")].strip()
+                db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"))
                 db.session.commit()
                 print(f"[MIGRATE] Added column '{col_name}' to '{table}'.")
             except Exception as e:

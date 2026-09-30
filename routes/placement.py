@@ -110,7 +110,7 @@ def delete_internship(internship_id):
         return jsonify({"success": False, "message": "Students only."}), 403
 
     profile = PlacementProfile.query.filter_by(student_id=current_user.id).first()
-    intern  = Internship.query.get(internship_id)
+    intern  = db.session.get(Internship, internship_id)
     if not profile or not intern or intern.profile_id != profile.id:
         return jsonify({"success": False, "message": "Internship not found."}), 404
 
@@ -164,10 +164,18 @@ def _eligible_json():
         )
         # Recompute live instead of trusting the possibly-stale stored flag.
         is_eligible = (
-            (profile.cgpa or 0) >= 6.0 and
+            (profile.cgpa or 0) >= Config.MIN_PLACEMENT_CGPA and
             (profile.backlogs or 0) == 0
         )
-        readiness = profile.calculate_readiness(avg_att)  # not committed — read-only preview
+        # Fix #2: compute readiness without touching ORM state — calculate inline
+        # so we never need a session.rollback() that could discard unrelated writes.
+        cgpa_score   = min((profile.cgpa or 0) / 10.0, 1.0) * 50
+        skill_count  = len(profile.skills.split(",")) if profile.skills else 0
+        skills_score = min(skill_count / 10.0, 1.0) * 30
+        cert_count   = len(profile.certifications.split(",")) if profile.certifications else 0
+        cert_score   = min(cert_count / 5.0, 1.0) * 10
+        attend_score = min(avg_att / 100.0, 1.0) * 10
+        readiness    = round(cgpa_score + skills_score + cert_score + attend_score, 1)
 
         results.append({
             "student_id":     student.id,
@@ -184,7 +192,7 @@ def _eligible_json():
             "is_eligible":    is_eligible,
         })
 
-    db.session.rollback()  # discard the read-only calculate_readiness() writes above
+    # No rollback needed — we never mutated any ORM object above (Fix #2)
 
     eligible_only = [r for r in results if r["is_eligible"]]
     return jsonify({
@@ -259,8 +267,19 @@ def career_chat():
 
     system_prompt = build_system_prompt(current_user, profile, avg_att, open_drives)
 
+    # Fix #11: pick API key and matching model — Groq needs its own model name
+    if Config.GEMINI_API_KEY:
+        api_key   = Config.GEMINI_API_KEY
+        ai_model  = Config.CAREER_AI_MODEL   # e.g. "gemini-2.0-flash"
+    elif Config.GROQ_API_KEY:
+        api_key   = Config.GROQ_API_KEY
+        ai_model  = "llama3-8b-8192"         # Groq-compatible default
+    else:
+        api_key   = ""
+        ai_model  = Config.CAREER_AI_MODEL
+
     success, reply = send_career_chat(
-        Config.GEMINI_API_KEY or Config.GROQ_API_KEY, Config.CAREER_AI_MODEL,
+        api_key, ai_model,
         system_prompt, clean_history, user_message
     )
 

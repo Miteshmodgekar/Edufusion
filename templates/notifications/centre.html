@@ -30,6 +30,22 @@
   .stat-box .value{font-size:24px;font-weight:600;color:var(--text);}
   .send-section{background:var(--surface2);border-radius:10px;padding:1.25rem;margin-bottom:1rem;}
 
+  /* In-app notification panel cards */
+  .inapp-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:14px 16px; margin-bottom:8px; display:flex; gap:14px; align-items:flex-start;
+    cursor:pointer; transition:border-color .2s, box-shadow .2s;
+  }
+  .inapp-card:hover { border-color:var(--accent2); box-shadow:0 0 14px rgba(88,166,255,.12); }
+  .inapp-card.unread { border-left:3px solid var(--accent2); background:rgba(88,166,255,.04); }
+  .inapp-card.highlight-flash {
+    animation: highlightPulse 1.2s ease 3;
+  }
+  @keyframes highlightPulse {
+    0%,100% { box-shadow:none; }
+    50%      { box-shadow:0 0 0 4px rgba(88,166,255,.35), 0 0 20px rgba(88,166,255,.2); border-color:var(--accent2); }
+  }
+
   /* Notification detail modal */
   .notif-modal-backdrop {
     display:none; position:fixed; inset:0; background:rgba(0,0,0,.65);
@@ -39,8 +55,11 @@
   @keyframes nmFade { from{opacity:0} to{opacity:1} }
   .notif-modal {
     background:var(--surface); border:1px solid var(--border);
-    border-radius:16px; padding:1.75rem; max-width:480px; width:90%;
+    border-radius:16px; padding:0; max-width:480px; width:90%;
     box-shadow:0 20px 60px rgba(0,0,0,.4); animation:nmSlide .2s ease;
+    /* Fix: cap height to viewport so close button always stays visible */
+    max-height:90vh;
+    display:flex; flex-direction:column; overflow:hidden;
   }
   @keyframes nmSlide { from{transform:translateY(20px);opacity:0} to{transform:none;opacity:1} }
   .modal-close-btn {
@@ -51,6 +70,21 @@
     transition:background .15s, color .15s;
   }
   .modal-close-btn:hover { background:rgba(248,81,73,.15); color:var(--danger); }
+  /* Fixed header inside modal — always visible */
+  .modal-header-area {
+    padding:1.5rem 1.75rem 0; flex-shrink:0;
+  }
+  /* Scrollable body area */
+  .modal-body-area {
+    padding:0 1.75rem 1.5rem;
+    overflow-y:auto;
+    flex:1;
+    /* Thin custom scrollbar */
+    scrollbar-width:thin;
+    scrollbar-color:var(--border) transparent;
+  }
+  .modal-body-area::-webkit-scrollbar { width:4px; }
+  .modal-body-area::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
 </style>
 {% endblock %}
 
@@ -189,22 +223,28 @@
   {% endif %}
 </div>
 
-<!-- Notification detail modal -->
+<!-- Notification detail modal (email/push logs) -->
 <div class="notif-modal-backdrop" id="notifModal" onclick="closeModalBackdrop(event)">
   <div class="notif-modal">
-    <div class="d-flex align-items-start justify-content-between mb-3">
-      <div class="d-flex align-items-center gap-3">
-        <div class="notif-icon" id="mIcon" style="width:44px;height:44px;font-size:20px"></div>
-        <div>
-          <div style="font-size:15px;font-weight:600;color:var(--text)" id="mTitle"></div>
-          <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:2px" id="mMeta"></div>
+    <!-- Fixed header: always visible even with long body -->
+    <div class="modal-header-area">
+      <div class="d-flex align-items-start justify-content-between mb-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="notif-icon" id="mIcon" style="width:44px;height:44px;font-size:20px"></div>
+          <div>
+            <div style="font-size:15px;font-weight:600;color:var(--text)" id="mTitle"></div>
+            <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:2px" id="mMeta"></div>
+          </div>
         </div>
+        <div class="modal-close-btn" onclick="closeModal()"><i class="bi bi-x-lg"></i></div>
       </div>
-      <div class="modal-close-btn" onclick="closeModal()"><i class="bi bi-x-lg"></i></div>
+      <hr style="border-color:var(--border);margin:0 0 1rem">
     </div>
-    <hr style="border-color:var(--border);margin:0 0 1rem">
-    <div style="font-size:13px;color:var(--text);line-height:1.8;white-space:pre-wrap" id="mBody"></div>
-    <div class="mt-3" id="mChannel"></div>
+    <!-- Scrollable body -->
+    <div class="modal-body-area">
+      <div style="font-size:13px;color:var(--text);line-height:1.8;white-space:pre-wrap;word-break:break-word" id="mBody"></div>
+      <div class="mt-3" id="mChannel"></div>
+    </div>
   </div>
 </div>
 
@@ -217,6 +257,56 @@
   <div id="activeAlerts"></div>
 </div>
 {% endif %}
+
+<!-- ── In-App Notification History (all roles) ──────────────────────────────
+     This panel shows all InAppNotification records for the current user.
+     When the page is opened with ?notif=ID (from the bell dropdown),
+     the matching notification is auto-scrolled to and its modal opens. -->
+<div class="card p-3 mt-4" id="inappPanel">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <div class="card-header rounded" style="display:inline-block">IN-APP NOTIFICATIONS</div>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px">Click any item to see full description</span>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm" onclick="loadInApp()" title="Refresh">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="markAllInAppRead()">
+        <i class="bi bi-check2-all me-1"></i>Mark all read
+      </button>
+    </div>
+  </div>
+  <div id="inappList"><p style="font-size:13px;color:var(--muted)">Loading...</p></div>
+</div>
+
+<!-- In-App Notification detail modal -->
+<div class="notif-modal-backdrop" id="inappModal" onclick="closeInappModalBackdrop(event)">
+  <div class="notif-modal" style="max-width:520px">
+    <!-- Fixed header: always visible even with very long description -->
+    <div class="modal-header-area">
+      <div class="d-flex align-items-start justify-content-between mb-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="notif-icon" id="iamIcon" style="width:48px;height:48px;font-size:22px"></div>
+          <div>
+            <div style="font-size:16px;font-weight:700;color:var(--text)" id="iamTitle"></div>
+            <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:3px" id="iamMeta"></div>
+          </div>
+        </div>
+        <!-- Close button always pinned at top right -->
+        <div class="modal-close-btn" onclick="closeInappModal()"><i class="bi bi-x-lg"></i></div>
+      </div>
+      <hr style="border-color:var(--border);margin:0 0 1rem">
+    </div>
+    <!-- Scrollable body: description can be any length -->
+    <div class="modal-body-area">
+      <div style="font-size:13.5px;color:var(--text);line-height:1.85;white-space:pre-wrap;word-break:break-word"
+           id="iamBody"></div>
+      <div class="mt-3" id="iamAction"></div>
+      <div class="mt-2" id="iamType"></div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -299,7 +389,7 @@ async function testPush() {
     if (perm === 'granted') {
       new Notification('CSE Smart System', {
         body: 'Push notifications are working correctly!',
-        icon: '/static/manifest.json',
+        icon: '/static/icons/icon-192.png',
       });
     }
   }
@@ -460,5 +550,150 @@ function showToast(msg, type) {
 initPush();
 loadLogs();
 loadActiveAlerts();
+
+// ── In-App Notifications ────────────────────────────────────────────────────
+let _inappNotifs = [];
+
+const inappIconMap = {
+  'bi-exclamation-triangle': { cls:'ic-danger',  color:'var(--danger)' },
+  'bi-x-circle':             { cls:'ic-danger',  color:'var(--danger)' },
+  'bi-check-circle':         { cls:'ic-success', color:'var(--accent)' },
+  'bi-check2-circle':        { cls:'ic-success', color:'var(--accent)' },
+  'bi-briefcase':            { cls:'ic-info',    color:'var(--accent2)' },
+  'bi-cpu':                  { cls:'ic-warning', color:'var(--warn)' },
+  'bi-megaphone':            { cls:'ic-info',    color:'var(--accent2)' },
+};
+
+function _inappIconStyle(icon, color) {
+  const entry = inappIconMap[icon];
+  const cls   = entry ? entry.cls : 'ic-info';
+  const col   = color || (entry ? entry.color : 'var(--accent2)');
+  return { cls, col };
+}
+
+async function loadInApp() {
+  try {
+    const res  = await fetch('/notify/api/mine');
+    const data = await res.json();
+    if (!data.success) return;
+    _inappNotifs = data.notifications || [];
+    renderInApp(_inappNotifs);
+
+    // ── Deep-link: if URL has ?notif=ID open that notification's modal ──
+    const params = new URLSearchParams(window.location.search);
+    const targetId = parseInt(params.get('notif'));
+    if (targetId) {
+      const idx = _inappNotifs.findIndex(n => n.id === targetId);
+      if (idx !== -1) {
+        // Small delay so the DOM is ready
+        setTimeout(() => {
+          const card = document.getElementById(`inapp-card-${targetId}`);
+          if (card) {
+            card.scrollIntoView({ behavior:'smooth', block:'center' });
+            card.classList.add('highlight-flash');
+          }
+          openInappModal(idx);
+          // Remove ?notif from URL so refreshing doesn't re-open it
+          const url = new URL(window.location);
+          url.searchParams.delete('notif');
+          history.replaceState({}, '', url);
+        }, 300);
+      }
+    }
+  } catch(e) {
+    document.getElementById('inappList').innerHTML =
+      '<p style="font-size:13px;color:var(--muted)">Could not load notifications.</p>';
+  }
+}
+
+function renderInApp(notifs) {
+  const el = document.getElementById('inappList');
+  if (!notifs.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted);padding:8px 0">No in-app notifications yet.</p>';
+    return;
+  }
+  el.innerHTML = notifs.map((n, idx) => {
+    const { cls, col } = _inappIconStyle(n.icon, n.color);
+    const time = new Date(n.created_at).toLocaleString('en-IN',
+      { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const preview = (n.body||'').length > 90 ? (n.body||'').slice(0,90)+'…' : (n.body||'No description.');
+    const unreadCls = n.is_read ? '' : 'unread';
+    const dotHtml = n.is_read ? '' : '<div style="width:8px;height:8px;border-radius:50%;background:var(--accent2);flex-shrink:0;margin-top:6px"></div>';
+    return `
+      <div class="inapp-card ${unreadCls}" id="inapp-card-${n.id}" onclick="openInappModal(${idx})">
+        <div class="notif-icon ${cls}" style="width:40px;height:40px;font-size:17px;flex-shrink:0">
+          <i class="bi ${n.icon||'bi-bell'}" style="color:${col}"></i>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="notif-title" style="font-weight:${n.is_read?'400':'600'};font-size:13.5px">${n.title}</div>
+          <div class="notif-body" style="font-size:12px;margin-top:3px;line-height:1.5">${preview}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:5px;font-family:'Space Mono',monospace">${time}</div>
+        </div>
+        ${dotHtml}
+      </div>`;
+  }).join('');
+}
+
+function openInappModal(idx) {
+  const n = _inappNotifs[idx];
+  if (!n) return;
+  const { cls, col } = _inappIconStyle(n.icon, n.color);
+  const time = new Date(n.created_at).toLocaleString('en-IN',
+    { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+  document.getElementById('iamIcon').className = `notif-icon ${cls}`;
+  document.getElementById('iamIcon').innerHTML = `<i class="bi ${n.icon||'bi-bell'}" style="color:${col};font-size:22px"></i>`;
+  document.getElementById('iamTitle').textContent = n.title;
+  document.getElementById('iamMeta').textContent  = time + (n.notif_type ? '  ·  ' + n.notif_type.replace(/_/g,' ').toUpperCase() : '');
+  document.getElementById('iamBody').textContent  = n.body || 'No additional details provided.';
+
+  // If there's a ref_url, show an action button
+  const actionEl = document.getElementById('iamAction');
+  if (n.ref_url) {
+    actionEl.innerHTML = `
+      <a href="${n.ref_url}" class="btn btn-sm"
+         style="background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.3);color:var(--accent2);font-size:12px">
+        <i class="bi bi-arrow-right-circle me-1"></i>View Details
+      </a>`;
+  } else {
+    actionEl.innerHTML = '';
+  }
+
+  // Show notification type pill
+  const typeEl = document.getElementById('iamType');
+  typeEl.innerHTML = n.notif_type
+    ? `<span class="channel-pill cp-email">${n.notif_type.replace(/_/g,' ').toUpperCase()}</span>`
+    : '';
+
+  document.getElementById('inappModal').classList.add('open');
+
+  // Mark as read in the UI (remove dot) and on server
+  const card = document.getElementById(`inapp-card-${n.id}`);
+  if (card) {
+    card.classList.remove('unread');
+    const dot = card.querySelector('[style*="border-radius:50%;background:var(--accent2)"]');
+    if (dot) dot.remove();
+    const titleEl = card.querySelector('.notif-title');
+    if (titleEl) titleEl.style.fontWeight = '400';
+  }
+  if (!n.is_read) {
+    n.is_read = true;  // prevent duplicate requests
+    fetch(`/notify/api/read/${n.id}`, { method:'POST' }).catch(()=>{});
+  }
+}
+
+function closeInappModal() { document.getElementById('inappModal').classList.remove('open'); }
+function closeInappModalBackdrop(e) { if (e.target.id === 'inappModal') closeInappModal(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeInappModal(); } });
+
+async function markAllInAppRead() {
+  await fetch('/notify/api/read-all', { method:'POST' }).catch(()=>{});
+  _inappNotifs.forEach(n => n.is_read = true);
+  renderInApp(_inappNotifs);
+  showToast('All notifications marked as read.', 'success');
+}
+
+// Load in-app notifications on page ready
+loadInApp();
 </script>
 {% endblock %}

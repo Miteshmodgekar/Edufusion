@@ -48,17 +48,30 @@ def dashboard():
 @login_required
 @admin_required
 def api_users():
-    users = User.query.order_by(User.role, User.name).all()
-    return jsonify({"success": True, "users": [u.to_dict() for u in users]})
+    # Fix #16: paginate instead of loading all users at once
+    page     = request.args.get("page",     1,   type=int)
+    per_page = request.args.get("per_page", 200, type=int)
+    per_page = min(per_page, 500)   # hard cap
+    pag  = User.query.order_by(User.role, User.name).paginate(
+        page=page, per_page=per_page, error_out=False)
+    return jsonify({
+        "success":  True,
+        "users":    [u.to_dict() for u in pag.items],
+        "total":    pag.total,
+        "page":     pag.page,
+        "pages":    pag.pages,
+    })
 
 
 @admin_bp.route("/user/<int:user_id>/toggle", methods=["POST"])
 @login_required
 @admin_required
 def toggle_user(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         return jsonify({"success": False, "message": "Cannot deactivate yourself."}), 400
+    if user.username == "admin":
+        return jsonify({"success": False, "message": "The System Administrator account cannot be disabled."}), 403
     user.is_active = not user.is_active
     db.session.commit()
     return jsonify({
@@ -78,9 +91,11 @@ def delete_user(user_id):
     the student has any attendance/leave/notification history (which,
     in practice, is almost always).
     """
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         return jsonify({"success": False, "message": "Cannot delete yourself."}), 400
+    if user.username == "admin":
+        return jsonify({"success": False, "message": "The System Administrator account cannot be deleted."}), 403
 
     name = user.name
     try:
@@ -136,6 +151,114 @@ def delete_user(user_id):
         return jsonify({"success": False, "message": f"Could not delete user: {e}"}), 500
 
     return jsonify({"success": True, "message": f"User '{name}' and all related records deleted."})
+
+
+# ── Transfer & Delete Staff ───────────────────────────────────────────────────
+
+@admin_bp.route("/user/<int:user_id>/transfer-delete", methods=["POST"])
+@login_required
+@admin_required
+def transfer_delete_user(user_id):
+    """
+    Safely delete a staff member by transferring all their responsibilities
+    to a replacement first, then deleting their account.
+
+    Transfers:
+      - mentee students (mentor_id → replacement)
+      - leave requests as mentor  (mentor_id → replacement)
+      - leave requests as HOD     (hod_id    → replacement)
+      - sheet registry uploads    (uploaded_by → replacement)
+      - placement drives posted   (posted_by   → replacement)
+
+    Then deletes the user's own attendance/leave/notification records
+    and finally the user account.
+    """
+    data           = request.get_json() or {}
+    replacement_id = data.get("replacement_id")
+
+    if not replacement_id:
+        return jsonify({"success": False, "message": "replacement_id is required."}), 400
+
+    user        = db.get_or_404(User, user_id)
+    replacement = db.session.get(User, replacement_id)
+
+    # Guards
+    if user.username == "admin":
+        return jsonify({"success": False, "message": "The System Administrator cannot be deleted."}), 403
+    if user.role == "student":
+        return jsonify({"success": False, "message": "Use the regular delete for students."}), 400
+    if not replacement:
+        return jsonify({"success": False, "message": "Replacement user not found."}), 404
+    if replacement.role == "student":
+        return jsonify({"success": False, "message": "Replacement must be a staff member, not a student."}), 400
+    if replacement.id == user_id:
+        return jsonify({"success": False, "message": "Replacement cannot be the same person."}), 400
+
+    name = user.name
+    uid  = user.id
+    rid  = replacement.id
+
+    try:
+        # ── 1. Reassign mentee students ──────────────────────────────────────
+        User.query.filter_by(mentor_id=uid).update(
+            {"mentor_id": rid}, synchronize_session=False)
+
+        # ── 2. Reassign leave requests (as mentor) ───────────────────────────
+        LeaveRequest.query.filter_by(mentor_id=uid).update(
+            {"mentor_id": rid}, synchronize_session=False)
+
+        # ── 3. Reassign leave requests (as HOD) ─────────────────────────────
+        LeaveRequest.query.filter_by(hod_id=uid).update(
+            {"hod_id": rid}, synchronize_session=False)
+
+        # ── 4. Reassign sheet registry uploads ──────────────────────────────
+        SheetRegistry.query.filter_by(uploaded_by=uid).update(
+            {"uploaded_by": rid}, synchronize_session=False)
+
+        # ── 5. Reassign placement drives ─────────────────────────────────────
+        PlacementDrive.query.filter_by(posted_by=uid).update(
+            {"posted_by": rid}, synchronize_session=False)
+
+        # ── 6. Delete this staff member's own data (not shared records) ──────
+        AttendanceRecord.query.filter_by(student_id=uid).delete(synchronize_session=False)
+        AttendanceSummary.query.filter_by(student_id=uid).delete(synchronize_session=False)
+
+        # Leave requests where this person was the *student* (unlikely for staff, but safe)
+        LeaveRequest.query.filter_by(student_id=uid).delete(synchronize_session=False)
+
+        # Drive applications
+        DriveApplication.query.filter_by(student_id=uid).delete(synchronize_session=False)
+
+        # Notifications
+        PushSubscription.query.filter_by(user_id=uid).delete(synchronize_session=False)
+        NotificationLog.query.filter_by(user_id=uid).delete(synchronize_session=False)
+        InAppNotification.query.filter_by(user_id=uid).delete(synchronize_session=False)
+
+        # Projects (guide role)
+        from models.placement import ProjectUpdate
+        project_ids = [p.id for p in Project.query.filter_by(guide_id=uid).all()]
+        if project_ids:
+            ProjectUpdate.query.filter(
+                ProjectUpdate.project_id.in_(project_ids)).delete(synchronize_session=False)
+        Project.query.filter_by(guide_id=uid).update(
+            {"guide_id": rid}, synchronize_session=False)
+
+        # ── 7. Delete the user ───────────────────────────────────────────────
+        db.session.delete(user)
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": f"Transfer failed: {e}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": (
+            f"'{name}' has been removed. "
+            f"All mentees, leave requests, uploads and drives have been "
+            f"transferred to {replacement.name}."
+        ),
+    })
 
 
 # ── Audit Log API ─────────────────────────────────────────────────────────────
@@ -279,19 +402,17 @@ def generate_report(report_type):
 
 @admin_bp.route("/mentors")
 @login_required
+@admin_required
 def mentors_page():
     """Mentor assignment admin page."""
-    if not current_user.is_admin:
-        return redirect(url_for("admin.dashboard"))
     return render_template("admin/mentors.html")
 
 
 @admin_bp.route("/api/mentors", methods=["GET"])
 @login_required
+@admin_required
 def api_mentors():
     """Return all faculty/HOD mentors with their mentee counts."""
-    if not current_user.is_admin:
-        return jsonify({"success": False}), 403
 
     # All possible mentors (faculty + hod)
     mentors = User.query.filter(
@@ -416,7 +537,7 @@ def impersonate(user_id):
     target = db.session.get(User, user_id)
     if not target:
         flash("User not found.", "danger")
-        return redirect(url_for("admin.users"))
+        return redirect(url_for("admin.dashboard"))
 
     from flask_login import login_user
     # Store the real admin's id so we can return later

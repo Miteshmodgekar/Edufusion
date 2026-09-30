@@ -2,12 +2,15 @@
 InternalMarks Model — VTU CIE Format.
 
 Subject Types:
-  ipcc_theory : Q1-Q4 (a,b,c,d) x 2 IAs, scaled to 25M, Assignment 25M
-                CIE = avg(IA1_scaled, IA2_scaled) + Assignment
-  cc_theory   : Q1-Q4 (a,b,c,d) x 2 IAs, scaled to 15M, Assignment 20M
-                CIE = IA1_scaled + IA2_scaled + Assignment
-  ipcc_lab    : Q1-Q4 x 2 IAs (scaled 15M) + Lab IA 25M + Assignment 10M
-                CIE = IA1_scaled + IA2_scaled + Lab IA + Assignment
+  ipcc_theory : Q1-Q4 (a,b,c,d) x 2 IAs, scaled to 25M, Assignment 10M, Lab 15M
+                CIE = avg(IA1_scaled, IA2_scaled) + Assignment(10) + lab_theory_scaled(15) = 50
+                      where lab_theory_scaled = lab_theory_raw(out of 50) × 15/50
+  cc_theory   : Q1-Q4 x 2 IAs, BOTH IAs summed (/100) then /4 = 25M max
+                CIE = CEIL((IA1_raw + IA2_raw) / 4) + Assignment + Seminar  = 50
+                      where Assignment + Seminar = 25M total
+  ipcc_lab    : Q1-Q4 x 2 IAs (each scaled to 25M via raw x 0.5), BEST IA kept
+                CIE = MAX(IA1_scaled, IA2_scaled)(25) + Assignment(10) + Lab(15) = 50
+                      where Lab = lab_ia_raw(out of 50) x 15/50
   cc_activity : Module 1-5 (20M each) = Total 100M
   cc_oe       : Gen 30M + CIE 20M = Total 50M
 
@@ -20,13 +23,14 @@ Structure per IA (for ipcc_theory / cc_theory / ipcc_lab):
 """
 from extensions import db
 from datetime import datetime, timezone, timedelta
+from sqlalchemy import UniqueConstraint  # Fix #7
 
 _IST = timezone(timedelta(hours=5, minutes=30))
 def _ist_now(): return datetime.now(_IST).replace(tzinfo=None)
 
 # Exported constants used by marks blueprint
 ASSIGN_MAX = {
-    'ipcc_theory': 25, 'cc_theory': 20, 'ipcc_lab': 10,
+    'ipcc_theory': 10, 'cc_theory': 20, 'ipcc_lab': 10,
     'cc_activity': 0,  'cc_oe': 0,
 }
 
@@ -36,25 +40,36 @@ def _q_total(a, b, c, d):
 
 
 # Scale factors: raw IA (out of 50) multiplied by this to get scaled mark
-# ipcc_lab = combined IPCC: best IA(15) + Assignment(10) + Lab IA(25) = 50
 _SCALE = {
-    'ipcc_theory': 25 / 50,
-    'cc_theory':   15 / 50,
-    'ipcc_lab':    15 / 50,   # each IA out of 50 → scaled to 15M
+    'ipcc_theory': 25 / 50,   # each IA out of 50 → scaled to 25M
+    'cc_theory':   15 / 50,   # display only; CIE uses CEIL((IA1+IA2)/4)
+    'ipcc_lab':    25 / 50,   # each IA out of 50 → scaled to 25M (best taken)
 }
 
 # Default max assignment marks per type
 _ASSIGN_MAX = {
-    'ipcc_theory': 25,
-    'cc_theory':   20,
+    'ipcc_theory': 10,   # Assignment 10M for IPCC Theory
+    'cc_theory':   25,   # Assignment + Seminar = 25M for CC Theory
     'ipcc_lab':    10,   # Assignment 10M for IPCC combined
     'cc_activity': 0,
     'cc_oe':       0,
+}
+# Public alias used by routes/marks.py
+ASSIGN_MAX = _ASSIGN_MAX
+
+# Max lab marks per type (where applicable)
+_LAB_MAX = {
+    'ipcc_theory': 15,   # Lab 15M for IPCC Theory
+    'ipcc_lab':    15,   # Lab IA 15M for IPCC combined (scaled from /50)
 }
 
 
 class InternalMarks(db.Model):
     __tablename__ = "internal_marks"
+    # Fix #7: prevent duplicate mark records for the same student+subject+semester
+    __table_args__ = (
+        UniqueConstraint("student_id", "subject", "semester", name="uq_marks_student_subject_sem"),
+    )
 
     id            = db.Column(db.Integer, primary_key=True)
     student_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
@@ -114,8 +129,13 @@ class InternalMarks(db.Model):
     max_assignment = db.Column(db.Float, default=10.0)
     remarks        = db.Column(db.Text,  nullable=True)
 
+    # ── Lab marks (ipcc_theory type) ──────────────────────────────────────────
+    lab_theory = db.Column(db.Float, nullable=True)  # Raw lab marks out of 50 (IPCC Theory)
+                                                      # Scaled to 15M via × 15/50
+
     # ── Lab IA (ipcc_lab type — BCS303 style) ─────────────────────────────────
-    lab_ia = db.Column(db.Float, nullable=True)   # Lab IA marks out of 25
+    lab_ia = db.Column(db.Float, nullable=True)   # Raw Lab IA marks out of 50 (IPCC Lab)
+                                                   # Scaled to 15M via × 15/50 = × 0.3
 
     # ── Activity Modules (cc_activity type — BSCK307 style) ──────────────────
     mod1 = db.Column(db.Float, nullable=True)   # Module 1 — max 20
@@ -156,19 +176,50 @@ class InternalMarks(db.Model):
 
     @property
     def ia1_scaled(self):
-        return round((self.ia1_total or 0) * self._sf, 1)
+        """Individual IA1 scaled mark (full precision). CC Theory uses combined formula in total_cie."""
+        st = self.subject_type or 'cc_theory'
+        if st == 'cc_theory':
+            return (self.ia1_total or 0) / 2  # display only; CIE uses combined /4
+        return (self.ia1_total or 0) * self._sf
 
     @property
     def ia2_scaled(self):
-        return round((self.ia2_total or 0) * self._sf, 1)
+        """Individual IA2 scaled mark (full precision). CC Theory uses combined formula in total_cie."""
+        st = self.subject_type or 'cc_theory'
+        if st == 'cc_theory':
+            return (self.ia2_total or 0) / 2  # display only; CIE uses combined /4
+        return (self.ia2_total or 0) * self._sf
+
+    @property
+    def cc_theory_ia_scaled(self):
+        """CC Theory combined IA scaled: CEILING((IA1_raw + IA2_raw) / 4, 1) → max 25M."""
+        import math
+        total_raw = (self.ia1_total or 0) + (self.ia2_total or 0)
+        return math.ceil(total_raw / 4)  # max 25 when both IAs = 50
 
     @property
     def scale_to(self):
+        """Max scaled mark for a SINGLE IA display. For cc_theory the CIE uses (IA1+IA2)/4."""
         st = self.subject_type or 'cc_theory'
         if st == 'ipcc_theory': return 25
-        if st == 'ipcc_lab':    return 15   # each IA scaled to 15M
-        if st == 'cc_theory':   return 15
+        if st == 'ipcc_lab':    return 25   # each IA scaled to 25M (best taken for CIE)
+        if st == 'cc_theory':   return 25   # combined (IA1+IA2)/4 max = 25M
         return 0
+
+    @property
+    def lab_theory_max(self):
+        """Max lab marks for ipcc_theory (15M)."""
+        return _LAB_MAX.get(self.subject_type or 'cc_theory', 0)
+
+    @property
+    def lab_theory_scaled(self):
+        """Scaled lab marks for ipcc_theory: raw(out of 50) × 15/50, rounded to 1dp."""
+        return round((self.lab_theory or 0) * 15 / 50, 1)
+
+    @property
+    def lab_ia_scaled(self):
+        """Scaled Lab IA for ipcc_lab: raw(out of 50) × 15/50, rounded to 1dp."""
+        return round((self.lab_ia or 0) * 15 / 50, 1)
 
     def recompute_totals(self):
         st = self.subject_type or 'cc_theory'
@@ -181,13 +232,15 @@ class InternalMarks(db.Model):
         st = self.subject_type or 'cc_theory'
         if st == 'ipcc_theory':
             avg = round((self.ia1_scaled + self.ia2_scaled) / 2, 1)
-            return round(avg + (self.assignment or 0), 2)
+            return round(avg + (self.assignment or 0) + self.lab_theory_scaled, 2)
         elif st == 'cc_theory':
-            return round(self.ia1_scaled + self.ia2_scaled + (self.assignment or 0), 2)
+            # Formula: CEILING((IA1_raw + IA2_raw) / 4, 1) + Assignment + Seminar = 50
+            # assignment field stores Assignment + Seminar combined (max 25M)
+            return round(self.cc_theory_ia_scaled + (self.assignment or 0), 2)
         elif st == 'ipcc_lab':
-            # Combined IPCC: best IA(15) + Assignment(10) + Lab IA(25) = 50 max
+            # Combined IPCC: best IA(15) + Assignment(10) + Lab IA scaled(25) = 50 max
             best_ia = max(self.ia1_scaled, self.ia2_scaled)
-            return round(best_ia + (self.assignment or 0) + (self.lab_ia or 0), 2)
+            return round(best_ia + (self.assignment or 0) + self.lab_ia_scaled, 2)
         elif st == 'cc_activity':
             return round(sum((getattr(self, f'mod{i}') or 0) for i in range(1, 6)), 2)
         elif st == 'cc_oe':
@@ -242,8 +295,12 @@ class InternalMarks(db.Model):
                 "ia2_parta": self.ia2_parta(), "ia2_partb": self.ia2_partb(),
                 "ia2_total": self.ia2_total or 0, "ia2_scaled": self.ia2_scaled,
             })
-            if st == 'ipcc_lab':
-                base["lab_ia"] = self.lab_ia
+            if st == 'ipcc_theory':
+                base["lab_theory"]        = self.lab_theory        # raw out of 50
+                base["lab_theory_scaled"] = self.lab_theory_scaled  # scaled to 15M
+            elif st == 'ipcc_lab':
+                base["lab_ia"]        = self.lab_ia         # raw out of 50
+                base["lab_ia_scaled"] = self.lab_ia_scaled   # scaled to 25M
         elif st == 'cc_activity':
             for i in range(1, 6):
                 base[f'mod{i}'] = getattr(self, f'mod{i}')

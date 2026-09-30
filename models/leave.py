@@ -60,8 +60,9 @@ class LeaveRequest(db.Model):
         # Lazy-import to avoid circular dependencies
         from models.user import User
         from models.attendance import AttendanceSummary
+        from extensions import db as _db
 
-        student = User.query.get(self.student_id)
+        student = _db.session.get(User, self.student_id)
 
         # Overall attendance % (average across subjects)
         attendance_pct = 0.0
@@ -113,5 +114,6 @@ class LeaveRequest(db.Model):
 
             # Proof document
             "has_proof":           bool(self.proof_filename),
+            "proof_filename":      self.proof_filename or "",
             "proof_original_name": self.proof_original_name or "",
         }

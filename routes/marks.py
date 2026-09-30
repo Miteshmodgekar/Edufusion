@@ -1,9 +1,10 @@
 """Marks Blueprint — VTU CIE marks management.
 
 Supports 5 subject types matching the college Excel format:
-  ipcc_theory  : Q1-Q4 (a,b,c,d) x2 IAs, scale to 25M, Assign 25M
-  cc_theory    : Q1-Q4 (a,b,c,d) x2 IAs, scale to 15M, Assign 20M
-  ipcc_lab     : Q1-Q4 x2 IAs (15M) + Lab IA 25M + Assign 10M
+  ipcc_theory  : Q1-Q4 (a,b,c,d) x2 IAs, scale to 25M, Assign 10M, Lab 15M
+  cc_theory    : Q1-Q4 (a,b,c,d) x2 IAs, CEIL((IA1+IA2)/4) = 25M, Asgn+Seminar 25M
+  ipcc_lab     : Q1-Q4 x2 IAs (25M each, best kept), Assign 10M, Lab IA 15M (raw/50 ×0.3)
+                 CIE = best IA(25) + Assign(10) + Lab(15) = 50M
   cc_activity  : Module 1-5 (20M each)
   cc_oe        : Gen 30M + CIE 20M
 
@@ -11,7 +12,7 @@ Two entry modes:
   1. Excel upload (download template → fill → upload)
   2. Direct in-app entry (like attendance — no Excel needed)
 """
-from flask import Blueprint, request, jsonify, render_template, send_file
+from flask import Blueprint, request, jsonify, render_template, send_file, redirect, url_for
 from flask_login import login_required, current_user
 from extensions import db
 from models.internal_marks import InternalMarks, _q_total, ASSIGN_MAX
@@ -41,7 +42,7 @@ TYPE_LABELS = {
     'cc_oe':       'CC — Open Elective',
 }
 
-SCALE_MAX = {'ipcc_theory': 25, 'cc_theory': 15, 'ipcc_lab': 15}
+SCALE_MAX = {'ipcc_theory': 25, 'cc_theory': 25, 'ipcc_lab': 25}  # IA scaled max per type
 
 # ── Style helpers ─────────────────────────────────────────────────────────────
 
@@ -74,16 +75,21 @@ def _sc(ws, coord, val=None, fill=None, font=None, align=None, border=None):
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
 @marks_bp.route("/", methods=["GET"])
+@marks_bp.route("/entry", methods=["GET"])
 @login_required
 def entry_page():
-    if not _fac_ok(): return jsonify({"error": "Forbidden"}), 403
-    return render_template("marks/entry.html")
+    """Redirect /marks/ and /marks/entry to the unified direct entry page."""
+    if not _fac_ok():
+        return redirect(url_for("dashboard.index"))
+    return redirect(url_for("marks.direct_page"))
 
 @marks_bp.route("/direct", methods=["GET"])
 @login_required
 def direct_page():
-    if not _fac_ok(): return jsonify({"error": "Forbidden"}), 403
+    if not _fac_ok():
+        return redirect(url_for("dashboard.index"))
     return render_template("marks/direct.html")
+
 
 @marks_bp.route("/my", methods=["GET"])
 @login_required
@@ -298,7 +304,9 @@ def api_save():
                             attr = f"{ia}_{q}_{sub}"
                             setattr(rec, attr, _f(row.get(attr)))
                 rec.assignment = _f(row.get("assignment"))
-                if subject_type == 'ipcc_lab':
+                if subject_type == 'ipcc_theory':
+                    rec.lab_theory = _f(row.get("lab_theory"))
+                elif subject_type == 'ipcc_lab':
                     rec.lab_ia = _f(row.get("lab_ia"))
                 rec.recompute_totals()
 
@@ -313,6 +321,11 @@ def api_save():
             db.session.add(rec)
             saved += 1
         except Exception as e:
+            # Fix #19: expunge the failed object so it doesn't get committed in the bulk commit
+            try:
+                db.session.expunge(rec)
+            except Exception:
+                pass
             errors.append(f"Student {student_id}: {e}")
 
     try:
@@ -401,8 +414,9 @@ def _build_q1q4_excel(students, existing, subject, code, semester, section, ay,
     HDR, Q1F, Q2F, Q3F, Q4F, TOTF, LABF, MODF, FW, FB, CTR, BRD = _mk_styles()
     scale   = SCALE_MAX.get(subject_type, 15)
     asgn    = ASSIGN_MAX.get(subject_type, 20)
-    has_lab = (subject_type == 'ipcc_lab')
-    last_col = "BA" if has_lab else "AZ"
+    has_lab        = (subject_type == 'ipcc_lab')
+    has_lab_theory = (subject_type == 'ipcc_theory')
+    last_col = "BA" if (has_lab or has_lab_theory) else "AZ"
 
     wb = Workbook(); ws = wb.active; ws.title = "CIE_Marks"
     ws.merge_cells(f"A1:{last_col}1")
@@ -427,7 +441,8 @@ def _build_q1q4_excel(students, existing, subject, code, semester, section, ay,
                       ("AX2","Total Marks\nOut of 50"),("AY2",f"Scaled Down\nto {scale} M")]:
         _sc(ws, col, val=lbl, fill=TOTF, font=FB, align=CTR)
     _sc(ws, "AZ2", val=f"Assignment\n({asgn})", fill=TOTF, font=FB, align=CTR)
-    if has_lab: _sc(ws, "BA2", val="LAB IA\nMarks (25)", fill=LABF, font=FB, align=CTR)
+    if has_lab: _sc(ws, "BA2", val="LAB IA Raw\n(/50 \u2192 15M)", fill=LABF, font=FB, align=CTR)
+    if has_lab_theory: _sc(ws, "BA2", val="Lab Marks Raw\n(/50 \u2192 15M)", fill=LABF, font=FB, align=CTR)
     ws.row_dimensions[2].height = 32
 
     q_groups_ia1 = [("C3","F3","Question No. 1"),("G3","J3","Question No. 2"),
@@ -442,6 +457,7 @@ def _build_q1q4_excel(students, existing, subject, code, semester, section, ay,
                 "AA3","AR3","AS3","AT3","AU3","AV3","AW3","AX3","AY3","AZ3"]:
         _sc(ws, col, val="", fill=HDR, font=FW, align=CTR, border=BRD)
     if has_lab: _sc(ws, "BA3", val="", fill=LABF, font=FB, align=CTR, border=BRD)
+    if has_lab_theory: _sc(ws, "BA3", val="", fill=LABF, font=FB, align=CTR, border=BRD)
     ws.row_dimensions[3].height = 18
 
     ia1_sub = {"C":"a","D":"b","E":"c","F":"d","G":"a","H":"b","I":"c","J":"d",
@@ -463,6 +479,7 @@ def _build_q1q4_excel(students, existing, subject, code, semester, section, ay,
                 "AA4","AR4","AS4","AT4","AU4","AV4","AW4","AX4","AY4","AZ4"]:
         _sc(ws, col, val="", fill=HDR, font=FW, align=CTR, border=BRD)
     if has_lab: _sc(ws, "BA4", val="", fill=LABF, font=FB, align=CTR, border=BRD)
+    if has_lab_theory: _sc(ws, "BA4", val="", fill=LABF, font=FB, align=CTR, border=BRD)
     ws.row_dimensions[4].height = 14
 
     ws["A5"] = "DATE: "; ws["A6"] = "Course Outcomes"
@@ -481,7 +498,8 @@ def _build_q1q4_excel(students, existing, subject, code, semester, section, ay,
         ws.column_dimensions[col].width = 5
     for col in ["S","T","U","V","W","X","Y","Z","AR","AS","AT","AU","AV","AW","AX","AY","AZ"]:
         ws.column_dimensions[col].width = 9
-    if has_lab: ws.column_dimensions["BA"].width = 11
+    if has_lab:        ws.column_dimensions["BA"].width = 11
+    if has_lab_theory: ws.column_dimensions["BA"].width = 11
 
     ia1_cols = {"C":"ia1_q1_a","D":"ia1_q1_b","E":"ia1_q1_c","F":"ia1_q1_d",
                 "G":"ia1_q2_a","H":"ia1_q2_b","I":"ia1_q2_c","J":"ia1_q2_d",
@@ -505,22 +523,30 @@ def _build_q1q4_excel(students, existing, subject, code, semester, section, ay,
             _sc(ws, f"{col}{r}", val=getattr(m, attr, None) if m else None, fill=col_fill_map[col], align=CTR, border=BRD)
         for col, attr in ia2_cols.items():
             _sc(ws, f"{col}{r}", val=getattr(m, attr, None) if m else None, fill=col_fill_map[col], align=CTR, border=BRD)
+        # CC Theory: Z = CEILING((IA1+IA2)/4,1); AY = IA2 raw
+        z_f  = (f"=CEILING((Y{r}+AX{r})/4,1)" if subject_type == "cc_theory"
+                else f"=ROUND(Y{r}*{scale}/50,1)")
+        ay_f = (f"=AX{r}" if subject_type == "cc_theory"
+                else f"=ROUND(AX{r}*{scale}/50,1)")
         for f_col, formula in [("S",f"=SUM(C{r}:F{r})"),("T",f"=SUM(G{r}:J{r})"),
                                  ("U",f"=SUM(K{r}:N{r})"),("V",f"=SUM(O{r}:R{r})"),
                                  ("W",f"=MAX(S{r},T{r})"),("X",f"=MAX(U{r},V{r})"),
-                                 ("Y",f"=W{r}+X{r}"),("Z",f"=ROUND(Y{r}*{scale}/50,1)")]:
+                                 ("Y",f"=W{r}+X{r}"),("Z", z_f)]:
             ws[f"{f_col}{r}"] = formula
             _sc(ws, f"{f_col}{r}", fill=TOTF, font=Font(bold=True, size=9), align=CTR, border=BRD)
         for f_col, formula in [("AR",f"=SUM(AB{r}:AE{r})"),("AS",f"=SUM(AF{r}:AI{r})"),
                                  ("AT",f"=SUM(AJ{r}:AM{r})"),("AU",f"=SUM(AN{r}:AQ{r})"),
                                  ("AV",f"=MAX(AR{r},AS{r})"),("AW",f"=MAX(AT{r},AU{r})"),
-                                 ("AX",f"=AV{r}+AW{r}"),("AY",f"=ROUND(AX{r}*{scale}/50,1)")]:
+                                 ("AX",f"=AV{r}+AW{r}"),("AY", ay_f)]:
             ws[f"{f_col}{r}"] = formula
             _sc(ws, f"{f_col}{r}", fill=TOTF, font=Font(bold=True, size=9), align=CTR, border=BRD)
         ws[f"AZ{r}"] = m.assignment if m else None
         _sc(ws, f"AZ{r}", fill=TOTF, font=Font(bold=True, size=9), align=CTR, border=BRD)
         if has_lab:
             ws[f"BA{r}"] = m.lab_ia if m else None
+            _sc(ws, f"BA{r}", fill=LABF, font=Font(bold=True, size=9), align=CTR, border=BRD)
+        if has_lab_theory:
+            ws[f"BA{r}"] = m.lab_theory if m else None
             _sc(ws, f"BA{r}", fill=LABF, font=Font(bold=True, size=9), align=CTR, border=BRD)
         ws.row_dimensions[r].height = 16
 
@@ -651,7 +677,8 @@ def _get_or_create_record(usn, roll, subject, semester):
 
 
 def _parse_q1q4(ws, subject, subject_code, semester, section, academic_year, subject_type):
-    has_lab  = (subject_type == 'ipcc_lab')
+    has_lab        = (subject_type == 'ipcc_lab')
+    has_lab_theory = (subject_type == 'ipcc_theory')
     asgn_max = ASSIGN_MAX.get(subject_type, 20)
     ia1_map  = {"C":"ia1_q1_a","D":"ia1_q1_b","E":"ia1_q1_c","F":"ia1_q1_d",
                 "G":"ia1_q2_a","H":"ia1_q2_b","I":"ia1_q2_c","J":"ia1_q2_d",
@@ -675,6 +702,7 @@ def _parse_q1q4(ws, subject, subject_code, semester, section, academic_year, sub
             for col, attr in ia2_map.items(): setattr(rec, attr, _f(ws[f"{col}{row}"].value))
             rec.assignment = _f(ws[f"AZ{row}"].value)
             if has_lab: rec.lab_ia = _f(ws[f"BA{row}"].value)
+            if has_lab_theory: rec.lab_theory = _f(ws[f"BA{row}"].value)
             rec.recompute_totals(); db.session.add(rec); saved += 1
         except Exception as e: errors.append(f"Row {row}: {e}")
     return saved, errors
@@ -730,4 +758,184 @@ def api_roster():
              .order_by(User.roll_number).all())
     return jsonify({"success": True, "rows": [m.to_dict() for m in marks],
                     "total": len(marks)})
+
+
+# ── Download Marks Report (Excel) ─────────────────────────────────────────────
+
+@marks_bp.route("/api/report", methods=["GET"])
+@login_required
+def api_report():
+    """Download a formatted Excel report: marks by subject / semester / section."""
+    if not _fac_ok():
+        return jsonify({"error": "Forbidden"}), 403
+
+    subject      = request.args.get("subject",      "").strip()
+    semester     = request.args.get("semester",     type=int)
+    section      = request.args.get("section",      "").strip()
+    academic_year = request.args.get("academic_year", "").strip()
+
+    if not (subject and semester and section):
+        return jsonify({"error": "subject, semester and section are required"}), 400
+
+    marks = (InternalMarks.query
+             .filter_by(subject=subject, semester=semester, section=section)
+             .join(User, InternalMarks.student_id == User.id)
+             .order_by(User.roll_number).all())
+
+    # ── Build workbook ────────────────────────────────────────────────────────
+    wb  = Workbook()
+    ws  = wb.active
+    ws.title = f"Sem{semester}-{section}"
+
+    HDR  = PatternFill("solid", fgColor="1F3864")
+    SUBHDR = PatternFill("solid", fgColor="2D5016")
+    ROW1 = PatternFill("solid", fgColor="D9EAD3")
+    ROW2 = PatternFill("solid", fgColor="CFE2F3")
+    TOTF = PatternFill("solid", fgColor="FFF2CC")
+    CIEFILL = PatternFill("solid", fgColor="FFD966")
+    PASS_FILL = PatternFill("solid", fgColor="C6EFCE")
+    FAIL_FILL = PatternFill("solid", fgColor="FFC7CE")
+
+    FW   = Font(bold=True, color="FFFFFF", size=10)
+    FWG  = Font(bold=True, color="FFFFFF", size=10)
+    FB   = Font(bold=True, color="1F3864", size=10)
+    FBK  = Font(bold=True, color="000000", size=9)
+    CTR  = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    LEFT = Alignment(horizontal="left", vertical="center")
+    thin = Side(style="thin")
+    med  = Side(style="medium")
+    BRD  = Border(left=thin, right=thin, top=thin, bottom=thin)
+    MBRD = Border(left=med,  right=med,  top=med,  bottom=med)
+
+    def sc(coord, val=None, fill=None, font=None, align=None, border=None):
+        c = ws[coord]
+        if val  is not None: c.value = val
+        if fill:  c.fill   = fill
+        if font:  c.font   = font
+        if align: c.alignment = align
+        if border: c.border = border
+        return c
+
+    # ── Row 1: Report title ───────────────────────────────────────────────────
+    ws.merge_cells("A1:L1")
+    title_text = f"Internal Marks Report — {subject}  |  Sem {semester}  |  Section {section}"
+    if academic_year:
+        title_text += f"  |  {academic_year}"
+    sc("A1", val=title_text,
+       fill=PatternFill("solid", fgColor="1A3A5C"),
+       font=Font(bold=True, color="FFFFFF", size=13),
+       align=CTR, border=BRD)
+    ws.row_dimensions[1].height = 28
+
+    # ── Row 2: Subject type info ──────────────────────────────────────────────
+    ws.merge_cells("A2:L2")
+    st_label = ""
+    if marks:
+        st_label = TYPE_LABELS.get(marks[0].subject_type or "cc_theory", "")
+    sc("A2", val=f"Subject Type: {st_label}    Generated: {datetime.now().strftime('%d %b %Y, %I:%M %p')}",
+       fill=PatternFill("solid", fgColor="2C4770"),
+       font=Font(bold=False, color="CCDDFF", size=9),
+       align=CTR, border=BRD)
+    ws.row_dimensions[2].height = 16
+
+    # ── Row 3: blank spacer ───────────────────────────────────────────────────
+    ws.row_dimensions[3].height = 6
+
+    # ── Row 4: Column headers ─────────────────────────────────────────────────
+    headers = [
+        ("A4", "SL\nNO",       8),
+        ("B4", "USN / Roll",   18),
+        ("C4", "Student Name", 28),
+        ("D4", "IA 1\nRaw (/50)", 12),
+        ("E4", "IA 1\nScaled",    11),
+        ("F4", "IA 2\nRaw (/50)", 12),
+        ("G4", "IA 2\nScaled",    11),
+        ("H4", "Assignment",   12),
+        ("I4", "Lab IA\n(/25)", 11),
+        ("J4", "CIE\nTotal",   11),
+        ("K4", "Max\nMarks",   10),
+        ("L4", "Status",       11),
+    ]
+    for coord, label, width in headers:
+        col_letter = coord[0]
+        ws.column_dimensions[col_letter].width = width
+        sc(coord, val=label, fill=HDR, font=FW, align=CTR, border=BRD)
+    ws.row_dimensions[4].height = 32
+
+    # ── Data rows ─────────────────────────────────────────────────────────────
+    for i, m in enumerate(marks, 1):
+        r   = i + 4
+        st  = m.student
+        stype = m.subject_type or "cc_theory"
+        row_fill = ROW1 if i % 2 == 0 else None
+
+        cia_max = {"ipcc_theory": 50, "cc_theory": 50,
+                   "ipcc_lab": 50, "cc_activity": 100, "cc_oe": 50}.get(stype, 50)
+
+        cie = m.total_cie
+        status = "PASS" if cie >= cia_max * 0.4 else "FAIL"
+        sfill  = PASS_FILL if status == "PASS" else FAIL_FILL
+        sfont  = Font(bold=True, color="276221" if status == "PASS" else "9C0006", size=9)
+
+        cells = [
+            ("A", i, row_fill, FBK, CTR),
+            ("B", st.roll_number or st.username or "—", row_fill, Font(size=9, name="Courier New"), CTR),
+            ("C", st.name if st else "—", row_fill, Font(size=9), LEFT),
+            ("D", m.ia1_total or "—", row_fill, Font(size=9), CTR),
+            ("E", m.ia1_scaled, row_fill, Font(size=9), CTR),
+            ("F", m.ia2_total or "—", row_fill, Font(size=9), CTR),
+            ("G", m.ia2_scaled, row_fill, Font(size=9), CTR),
+            ("H", m.assignment if m.assignment is not None else "—", row_fill, Font(size=9), CTR),
+            ("I", m.lab_ia if m.lab_ia is not None else ("—" if stype != "ipcc_lab" else 0), row_fill, Font(size=9), CTR),
+            ("J", cie, CIEFILL, Font(bold=True, size=10, color="7B3F00"), CTR),
+            ("K", cia_max, row_fill, Font(size=9, color="666666"), CTR),
+            ("L", status, sfill, sfont, CTR),
+        ]
+
+        for col, val, fill, font, align in cells:
+            c = ws[f"{col}{r}"]
+            c.value  = val
+            if fill:  c.fill   = fill
+            if font:  c.font   = font
+            c.alignment = align
+            c.border = BRD
+
+        ws.row_dimensions[r].height = 16
+
+    # ── Summary row ───────────────────────────────────────────────────────────
+    if marks:
+        sr = len(marks) + 5
+        ws.merge_cells(f"A{sr}:C{sr}")
+        sc(f"A{sr}", val=f"Total Students: {len(marks)}",
+           fill=PatternFill("solid", fgColor="EAF0FB"),
+           font=Font(bold=True, size=10), align=LEFT, border=BRD)
+
+        cie_vals = [m.total_cie for m in marks if m.total_cie is not None]
+        avg_cie  = round(sum(cie_vals) / len(cie_vals), 1) if cie_vals else 0
+        pass_cnt = sum(1 for m in marks if m.total_cie >= 20)
+
+        sc(f"J{sr}", val=f"Avg: {avg_cie}",
+           fill=PatternFill("solid", fgColor="FFF0A0"),
+           font=Font(bold=True, size=9, color="7B3F00"), align=CTR, border=BRD)
+        sc(f"L{sr}", val=f"Pass: {pass_cnt}/{len(marks)}",
+           fill=PatternFill("solid", fgColor="C6EFCE"),
+           font=Font(bold=True, size=9, color="276221"), align=CTR, border=BRD)
+        ws.row_dimensions[sr].height = 18
+
+    ws.freeze_panes = "D5"
+
+    # ── Send file ─────────────────────────────────────────────────────────────
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    safe_subj = "".join(c if c.isalnum() or c in "-_ " else "_" for c in subject).strip()
+    filename  = f"Marks_{safe_subj}_Sem{semester}_{section}.xlsx"
+
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 

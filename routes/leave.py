@@ -75,18 +75,24 @@ def apply():
         return jsonify({"success": False,
                         "message": "End date must be after start date."}), 400
 
-    # ── Next-day cutoff rule ─────────────────────────────────────────────────
-    # A leave that starts tomorrow must be submitted before 2:00 PM today
-    # (college local time); after the cutoff it's too late for approvals to
-    # process in time, so the request is rejected outright.
+    # ── Next-day AND same-day cutoff rule ──────────────────────────────────────
+    # Fix #18: Also block same-day leaves submitted after classes have ended (2 PM).
+    # A leave that starts tomorrow must be submitted before 2:00 PM today.
+    # A leave that starts today must also be submitted before 2:00 PM today.
     now_local = datetime.now(COLLEGE_TZ)
     tomorrow_local = now_local.date() + timedelta(days=1)
-    if from_date == tomorrow_local and now_local.time() >= NEXT_DAY_LEAVE_CUTOFF:
+    today_local    = now_local.date()
+    is_too_late = (
+        (from_date == tomorrow_local or from_date == today_local)
+        and now_local.time() >= NEXT_DAY_LEAVE_CUTOFF
+    )
+    if is_too_late:
+        day_label = "today's" if from_date == today_local else "tomorrow's"
         return jsonify({
             "success": False,
             "message": (
-                "Too late to apply for tomorrow's leave. Requests for the next "
-                "day must be submitted before 2:00 PM today — this one is past "
+                f"Too late to apply for {day_label} leave. Requests for the current "
+                "or next day must be submitted before 2:00 PM — this one is past "
                 "that cutoff and won't be considered. Please contact your "
                 "mentor directly if it's urgent."
             ),
@@ -219,7 +225,7 @@ def mentor_action(leave_id):
     if not (current_user.is_faculty or current_user.is_hod):
         return jsonify({"success": False, "message": "Access denied."}), 403
 
-    leave   = LeaveRequest.query.get_or_404(leave_id)
+    leave   = db.get_or_404(LeaveRequest, leave_id)
     data    = request.get_json() or {}
     action  = data.get("action", "")
     comment = data.get("comment", "").strip()
@@ -229,7 +235,12 @@ def mentor_action(leave_id):
         return jsonify({"success": False,
                         "message": "This leave has already been reviewed by mentor."}), 400
 
-    # Assign this faculty as mentor if not already
+    # Fix #9: enforce mentor assignment — faculty can only act on leaves they are
+    # designated mentor for. Unassigned leaves should NOT be claimable by any faculty.
+    if leave.mentor_id and leave.mentor_id != current_user.id:
+        return jsonify({"success": False,
+                        "message": "Access denied. You are not the assigned mentor for this leave."}), 403
+    # Only set mentor_id if truly unassigned (no designated mentor)
     if not leave.mentor_id:
         leave.mentor_id = current_user.id
 
@@ -285,19 +296,32 @@ def api_hod_pending():
 
     filter_mode = request.args.get("filter", "pending")   # pending | all
 
+    # Fix #8: filter by HOD's department so they only see their own students' leaves
+    hod_dept = current_user.department
     query = (LeaveRequest.query
              .filter(LeaveRequest.mentor_status == "approved"))
+    if hod_dept:
+        # Join to User so we can filter by the student's department
+        from models.user import User as _User
+        student_ids_in_dept = [
+            u.id for u in _User.query.filter_by(role="student", department=hod_dept).all()
+        ]
+        query = query.filter(LeaveRequest.student_id.in_(student_ids_in_dept))
 
     if filter_mode == "pending":
         query = query.filter(LeaveRequest.hod_status == "pending")
 
     leaves = query.order_by(LeaveRequest.created_at.desc()).all()
 
+    # Fix #8: also scope the pending count to this HOD's department
+    pending_base = LeaveRequest.query.filter_by(mentor_status="approved", hod_status="pending")
+    if hod_dept:
+        pending_base = pending_base.filter(LeaveRequest.student_id.in_(student_ids_in_dept))
+
     return jsonify({
         "success": True,
         "leaves":  [l.to_dict() for l in leaves],
-        "pending": LeaveRequest.query.filter_by(
-            mentor_status="approved", hod_status="pending").count(),
+        "pending": pending_base.count(),
     })
 
 
@@ -307,7 +331,7 @@ def hod_action(leave_id):
     if not current_user.is_hod:
         return jsonify({"success": False, "message": "Access denied."}), 403
 
-    leave   = LeaveRequest.query.get_or_404(leave_id)
+    leave   = db.get_or_404(LeaveRequest, leave_id)
     data    = request.get_json() or {}
     action  = data.get("action", "")
     comment = data.get("comment", "").strip()
@@ -324,6 +348,8 @@ def hod_action(leave_id):
 
     if not leave.hod_id:
         leave.hod_id = current_user.id
+
+    adj_result = {}  # Fix #10: always initialise so it's defined in all code paths
 
     if action == "approve":
         leave.hod_status  = "approved"
@@ -345,8 +371,7 @@ def hod_action(leave_id):
                             .count())
 
         if existing_records > 0 or leave.to_date <= today_local:
-            # Attendance already marked — adjust immediately
-            db.session.commit()  # save hod approval first
+            # Attendance already marked — adjust immediately (no early commit needed)
             adj_result = _adjust_attendance(leave)
         else:
             # Future leave — defer to scheduler
@@ -597,7 +622,7 @@ def process_pending_leave_adjustments():
     leave dates, then credits only those subjects.
     """
     from flask import current_app
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
 
     due_leaves = (LeaveRequest.query
                   .filter_by(status="approved", attendance_adjusted=False)
@@ -691,7 +716,7 @@ def _adjust_attendance(leave):
                 summary.total_classes    = total
                 summary.attendance_pct   = pct
                 summary.is_defaulter     = pct < 85.0
-                summary.required_classes = summary.calculate_required_classes()
+                summary.required_classes = summary.calculate_required_classes(85.0)
                 adjusted_subjects[subject] = {
                     "present": present, "absent": absent, "total": total, "pct": pct,
                 }
@@ -699,7 +724,7 @@ def _adjust_attendance(leave):
     else:
         # ── Strategy 2: SMART summary-level fallback ──────────────────────────
         from models.user import User as _User
-        student = _User.query.get(leave.student_id)
+        student = db.session.get(_User, leave.student_id)
         student_semester = student.semester if student else None
         student_section  = student.section  if student else None
 
@@ -764,7 +789,7 @@ def _adjust_attendance(leave):
                 s.attendance_pct   = round(
                     (s.classes_attended / s.total_classes) * 100, 2)
                 s.is_defaulter     = s.attendance_pct < 85.0
-                s.required_classes = s.calculate_required_classes()
+                s.required_classes = s.calculate_required_classes(85.0)
             adjusted_subjects[s.subject] = {
                 "before":              before,
                 "after":               s.classes_attended,

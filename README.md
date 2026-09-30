@@ -40,7 +40,7 @@
 │   LeaveRequest · PlacementProfile · Internship                 │
 │   Project · ProjectUpdate · StudentPerformance                 │
 │   PushSubscription · NotificationLog                           │
-│                  SQLite (dev) · PostgreSQL (prod)               │
+│                  MySQL (default) · SQLite (testing only)        │
 └──────────────────────┬──────────────────────────────────────────┘
                        │ Web Push API · VAPID · Service Worker
 ┌──────────────────────▼──────────────────────────────────────────┐
@@ -299,8 +299,12 @@ All settings in `config.py` — override via `.env`:
 # Required
 SECRET_KEY=your-32-char-random-string
 
-# Database (optional - defaults to SQLite)
-DATABASE_URL=sqlite:///database.db
+# Database (MySQL — required)
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DB=cse_smart_db
 
 # Email
 MAIL_SERVER=smtp.gmail.com
@@ -355,7 +359,7 @@ gunicorn wsgi:app --workers 2 --bind 0.0.0.0:5000
 | Excel | Pandas + openpyxl | Attendance parsing |
 | Frontend | Bootstrap 5, Chart.js | UI |
 | PWA | Service Worker, Web Push | Offline + install |
-| DB | SQLite (dev), PostgreSQL (prod) | Storage |
+| DB | MySQL (default), SQLite (testing) | Storage |
 | Deploy | Gunicorn, Docker, Render | Production |
 
 ---
