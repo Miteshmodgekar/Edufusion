@@ -27,6 +27,3 @@ reportlab==4.2.2
 # AI APIs
 groq==0.9.0
 google-genai==1.26.0
-
-# Push notifications (requires C build — last to avoid blocking other installs)
-pywebpush==2.5.0
