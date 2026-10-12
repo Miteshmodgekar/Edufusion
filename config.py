@@ -45,12 +45,18 @@ class Config:
     )
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # ── Auto-enable SSL for Aiven MySQL (requires SSL but no cert file needed) ──
+    _db_url = os.environ.get("DATABASE_URL", "")
+    _ssl_args = {"ssl": {"ssl_disabled": False}} if "aivencloud.com" in _db_url else {}
+
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_recycle":  280,    # recycle connections before MySQL's default timeout
         "pool_pre_ping": True,   # test connection before use
-        "pool_size":     10,     # maintain 10 persistent connections
-        "max_overflow":  20,     # allow 20 extra under load
-        "pool_timeout":  10,     # wait max 10s for a connection
+        "pool_size":     5,      # lower for Render free tier (shared resources)
+        "max_overflow":  10,
+        "pool_timeout":  30,
+        "connect_args":  _ssl_args,
     }
 
     # ── File Uploads ───────────────────────────────────────────────────────
