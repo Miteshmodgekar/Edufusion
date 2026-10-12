@@ -14,7 +14,7 @@ cryptography==42.0.8
 requests==2.32.3
 tzdata==2024.1
 APScheduler==3.10.4
-greenlet==3.0.3
+greenlet==3.5.6
 
 # Data / ML — force binary wheels only (avoid OOM on source compile)
 pandas==2.2.2
