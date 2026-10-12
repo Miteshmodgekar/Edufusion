@@ -3,27 +3,18 @@ services:
     name: edufusion
     runtime: python
     plan: free
-    region: singapore   # closest free region to India
-    pythonVersion: "3.11.9"
-    buildCommand: pip install --prefer-binary --only-binary=pandas,numpy,scikit-learn,Pillow,greenlet,cryptography,reportlab -r requirements.txt
+    region: oregon
+    buildCommand: pip install --prefer-binary -r requirements.txt
     startCommand: gunicorn wsgi:app --workers 2 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT --log-level info
     healthCheckPath: /
 
     envVars:
       - key: FLASK_ENV
         value: production
-
-      # Auto-generate a secure secret key on first deploy
       - key: SECRET_KEY
         generateValue: true
-
-      # ── MySQL Database ─────────────────────────────────────────────────────────
-      # Set DATABASE_URL in Render dashboard (from Aiven or any MySQL host):
-      #   mysql+pymysql://user:password@host:port/dbname?charset=utf8mb4
       - key: DATABASE_URL
-        sync: false   # fill in Render dashboard
-
-      # ── Email (Flask-Mail) ─────────────────────────────────────────────────────
+        sync: false
       - key: MAIL_SERVER
         value: smtp.gmail.com
       - key: MAIL_PORT
@@ -38,16 +29,12 @@ services:
         sync: false
       - key: MAIL_DEFAULT_SENDER
         sync: false
-
-      # ── AI Career Assistant ────────────────────────────────────────────────────
       - key: GEMINI_API_KEY
         sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: CAREER_AI_MODEL
         value: gemini-2.0-flash
-
-      # ── PWA Push Notifications (optional) ─────────────────────────────────────
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_PEM_B64
