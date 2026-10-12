@@ -423,28 +423,40 @@
           <label>STUDENT ID / EMAIL</label>
           <input type="text" id="s-user" placeholder="CS21001 or student@cse.edu" autocomplete="username" />
           <label>PASSWORD</label>
-          <input type="password" id="s-pass" placeholder="••••••••" autocomplete="current-password" />
+          <div style="position:relative">
+            <input type="password" id="s-pass" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px;width:100%;box-sizing:border-box" />
+            <button type="button" onclick="togglePass('s-pass',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:0;font-size:16px">👁</button>
+          </div>
         </div>
 
         <div id="panel-faculty" class="panel">
           <label>FACULTY ID / EMAIL</label>
           <input type="text" id="f-user" placeholder="FAC001 or faculty@cse.edu" />
           <label>PASSWORD</label>
-          <input type="password" id="f-pass" placeholder="••••••••" />
+          <div style="position:relative">
+            <input type="password" id="f-pass" placeholder="••••••••" style="padding-right:40px;width:100%;box-sizing:border-box" />
+            <button type="button" onclick="togglePass('f-pass',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:0;font-size:16px">👁</button>
+          </div>
         </div>
 
         <div id="panel-hod" class="panel">
           <label>HOD EMAIL</label>
           <input type="text" id="h-user" placeholder="hod@cse.edu" />
           <label>PASSWORD</label>
-          <input type="password" id="h-pass" placeholder="••••••••" />
+          <div style="position:relative">
+            <input type="password" id="h-pass" placeholder="••••••••" style="padding-right:40px;width:100%;box-sizing:border-box" />
+            <button type="button" onclick="togglePass('h-pass',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:0;font-size:16px">👁</button>
+          </div>
         </div>
 
         <div id="panel-admin" class="panel">
           <label>ADMIN USERNAME</label>
           <input type="text" id="a-user" placeholder="admin" />
           <label>ADMIN PASSWORD</label>
-          <input type="password" id="a-pass" placeholder="••••••••" />
+          <div style="position:relative">
+            <input type="password" id="a-pass" placeholder="••••••••" style="padding-right:40px;width:100%;box-sizing:border-box" />
+            <button type="button" onclick="togglePass('a-pass',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:0;font-size:16px">👁</button>
+          </div>
         </div>
 
         <div style="text-align:right;margin:-4px 0 12px">
@@ -503,6 +515,14 @@
       document.getElementById('cPass').textContent = CREDS[r].pass;
       document.getElementById('cRole').textContent = CREDS[r].role;
       document.getElementById('errBox').style.display = 'none';
+    }
+
+    function togglePass(inputId, btn) {
+      const inp = document.getElementById(inputId);
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      btn.textContent = show ? '🙈' : '👁';
+      inp.focus();
     }
 
     async function doLogin() {
