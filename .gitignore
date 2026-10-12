@@ -25,8 +25,8 @@ env/
 # Uploads (user files - not committed to git)
 uploads/
 
-# ML models (large files - deploy separately if needed)
-ml/*.pkl
+# ML models — small pre-trained files ARE committed (model.pkl ~740B, scaler.pkl ~522B)
+# ml/*.pkl   ← intentionally kept tracked for Render deployment
 
 # IDE
 .vscode/
