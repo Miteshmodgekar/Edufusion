@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+{% block title %}Academic Management | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .acad-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;transition:border-color .2s,box-shadow .2s;}
+  .acad-card:hover{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(88,166,255,.08);}
+  .period-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'Space Mono',monospace;padding:3px 10px;border-radius:20px;font-weight:600;}
+  .status-planned{background:rgba(88,166,255,.15);color:var(--accent2);}
+  .status-active{background:rgba(63,185,80,.15);color:var(--accent);}
+  .status-completed{background:rgba(210,153,34,.15);color:var(--warn);}
+  .status-closed{background:rgba(130,130,130,.15);color:var(--muted);}
+  .status-legacy{background:rgba(130,130,130,.1);color:var(--muted);}
+  .period-row{padding:12px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .period-row:last-child{border-bottom:none;}
+  .batch-pill{display:inline-block;font-size:10px;font-family:'Space Mono',monospace;background:var(--surface2);border:1px solid var(--border);padding:2px 8px;border-radius:6px;color:var(--muted);}
+  .nav-tabs-acad{display:flex;gap:8px;margin-bottom:1.5rem;flex-wrap:wrap;}
+  .nav-tab-btn{padding:8px 18px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all .2s;font-family:'Space Mono',monospace;}
+  .nav-tab-btn.active{background:var(--accent2);color:#fff;border-color:var(--accent2);}
+  .quick-link{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);text-decoration:none;color:var(--text);transition:all .2s;}
+  .quick-link:hover{border-color:var(--accent2);color:var(--accent2);}
+  .sem-chip{display:inline-block;width:28px;height:28px;border-radius:50%;background:var(--accent2);color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:28px;flex-shrink:0;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Academic Management</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Manage academic periods, promotions, graduation, and batches</p>
+  </div>
+  <span class="badge-blue mono">ADMIN</span>
+</div>
+
+<!-- Quick Links -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-3">
+    <a href="/academic/import" class="quick-link" style="border-color:rgba(88,166,255,.3);background:rgba(88,166,255,.04)">
+      <span class="sem-chip" style="background:var(--accent2)">⬆</span>
+      <div><div style="font-weight:600;font-size:13px">Import Existing Students</div>
+      <div style="font-size:11px;color:var(--muted)">Onboard students already in DB</div></div>
+    </a>
+  </div>
+  <div class="col-12 col-md-3">
+    <a href="/academic/promote" class="quick-link">
+      <span class="sem-chip">→</span>
+      <div><div style="font-weight:600;font-size:13px">Semester Promotion</div>
+      <div style="font-size:11px;color:var(--muted)">Promote eligible students</div></div>
+    </a>
+  </div>
+  <div class="col-12 col-md-3">
+    <a href="/academic/graduation" class="quick-link">
+      <span class="sem-chip" style="background:var(--accent)">🎓</span>
+      <div><div style="font-weight:600;font-size:13px">Graduation</div>
+      <div style="font-size:11px;color:var(--muted)">Verify & mark graduated</div></div>
+    </a>
+  </div>
+  <div class="col-12 col-md-3">
+    <a href="/academic/batches" class="quick-link">
+      <span class="sem-chip" style="background:var(--warn)">+</span>
+      <div><div style="font-weight:600;font-size:13px">New Batch</div>
+      <div style="font-size:11px;color:var(--muted)">Add admission batch</div></div>
+    </a>
+  </div>
+  <div class="col-12 col-md-3">
+    <a href="/academic/audit" class="quick-link">
+      <span class="sem-chip" style="background:var(--muted)">📋</span>
+      <div><div style="font-weight:600;font-size:13px">Audit Log</div>
+      <div style="font-size:11px;color:var(--muted)">View all academic events</div></div>
+    </a>
+  </div>
+</div>
+
+<!-- Academic Periods Panel -->
+<div class="acad-card mb-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h6 class="mb-0" style="font-weight:600">Academic Periods</h6>
+    <button class="btn btn-sm btn-primary" onclick="showCreatePeriodModal()">+ New Period</button>
+  </div>
+
+  <!-- Filters -->
+  <div class="d-flex gap-2 mb-3 flex-wrap">
+    <select id="filterBatch" class="form-select form-select-sm" style="max-width:140px" onchange="loadPeriods()">
+      <option value="">All Batches</option>
+    </select>
+    <select id="filterStatus" class="form-select form-select-sm" style="max-width:140px" onchange="loadPeriods()">
+      <option value="">All Statuses</option>
+      <option value="planned">Planned</option>
+      <option value="active">Active</option>
+      <option value="completed">Completed</option>
+      <option value="closed">Closed</option>
+    </select>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadPeriods()">↻ Refresh</button>
+  </div>
+
+  <div id="periodsContainer">
+    <div class="text-center py-4" style="color:var(--muted)"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>
+  </div>
+</div>
+
+<!-- Create Period Modal -->
+<div class="modal fade" id="createPeriodModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--surface);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border)">
+        <h5 class="modal-title" style="font-size:15px;font-weight:600">Create Academic Period</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label" style="font-size:12px">Admission Batch *</label>
+          <input type="text" id="cp_batch" class="form-control form-control-sm" placeholder="e.g. 2021">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" style="font-size:12px">Semester Number (1–8) *</label>
+          <input type="number" id="cp_sem" class="form-control form-control-sm" min="1" max="8" placeholder="e.g. 3">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" style="font-size:12px">Academic Year *</label>
+          <input type="text" id="cp_year" class="form-control form-control-sm" placeholder="e.g. 2023-24">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" style="font-size:12px">Department</label>
+          <input type="text" id="cp_dept" class="form-control form-control-sm" value="CSE">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label" style="font-size:12px">Start Date</label>
+            <input type="date" id="cp_start" class="form-control form-control-sm">
+          </div>
+          <div class="col">
+            <label class="form-label" style="font-size:12px">End Date</label>
+            <input type="date" id="cp_end" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div id="cp_msg" class="alert d-none" style="font-size:12px"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border)">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="createPeriod()">Create Period</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Enroll Students Modal -->
+<div class="modal fade" id="enrollModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="background:var(--surface);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border)">
+        <h5 class="modal-title" style="font-size:15px;font-weight:600">Enroll Students</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--muted)" id="enroll_period_label"></p>
+        <div class="mb-3">
+          <label class="form-label" style="font-size:12px">Filter by Semester</label>
+          <input type="number" id="enroll_sem_filter" class="form-control form-control-sm" placeholder="Semester number">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" style="font-size:12px">Filter by Section</label>
+          <input type="text" id="enroll_section_filter" class="form-control form-control-sm" placeholder="Section (e.g. A)">
+        </div>
+        <button class="btn btn-sm btn-outline-secondary mb-3" onclick="loadEnrollCandidates()">Load Students</button>
+        <div id="enroll_student_list" style="max-height:300px;overflow-y:auto"></div>
+        <div id="enroll_msg" class="alert d-none mt-2" style="font-size:12px"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border)">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="doEnroll()">Enroll Selected</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _currentEnrollPeriodId = null;
+let _allStudents = [];
+let _periodCache = {};
+
+async function loadPeriods() {
+  const batch  = document.getElementById('filterBatch').value;
+  const status = document.getElementById('filterStatus').value;
+  let url = '/academic/api/periods?';
+  if (batch)  url += `batch=${encodeURIComponent(batch)}&`;
+  if (status) url += `status=${encodeURIComponent(status)}&`;
+  let res, data;
+  try {
+    res  = await fetch(url);
+    data = await res.json();
+  } catch(err) {
+    document.getElementById('periodsContainer').innerHTML =
+      `<p class="text-danger" style="font-size:12px">&#9888; Failed to load periods: ${err.message}</p>`;
+    return;
+  }
+  if (!data.success) { document.getElementById('periodsContainer').innerHTML = `<p class="text-danger">${data.message}</p>`; return; }
+
+  const periods = data.periods;
+  // Populate batch filter
+  const batches = [...new Set(periods.map(p => p.admission_batch))].sort();
+  const bf = document.getElementById('filterBatch');
+  const curBatch = bf.value;
+  bf.innerHTML = '<option value="">All Batches</option>' + batches.map(b => `<option value="${b}" ${b===curBatch?'selected':''}>${b}</option>`).join('');
+
+  if (!periods.length) {
+    document.getElementById('periodsContainer').innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:2rem">No academic periods found. Create one above.</p>';
+    return;
+  }
+
+  // Group by batch
+  const byBatch = {};
+  periods.forEach(p => { if (!byBatch[p.admission_batch]) byBatch[p.admission_batch] = []; byBatch[p.admission_batch].push(p); });
+
+  let html = '';
+  for (const [batch, bperiods] of Object.entries(byBatch).sort((a,b) => b[0].localeCompare(a[0]))) {
+    html += `<div class="mb-4"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;font-family:'Space Mono',monospace">BATCH ${batch}</div>`;
+    bperiods.sort((a,b) => a.semester_number - b.semester_number).forEach(p => {
+      html += `<div class="period-row">
+        <span class="sem-chip">${p.semester_number}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${p.label}</div>
+          <div style="font-size:11px;color:var(--muted)">${p.academic_year} · ${p.enrollment_count} enrolled · ${p.department}</div>
+        </div>
+        <span class="period-badge status-${p.status}">${p.status.toUpperCase()}</span>
+        <div class="d-flex gap-1 flex-wrap">
+          <button class="btn btn-xs btn-outline-secondary" onclick="viewEnrollments(${p.id}, '${p.label}')">View</button>
+          <button class="btn btn-xs btn-outline-primary" onclick="openEnrollModal(${p.id}, '${p.label}')">Enroll</button>
+          ${p.status !== 'closed' ? `<button class="btn btn-xs btn-outline-danger" onclick="closePeriod(${p.id})">Close</button>` : ''}
+          <button class="btn btn-xs" style="border-color:rgba(248,81,73,.3);color:var(--danger);opacity:.7" data-pid="${p.id}" onclick="deletePeriod(${p.id})">&#128465;</button>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  document.getElementById('periodsContainer').innerHTML = html;
+}
+
+function showCreatePeriodModal() {
+  new bootstrap.Modal(document.getElementById('createPeriodModal')).show();
+}
+
+async function createPeriod() {
+  const batch = document.getElementById('cp_batch').value.trim();
+  const sem   = document.getElementById('cp_sem').value;
+  const year  = document.getElementById('cp_year').value.trim();
+  const dept  = document.getElementById('cp_dept').value.trim();
+  const start = document.getElementById('cp_start').value;
+  const end   = document.getElementById('cp_end').value;
+  const msg   = document.getElementById('cp_msg');
+
+  msg.className = 'alert d-none';
+  if (!batch || !sem || !year) {
+    msg.className = 'alert alert-danger'; msg.textContent = 'Batch, semester, and year are required.'; return;
+  }
+  const res = await fetch('/academic/api/periods', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({admission_batch: batch, semester_number: parseInt(sem), academic_year: year,
+                          department: dept, start_date: start||null, end_date: end||null})
+  });
+  const data = await res.json();
+  if (data.success) {
+    msg.className = 'alert alert-success'; msg.textContent = `Period created successfully!`;
+    loadPeriods();
+    setTimeout(() => bootstrap.Modal.getInstance(document.getElementById('createPeriodModal')).hide(), 1200);
+  } else {
+    msg.className = 'alert alert-danger'; msg.textContent = data.message;
+  }
+}
+
+async function closePeriod(periodId) {
+  if (!confirm('Close this period? Students still in "enrolled" status will be flagged.')) return;
+  const reason = prompt('Reason for closing (required):');
+  if (!reason) return;
+  const res = await fetch(`/academic/api/periods/${periodId}/close`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({reason})
+  });
+  const data = await res.json();
+  if (data.success) { loadPeriods(); }
+  else { alert(data.message); }
+}
+
+async function deletePeriod(periodId) {
+  const p = _periodCache[periodId] || {};
+  const label = p.label || ('Period #' + periodId);
+  if (!confirm(`DELETE "${label}"?\n\nThis permanently removes the academic period and all its enrollment records.\nAttendance and marks data for those semesters are preserved.\n\nPeriods with active enrolled students CANNOT be deleted.\n\nType OK to confirm.`)) return;
+  const res = await fetch(`/academic/api/periods/${periodId}`, {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/json'}
+  });
+  const data = await res.json();
+  if (data.success) {
+    loadPeriods();
+    showToast(data.message || 'Period deleted.', 'success');
+  } else {
+    alert('Cannot delete: ' + data.message);
+  }
+}
+
+async function viewEnrollments(periodId, label) {
+  const res = await fetch(`/academic/api/periods/${periodId}/enrollments`);
+  const data = await res.json();
+  if (!data.success) { alert(data.message); return; }
+  const rows = data.enrollments.map(e =>
+    `<tr><td style="font-size:12px">${e.student_usn}</td><td style="font-size:12px">${e.student_name}</td>
+     <td style="font-size:12px">${e.section||'—'}</td>
+     <td><span class="period-badge status-${e.status==='enrolled'?'active':e.status==='completed'?'completed':e.status==='detained'?'closed':'status-completed'}">${e.status}</span></td>
+     <td><select class="form-select form-select-sm" style="font-size:11px" onchange="updateEnrollmentStatus(${e.id}, this.value)">
+       <option value="enrolled" ${e.status==='enrolled'?'selected':''}>Enrolled</option>
+       <option value="completed" ${e.status==='completed'?'selected':''}>Completed</option>
+       <option value="detained" ${e.status==='detained'?'selected':''}>Detained</option>
+       <option value="withdrawn" ${e.status==='withdrawn'?'selected':''}>Withdrawn</option>
+     </select></td></tr>`
+  ).join('');
+  const modal = document.createElement('div');
+  modal.innerHTML = `<div class="modal fade" id="evModal" tabindex="-1">
+    <div class="modal-dialog modal-lg"><div class="modal-content" style="background:var(--surface);border:1px solid var(--border)">
+    <div class="modal-header" style="border-bottom:1px solid var(--border)">
+      <h5 class="modal-title" style="font-size:15px">${label} — ${data.count} Students</h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+      <table class="table table-sm" style="font-size:12px"><thead><tr>
+        <th>USN</th><th>Name</th><th>Section</th><th>Status</th><th>Change Status</th>
+      </tr></thead><tbody>${rows||'<tr><td colspan=5 class="text-center" style="color:var(--muted)">No enrollments.</td></tr>'}</tbody></table>
+    </div></div></div></div>`;
+  document.body.appendChild(modal);
+  const m = new bootstrap.Modal(document.getElementById('evModal'));
+  m.show();
+  document.getElementById('evModal').addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function updateEnrollmentStatus(enrollmentId, newStatus) {
+  const reason = prompt(`Reason for marking as "${newStatus}" (required):`);
+  if (reason === null) { loadPeriods(); return; }
+  const res = await fetch(`/academic/api/enrollment/${enrollmentId}/status`, {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: newStatus, reason})
+  });
+  const data = await res.json();
+  if (!data.success) alert(data.message);
+}
+
+function openEnrollModal(periodId, label) {
+  _currentEnrollPeriodId = periodId;
+  document.getElementById('enroll_period_label').textContent = `Enrolling in: ${label}`;
+  document.getElementById('enroll_student_list').innerHTML = '';
+  document.getElementById('enroll_msg').className = 'alert d-none';
+  new bootstrap.Modal(document.getElementById('enrollModal')).show();
+}
+
+async function loadEnrollCandidates() {
+  const sem  = document.getElementById('enroll_sem_filter').value;
+  const sect = document.getElementById('enroll_section_filter').value;
+  let url = '/admin/api/users?role=student&per_page=500';
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (!data.success) return;
+  _allStudents = data.users.filter(u => u.role === 'student');
+  let filtered = _allStudents;
+  if (sem)  filtered = filtered.filter(s => s.semester == sem);
+  if (sect) filtered = filtered.filter(s => (s.section||'').toUpperCase() === sect.toUpperCase());
+  document.getElementById('enroll_student_list').innerHTML = filtered.length ? filtered.map(s =>
+    `<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="es_${s.id}" value="${s.id}" class="enroll_cb form-check-input" style="margin:0">
+      <label for="es_${s.id}" style="font-size:12px;cursor:pointer">${s.name} <span style="color:var(--muted)">(${s.effective_usn||s.username}, Sem ${s.semester}, ${s.section||'?'})</span></label>
+    </div>`
+  ).join('') : '<p style="font-size:12px;color:var(--muted)">No students found matching filters.</p>';
+}
+
+async function doEnroll() {
+  const selected = [...document.querySelectorAll('.enroll_cb:checked')].map(cb => parseInt(cb.value));
+  if (!selected.length) { alert('Select at least one student.'); return; }
+  const res = await fetch('/academic/api/enroll', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({period_id: _currentEnrollPeriodId, student_ids: selected})
+  });
+  const data = await res.json();
+  const msg = document.getElementById('enroll_msg');
+  msg.className = `alert alert-${data.success?'success':'danger'}`;
+  msg.textContent = data.message;
+  if (data.success) loadPeriods();
+}
+
+
+function showToast(msg, type) {
+  const t = document.createElement('div');
+  const bg = type === 'success' ? 'rgba(63,185,80,.9)' : 'rgba(248,81,73,.9)';
+  t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;padding:10px 18px;border-radius:10px;background:${bg};color:#fff;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.3);transition:opacity .4s`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', loadPeriods);
+
+</script>
+{% endblock %}

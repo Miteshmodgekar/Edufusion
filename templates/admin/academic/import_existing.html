@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}Import Existing Students | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .import-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.25rem;}
+  .sem-group{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;}
+  .sem-group-header{display:flex;align-items:center;gap:10px;margin-bottom:.75rem;}
+  .sem-num-chip{width:36px;height:36px;border-radius:50%;background:var(--accent2);color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .student-chip{display:inline-flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-family:'Space Mono',monospace;margin:2px;}
+  .result-row{padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:4px;}
+  .rr-ok{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.2);color:var(--accent);}
+  .rr-skip{background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.2);color:var(--warn);}
+  .rr-err{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.2);color:var(--danger);}
+  .stat-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'Space Mono',monospace;padding:3px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);}
+  .required-star{color:var(--danger);margin-left:2px;}
+  .info-box{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:12px;color:var(--text);}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Import Existing Students</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Onboard students already in the database into the Academic Lifecycle system</p>
+  </div>
+  <a href="/academic/manage" class="btn btn-sm btn-outline-secondary">← Back</a>
+</div>
+
+<!-- How it works -->
+<div class="info-box mb-4">
+  <strong>ℹ️ How this works:</strong>
+  Your existing students have a semester number stored in the database (<code>users.semester</code>).
+  This tool reads those students, groups them by semester, and lets you assign each group to an
+  <strong>Admission Batch</strong> + <strong>Academic Year</strong>. It then creates an Academic Period
+  and enrolls each student automatically — <strong>without touching any existing attendance or marks data.</strong>
+  Safe to run multiple times (already-enrolled students are skipped).
+</div>
+
+<!-- Step 1: Scan -->
+<div class="import-card">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h6 class="mb-0" style="font-weight:600">Step 1 — Scan Existing Students</h6>
+    <button class="btn btn-sm btn-outline-primary" onclick="scanStudents()" id="scanBtn">
+      🔍 Scan Database
+    </button>
+  </div>
+
+  <div id="scanStats" style="display:none" class="d-flex gap-3 flex-wrap mb-3">
+    <span class="stat-pill">📦 Total students: <strong id="statTotal">—</strong></span>
+    <span class="stat-pill" style="border-color:rgba(63,185,80,.3)">✓ Already linked: <strong id="statLinked" style="color:var(--accent)">—</strong></span>
+    <span class="stat-pill" style="border-color:rgba(88,166,255,.3)">⊕ Needs import: <strong id="statUnlinked" style="color:var(--accent2)">—</strong></span>
+  </div>
+
+  <div id="scanResults">
+    <p style="font-size:13px;color:var(--muted)">Click "Scan Database" to detect students not yet linked to any academic period.</p>
+  </div>
+</div>
+
+<!-- Step 2: Configure -->
+<div class="import-card" id="configSection" style="display:none">
+  <h6 class="mb-1" style="font-weight:600">Step 2 — Configure Each Semester Group</h6>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:1rem">
+    Fill in the Admission Batch and Academic Year for each semester group.
+    The <span class="required-star">*</span> fields are required.
+  </p>
+  <div id="semGroupConfigs"></div>
+
+  <div class="mt-3">
+    <button class="btn btn-sm btn-success" onclick="doImport()" id="importBtn">
+      ⬆ Import All Groups
+    </button>
+    <span style="font-size:11px;color:var(--muted);margin-left:10px">
+      Existing attendance, marks, and other records are preserved. Only new enrollment links are created.
+    </span>
+  </div>
+  <div id="importMsg" class="alert d-none mt-3" style="font-size:12px"></div>
+</div>
+
+<!-- Step 3: Results -->
+<div class="import-card" id="resultsSection" style="display:none">
+  <h6 class="mb-3" style="font-weight:600">Step 3 — Import Results</h6>
+  <div id="resultsList"></div>
+
+  <div class="mt-3 d-flex gap-2">
+    <a href="/academic/manage" class="btn btn-sm btn-primary">Go to Academic Management →</a>
+    <a href="/academic/promote" class="btn btn-sm btn-outline-secondary">Go to Promotion →</a>
+  </div>
+</div>
+
+<script>
+let _scanData = null;
+
+async function scanStudents() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = '⏳ Scanning…';
+
+  const res  = await fetch('/academic/api/import/preview');
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = '🔍 Scan Database';
+
+  if (!data.success) {
+    document.getElementById('scanResults').innerHTML = `<p class="text-danger">${data.message}</p>`;
+    return;
+  }
+
+  _scanData = data;
+
+  // Update stat pills
+  document.getElementById('scanStats').style.display = '';
+  document.getElementById('statTotal').textContent   = data.total_students;
+  document.getElementById('statLinked').textContent  = data.already_linked;
+  document.getElementById('statUnlinked').textContent = data.total_unlinked;
+
+  if (data.total_unlinked === 0) {
+    document.getElementById('scanResults').innerHTML = `
+      <div style="padding:1rem;text-align:center;color:var(--accent)">
+        ✓ All ${data.already_linked} student(s) are already linked to academic periods. Nothing to import.
+      </div>`;
+    return;
+  }
+
+  // Show what we found
+  const bySem = data.by_semester;
+  let summaryHtml = '';
+  for (const [sem, students] of Object.entries(bySem).sort((a,b) => parseInt(a[0]) - parseInt(b[0]))) {
+    const semLabel = sem == '0' ? 'Unknown Semester' : `Semester ${sem}`;
+    const chips = students.slice(0, 8).map(s =>
+      `<span class="student-chip">${s.usn} · ${s.section}</span>`
+    ).join('');
+    const more = students.length > 8 ? `<span class="student-chip" style="color:var(--muted)">+${students.length-8} more</span>` : '';
+    summaryHtml += `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div class="sem-num-chip">${sem == '0' ? '?' : sem}</div>
+        <div>
+          <div style="font-size:13px;font-weight:600">${semLabel} — ${students.length} student${students.length !== 1 ? 's' : ''}</div>
+          <div style="margin-top:4px">${chips}${more}</div>
+        </div>
+      </div>`;
+  }
+  document.getElementById('scanResults').innerHTML = summaryHtml || '<p style="color:var(--muted)">No results.</p>';
+
+  // Build config forms
+  buildConfigForms(bySem);
+  document.getElementById('configSection').style.display = '';
+}
+
+function buildConfigForms(bySem) {
+  let html = '';
+  for (const [sem, students] of Object.entries(bySem).sort((a,b) => parseInt(a[0]) - parseInt(b[0]))) {
+    const semNum = parseInt(sem) || 0;
+    const semLabel = semNum ? `Semester ${semNum}` : 'Unknown Semester';
+
+    // Infer a likely batch from the student USNs (e.g. 2JR21CS001 → 2021)
+    let inferredBatch = '';
+    const firstUsn = students[0]?.usn || '';
+    // Common VTU pattern: digits after first alpha chars, or explicit admission_batch
+    const batchFromField = students.find(s => s.admission_batch)?.admission_batch || '';
+    if (batchFromField) inferredBatch = batchFromField;
+
+    // Infer current academic year (current year for active semesters)
+    const now = new Date();
+    const yr  = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1; // June = new year
+    const inferredYear = `${yr}-${String(yr + 1).slice(2)}`;
+
+    const ids = students.map(s => s.id);
+    html += `
+      <div class="sem-group" id="semgroup_${semNum}">
+        <div class="sem-group-header">
+          <div class="sem-num-chip">${semNum || '?'}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px">${semLabel}</div>
+            <div style="font-size:11px;color:var(--muted)">${students.length} student${students.length !== 1 ? 's' : ''} · ${[...new Set(students.map(s=>s.section))].join(', ')}</div>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="include_${semNum}" checked style="cursor:pointer">
+            Include in import
+          </label>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label" style="font-size:11px">Admission Batch<span class="required-star">*</span></label>
+            <input type="text" id="batch_${semNum}" class="form-control form-control-sm"
+                   placeholder="e.g. 2021" value="${inferredBatch}"
+                   title="The year this cohort was admitted (e.g. 2021 for students admitted in 2021)">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" style="font-size:11px">Academic Year<span class="required-star">*</span></label>
+            <input type="text" id="year_${semNum}" class="form-control form-control-sm"
+                   placeholder="e.g. 2023-24" value="${inferredYear}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" style="font-size:11px">Department</label>
+            <input type="text" id="dept_${semNum}" class="form-control form-control-sm"
+                   value="${students[0]?.department || 'CSE'}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" style="font-size:11px">Period Status</label>
+            <select id="pstatus_${semNum}" class="form-select form-select-sm">
+              <option value="active" ${semNum >= 3 ? 'selected' : ''}>Active (current)</option>
+              <option value="completed" ${semNum < 3 ? 'selected' : ''}>Completed (past)</option>
+              <option value="planned">Planned (upcoming)</option>
+            </select>
+          </div>
+        </div>
+        <input type="hidden" id="studentids_${semNum}" value="${ids.join(',')}">
+        <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+          Students: ${students.slice(0,12).map(s=>`<span style="font-family:'Space Mono',monospace">${s.usn}</span>`).join(', ')}${students.length > 12 ? ` + ${students.length-12} more` : ''}
+        </div>
+      </div>`;
+  }
+  document.getElementById('semGroupConfigs').innerHTML = html || '<p style="color:var(--muted);font-size:12px">No groups to configure.</p>';
+}
+
+async function doImport() {
+  const bySem = _scanData?.by_semester;
+  if (!bySem) { alert('Please scan first.'); return; }
+
+  const configs = [];
+  for (const sem of Object.keys(bySem)) {
+    const semNum = parseInt(sem) || 0;
+    const includeEl = document.getElementById(`include_${semNum}`);
+    if (!includeEl || !includeEl.checked) continue;
+
+    const batch   = document.getElementById(`batch_${semNum}`)?.value.trim();
+    const year    = document.getElementById(`year_${semNum}`)?.value.trim();
+    const dept    = document.getElementById(`dept_${semNum}`)?.value.trim() || 'CSE';
+    const pstatus = document.getElementById(`pstatus_${semNum}`)?.value || 'active';
+    const idsRaw  = document.getElementById(`studentids_${semNum}`)?.value || '';
+    const ids     = idsRaw.split(',').map(Number).filter(Boolean);
+
+    if (!batch || !year) {
+      alert(`Semester ${semNum}: Admission Batch and Academic Year are required.`);
+      return;
+    }
+    configs.push({
+      semester_number:  semNum,
+      admission_batch:  batch,
+      academic_year:    year,
+      department:       dept,
+      period_status:    pstatus,
+      student_ids:      ids,
+    });
+  }
+
+  if (!configs.length) { alert('No semester groups selected for import.'); return; }
+
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true; btn.textContent = '⏳ Importing…';
+
+  const res  = await fetch('/academic/api/import/existing', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({semester_configs: configs})
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = '⬆ Import All Groups';
+
+  const msgEl = document.getElementById('importMsg');
+  msgEl.className = `alert alert-${data.success ? 'success' : 'danger'}`;
+  msgEl.textContent = data.message;
+
+  if (data.success) {
+    // Show results
+    document.getElementById('resultsSection').style.display = '';
+    let html = '';
+    for (const r of data.results) {
+      if (!r.success) {
+        html += `<div class="result-row rr-err">✗ Sem ${r.semester_number}: ${r.message}</div>`;
+        continue;
+      }
+      html += `<div class="result-row rr-ok">
+        ✓ Sem ${r.semester_number} (Batch ${r.batch} · ${r.academic_year})
+        — ${r.enrolled} enrolled, ${r.skipped} skipped
+        ${r.period_created ? '<span style="font-size:10px;margin-left:8px;color:var(--accent2)">[New period created]</span>' : '<span style="font-size:10px;margin-left:8px;color:var(--muted)">[Period reused]</span>'}
+      </div>`;
+      r.skipped_list?.forEach(s => {
+        html += `<div class="result-row rr-skip" style="margin-left:16px;font-size:11px">↩ Skipped: ${s.usn} — ${s.reason}</div>`;
+      });
+    }
+    document.getElementById('resultsList').innerHTML = html;
+
+    // Re-scan to show updated counts
+    setTimeout(scanStudents, 500);
+  }
+}
+</script>
+{% endblock %}

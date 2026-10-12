@@ -49,6 +49,7 @@ def create_app(config_class=Config):
     from routes.notifications import notify_bp
     from routes.hod          import hod_bp
     from routes.marks        import marks_bp
+    from routes.academic     import academic_bp
 
     app.register_blueprint(auth_bp,        url_prefix="/auth")
     app.register_blueprint(attendance_bp,  url_prefix="/attendance")
@@ -63,6 +64,7 @@ def create_app(config_class=Config):
     app.register_blueprint(notify_bp,      url_prefix="/notify")
     app.register_blueprint(hod_bp,         url_prefix="/hod")
     app.register_blueprint(marks_bp,       url_prefix="/marks")
+    app.register_blueprint(academic_bp,    url_prefix="/academic")
 
     # ── Create DB tables (models must be imported first so metadata is populated) ──
     with app.app_context():
@@ -76,6 +78,7 @@ def create_app(config_class=Config):
         import models.career_chat
         import models.internal_marks
         import models.mentor_sheet
+        import models.academic   # ← new academic lifecycle models
         try:
             db.create_all()
             import logging
@@ -226,6 +229,14 @@ def _auto_migrate(db):
             ("is_lead",   "BOOLEAN DEFAULT 0"),
             ("joined_at", "DATETIME"),
         ],
+        # ── Academic Lifecycle Columns ──────────────────────────────────────────
+        # Users: USN as permanent unique business identifier + lifecycle status
+        "users": [
+            ("usn",             "VARCHAR(30)"),
+            ("admission_batch", "VARCHAR(20)"),
+            ("status",          "VARCHAR(20) DEFAULT 'active'"),
+            ("graduated_at",    "DATETIME"),
+        ],
     }
 
     # Fix #15: detect dialect \u2014 SQLite doesn't support DEFAULT in ADD COLUMN
@@ -249,6 +260,65 @@ def _auto_migrate(db):
             except Exception as e:
                 db.session.rollback()
                 print(f"[MIGRATE] Could not add column '{col_name}' to '{table}': {e}")
+
+    # ── Post-column-add: backfill USN for existing student records ──────────────────────
+    # For legacy student accounts, usn = username (which is already their USN).
+    # This is safe: we only set usn where it is currently NULL, never overwrite.
+    # Records where username is not a valid USN are flagged but NOT auto-corrected.
+    if "users" in inspector.get_table_names():
+        existing_user_cols = {c["name"] for c in inspector.get_columns("users")}
+        if "usn" in existing_user_cols:
+            try:
+                # SQLite: use UPDATE with WHERE; MySQL also supports this.
+                if is_sqlite:
+                    db.session.execute(text(
+                        "UPDATE users SET usn = username "
+                        "WHERE role = 'student' AND (usn IS NULL OR usn = '')"
+                    ))
+                else:
+                    # MySQL: handle potential duplicate USN values gracefully.
+                    # If two student usernames would collide as USNs, skip them
+                    # and log a warning. The duplicate_usernames subquery finds
+                    # students whose username already appears as another student's usn.
+                    db.session.execute(text(
+                        "UPDATE users SET usn = username "
+                        "WHERE role = 'student' AND (usn IS NULL OR usn = '') "
+                        "AND username NOT IN ("
+                        "  SELECT u2 FROM ("
+                        "    SELECT u.username AS u2 FROM users u "
+                        "    WHERE u.role = 'student' "
+                        "    AND u.username IN (SELECT usn FROM users WHERE usn IS NOT NULL)"
+                        "  ) AS dup"
+                        ")"
+                    ))
+                db.session.commit()
+                print("[MIGRATE] USN backfill completed for existing student accounts.")
+            except Exception as e:
+                db.session.rollback()
+                print(f"[MIGRATE] USN backfill failed (non-fatal): {e}")
+
+    # ── Add UNIQUE index on users.usn (if not already present) ──────────────────
+    # db.create_all() creates the unique constraint for NEW databases.
+    # For existing databases where the column was just added via ALTER TABLE,
+    # we need to create the index explicitly.
+    if not is_sqlite and "users" in inspector.get_table_names():
+        try:
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes("users")}
+            if "ix_users_usn" not in existing_indexes and "uq_users_usn" not in existing_indexes:
+                # Check if a unique index on usn already exists (any name)
+                has_usn_idx = any(
+                    "usn" in idx.get("column_names", [])
+                    for idx in inspector.get_indexes("users")
+                )
+                if not has_usn_idx:
+                    db.session.execute(text(
+                        "CREATE UNIQUE INDEX ix_users_usn ON users (usn)"
+                    ))
+                    db.session.commit()
+                    print("[MIGRATE] Created UNIQUE index on users.usn.")
+        except Exception as e:
+            db.session.rollback()
+            print(f"[MIGRATE] Could not create USN unique index (may already exist): {e}")
 
 
 def _seed_demo_data():

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Academic Audit Log | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .audit-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;}
+  .audit-row{padding:10px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;}
+  .audit-row:last-child{border-bottom:none;}
+  .event-badge{font-size:10px;font-family:'Space Mono',monospace;padding:2px 8px;border-radius:6px;font-weight:600;white-space:nowrap;flex-shrink:0;}
+  .ev-promotion{background:rgba(88,166,255,.15);color:var(--accent2);}
+  .ev-graduation{background:rgba(63,185,80,.15);color:var(--accent);}
+  .ev-batch_created,.ev-period_created{background:rgba(210,153,34,.15);color:var(--warn);}
+  .ev-period_closed,.ev-period_status_change{background:rgba(130,130,130,.15);color:var(--muted);}
+  .ev-usn_correction{background:rgba(248,81,73,.15);color:var(--danger);}
+  .ev-enrollment_status_change{background:rgba(88,166,255,.08);color:var(--accent2);}
+  .audit-time{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Academic Audit Log</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Immutable record of all academic lifecycle operations</p>
+  </div>
+  <a href="/academic/manage" class="btn btn-sm btn-outline-secondary">← Back</a>
+</div>
+
+<div class="audit-card">
+  <!-- Filters -->
+  <div class="d-flex gap-2 mb-3 flex-wrap">
+    <select id="auditEventFilter" class="form-select form-select-sm" style="max-width:200px" onchange="loadAudit(1)">
+      <option value="">All Events</option>
+      <option value="promotion">Promotion</option>
+      <option value="graduation">Graduation</option>
+      <option value="batch_created">Batch Created</option>
+      <option value="period_created">Period Created</option>
+      <option value="period_closed">Period Closed</option>
+      <option value="usn_correction">USN Correction</option>
+      <option value="enrollment_status_change">Enrollment Status Change</option>
+    </select>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadAudit(1)">↻ Refresh</button>
+  </div>
+
+  <div id="auditList">
+    <p style="font-size:13px;color:var(--muted);text-align:center;padding:2rem">Loading…</p>
+  </div>
+
+  <!-- Pagination -->
+  <div id="auditPagination" class="d-flex justify-content-between align-items-center mt-3" style="display:none!important">
+    <span id="auditPageInfo" style="font-size:12px;color:var(--muted)"></span>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" id="auditPrevBtn" onclick="auditPage--; loadAudit(auditPage)">← Prev</button>
+      <button class="btn btn-sm btn-outline-secondary" id="auditNextBtn" onclick="auditPage++; loadAudit(auditPage)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let auditPage = 1;
+
+async function loadAudit(page) {
+  auditPage = page;
+  const event = document.getElementById('auditEventFilter').value;
+  let url = `/academic/api/audit?page=${page}&per_page=50`;
+  if (event) url += `&event_type=${encodeURIComponent(event)}`;
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (!data.success) { document.getElementById('auditList').innerHTML = `<p class="text-danger">${data.message}</p>`; return; }
+
+  if (!data.logs.length) {
+    document.getElementById('auditList').innerHTML = '<p style="font-size:13px;color:var(--muted);text-align:center;padding:2rem">No audit records found.</p>';
+    document.getElementById('auditPagination').style.display = 'none!important';
+    return;
+  }
+
+  const evClass = t => 'ev-' + t;
+  const html = data.logs.map(log => `
+    <div class="audit-row">
+      <span class="event-badge ${evClass(log.event_type)}">${log.event_type.replace(/_/g,' ').toUpperCase()}</span>
+      <div style="flex:1">
+        <div style="font-size:12px">${log.description||'—'}</div>
+        ${log.student_name ? `<div style="font-size:11px;color:var(--muted)">${log.student_name} (${log.student_usn||''})</div>` : ''}
+        ${log.old_usn ? `<div style="font-size:11px;color:var(--danger)">USN: ${log.old_usn} → ${log.new_usn}</div>` : ''}
+        ${log.reason ? `<div style="font-size:11px;color:var(--muted)">Reason: ${log.reason}</div>` : ''}
+        <div style="font-size:11px;color:var(--muted)">By: ${log.performed_by}</div>
+      </div>
+      <span class="audit-time">${log.created_at}</span>
+    </div>`).join('');
+  document.getElementById('auditList').innerHTML = html;
+
+  const pag = document.getElementById('auditPagination');
+  pag.style.display = '';
+  document.getElementById('auditPageInfo').textContent = `Page ${data.page} of ${data.pages} (${data.total} records)`;
+  document.getElementById('auditPrevBtn').disabled = data.page <= 1;
+  document.getElementById('auditNextBtn').disabled = data.page >= data.pages;
+}
+
+document.addEventListener('DOMContentLoaded', () => loadAudit(1));
+</script>
+{% endblock %}

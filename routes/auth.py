@@ -175,7 +175,9 @@ def register_post():
         return jsonify({"success": False, "message": "Admin only."}), 403
 
     data = request.get_json() if request.is_json else request.form
+    role = data.get("role", "student")
 
+    # ── Username/email uniqueness check ────────────────────────────────────────
     if User.query.filter(
         (User.username == data["username"]) | (User.email == data["email"])
     ).first():
@@ -185,21 +187,57 @@ def register_post():
         flash(msg, "warning")
         return redirect(url_for("auth.register"))
 
+    # ── USN uniqueness for student accounts ───────────────────────────────────
+    # For students, username doubles as the USN and must be globally unique,
+    # including among graduated students (whose USNs must never be reused).
+    usn = None
+    if role == "student":
+        from models.user import normalize_usn
+        raw_usn = (data.get("username") or "").strip()
+        usn     = normalize_usn(raw_usn) if raw_usn else raw_usn
+
+        if usn:
+            # Check if any user (including graduated) already has this USN
+            usn_conflict = User.query.filter(
+                (User.usn == usn) | (User.username == usn)
+            ).first()
+            if usn_conflict:
+                graduated_note = (
+                    " This USN belongs to a graduated student and cannot be reused."
+                    if usn_conflict.status == "graduated" else ""
+                )
+                msg = f"USN '{usn}' is already assigned to another student.{graduated_note}"
+                if request.is_json:
+                    return jsonify({"success": False, "message": msg}), 409
+                flash(msg, "warning")
+                return redirect(url_for("auth.register"))
+
     new_user = User(
-        username      = data["username"],
-        email         = data["email"],
-        name          = data["name"],
-        role          = data.get("role", "student"),
-        semester      = data.get("semester") or None,
-        section       = data.get("section") or None,
-        roll_number   = data.get("roll_number") or None,
-        department    = data.get("department") or None,
-        designation   = data.get("designation") or None,
-        password_hash = bcrypt.generate_password_hash(
+        username        = data["username"],
+        email           = data["email"],
+        name            = data["name"],
+        role            = role,
+        usn             = usn,           # Permanent USN for students; None for staff
+        semester        = data.get("semester") or None,
+        section         = data.get("section") or None,
+        roll_number     = data.get("roll_number") or usn or None,
+        admission_batch = data.get("admission_batch") or None,
+        department      = data.get("department") or None,
+        designation     = data.get("designation") or None,
+        status          = "active",
+        password_hash   = bcrypt.generate_password_hash(
             data["password"]).decode("utf-8"),
     )
     db.session.add(new_user)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        msg = f"Registration failed: {exc}"
+        if request.is_json:
+            return jsonify({"success": False, "message": msg}), 409
+        flash(msg, "danger")
+        return redirect(url_for("auth.register"))
 
     if request.is_json:
         return jsonify({"success": True, "user": new_user.to_dict()}), 201

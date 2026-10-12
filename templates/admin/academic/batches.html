@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}New Admission Batch | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .batch-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.25rem;}
+  .student-entry{padding:10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);margin-bottom:6px;}
+  .result-row{padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:4px;}
+  .rr-ok{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.2);color:var(--accent);}
+  .rr-err{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.2);color:var(--danger);}
+  .usn-mono{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">New Admission Batch</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Register a new cohort of students without affecting previous batches</p>
+  </div>
+  <a href="/academic/manage" class="btn btn-sm btn-outline-secondary">← Back</a>
+</div>
+
+<!-- Batch Details -->
+<div class="batch-card">
+  <h6 class="mb-3" style="font-weight:600">Batch Information</h6>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:12px">Admission Batch * <span style="color:var(--muted)">(cohort year)</span></label>
+      <input type="text" id="batchYear" class="form-control form-control-sm" placeholder="e.g. 2024">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" style="font-size:12px">Academic Year * <span style="color:var(--muted)">(Sem 1 year)</span></label>
+      <input type="text" id="batchAcadYear" class="form-control form-control-sm" placeholder="e.g. 2024-25">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:12px">Department</label>
+      <input type="text" id="batchDept" class="form-control form-control-sm" value="CSE">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:12px">Start Date</label>
+      <input type="date" id="batchStart" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" style="font-size:12px">End Date <span style="color:var(--muted)">(Sem 1)</span></label>
+      <input type="date" id="batchEnd" class="form-control form-control-sm">
+    </div>
+  </div>
+</div>
+
+<!-- Student Registration -->
+<div class="batch-card">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h6 class="mb-0" style="font-weight:600">Register Students</h6>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" onclick="addStudentRow()">+ Add Row</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="addBulkRows()">+ Add 10 Rows</button>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--muted)">Each student needs a unique USN. Password defaults to their USN (students should change it on first login).</p>
+
+  <div id="studentRows">
+    <!-- Student rows added dynamically -->
+  </div>
+
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-sm btn-primary" onclick="submitBatch()" id="submitBatchBtn">Register Batch</button>
+    <button class="btn btn-sm btn-outline-secondary" onclick="clearStudents()">Clear All</button>
+  </div>
+  <div id="batchMsg" class="alert d-none mt-3" style="font-size:12px"></div>
+</div>
+
+<!-- Results -->
+<div class="batch-card" id="batchResults" style="display:none">
+  <h6 class="mb-3" style="font-weight:600">Registration Results</h6>
+  <div id="batchResultsList"></div>
+</div>
+
+<!-- Existing Batches -->
+<div class="batch-card">
+  <h6 class="mb-3" style="font-weight:600">Existing Batches</h6>
+  <div id="existingBatches">
+    <p style="font-size:12px;color:var(--muted);text-align:center;padding:1rem">Loading…</p>
+  </div>
+</div>
+
+<script>
+let _rowCount = 0;
+
+function addStudentRow(usn='', name='', email='', section='A') {
+  _rowCount++;
+  const id = _rowCount;
+  const div = document.createElement('div');
+  div.className = 'student-entry';
+  div.id = `row_${id}`;
+  div.innerHTML = `
+    <div class="row g-2 align-items-center">
+      <div class="col"><input type="text" class="form-control form-control-sm usn-input" placeholder="USN *" value="${usn}" title="University Seat Number — must be unique"></div>
+      <div class="col"><input type="text" class="form-control form-control-sm name-input" placeholder="Full Name *" value="${name}"></div>
+      <div class="col"><input type="email" class="form-control form-control-sm email-input" placeholder="Email *" value="${email}"></div>
+      <div class="col-1"><input type="text" class="form-control form-control-sm sect-input" placeholder="Sec" value="${section}" maxlength="2"></div>
+      <div class="col-auto"><button class="btn btn-xs btn-outline-danger" onclick="document.getElementById('row_${id}').remove()">✕</button></div>
+    </div>`;
+  document.getElementById('studentRows').appendChild(div);
+}
+
+function addBulkRows() {
+  for (let i=0; i<10; i++) addStudentRow();
+}
+
+function clearStudents() {
+  if (!confirm('Clear all student rows?')) return;
+  document.getElementById('studentRows').innerHTML = '';
+  _rowCount = 0;
+}
+
+async function submitBatch() {
+  const batch     = document.getElementById('batchYear').value.trim();
+  const acadYear  = document.getElementById('batchAcadYear').value.trim();
+  const dept      = document.getElementById('batchDept').value.trim();
+  const startDate = document.getElementById('batchStart').value;
+  const endDate   = document.getElementById('batchEnd').value;
+
+  if (!batch || !acadYear) {
+    alert('Admission batch and academic year are required.');
+    return;
+  }
+
+  // Collect student rows
+  const rows = document.querySelectorAll('.student-entry');
+  const students = [];
+  let hasError = false;
+  rows.forEach(row => {
+    const usn  = row.querySelector('.usn-input').value.trim();
+    const name = row.querySelector('.name-input').value.trim();
+    const email = row.querySelector('.email-input').value.trim();
+    const sect = row.querySelector('.sect-input').value.trim().toUpperCase() || 'A';
+    if (usn || name || email) {
+      if (!usn || !name || !email) { hasError = true; return; }
+      students.push({usn, name, email, section: sect});
+    }
+  });
+
+  if (hasError) { alert('Some rows have incomplete data. Each row needs USN, Name, and Email.'); return; }
+
+  const btn = document.getElementById('submitBatchBtn');
+  btn.disabled = true; btn.textContent = 'Processing…';
+
+  const res  = await fetch('/academic/api/batch/create', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      admission_batch: batch, academic_year: acadYear, department: dept,
+      start_date: startDate||null, end_date: endDate||null, students
+    })
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = 'Register Batch';
+
+  const msgEl = document.getElementById('batchMsg');
+  msgEl.className = `alert alert-${data.success?'success':'danger'}`;
+  msgEl.textContent = data.message;
+
+  if (data.success) {
+    document.getElementById('batchResults').style.display = '';
+    let html = '';
+    data.registered.forEach(s => html += `<div class="result-row rr-ok">✓ Registered: ${s.name} (${s.usn})</div>`);
+    data.errors.forEach(e    => html += `<div class="result-row rr-err">✗ Error: ${e.usn||'?'} — ${e.error}</div>`);
+    document.getElementById('batchResultsList').innerHTML = html || '<p style="color:var(--muted);font-size:12px">No results.</p>';
+    loadExistingBatches();
+  }
+}
+
+async function loadExistingBatches() {
+  const res  = await fetch('/academic/api/periods');
+  const data = await res.json();
+  if (!data.success) return;
+  const byBatch = {};
+  data.periods.forEach(p => { if (!byBatch[p.admission_batch]) byBatch[p.admission_batch] = {count:0,sems:[]}; byBatch[p.admission_batch].sems.push(p.semester_number); byBatch[p.admission_batch].count += p.enrollment_count; });
+  if (!Object.keys(byBatch).length) { document.getElementById('existingBatches').innerHTML = '<p style="font-size:12px;color:var(--muted)">No batches yet.</p>'; return; }
+  const html = Object.entries(byBatch).sort((a,b)=>b[0].localeCompare(a[0])).map(([batch,info])=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">Batch ${batch}</div>
+        <div style="font-size:11px;color:var(--muted)">Semesters: ${info.sems.sort().join(', ')} · ${info.count} student enrollments</div>
+      </div>
+      <a href="/academic/manage?batch=${batch}" class="btn btn-xs btn-outline-secondary">Manage</a>
+    </div>`).join('');
+  document.getElementById('existingBatches').innerHTML = html;
+}
+
+// Add initial 5 rows
+document.addEventListener('DOMContentLoaded', () => { for (let i=0; i<5; i++) addStudentRow(); loadExistingBatches(); });
+</script>
+{% endblock %}

@@ -145,6 +145,20 @@
     </div>
   </div>
 </div>
+
+<!-- Academic History Banner (students only) -->
+<div class="card p-3 mb-4" style="border-color:rgba(88,166,255,.25);background:rgba(88,166,255,.04)">
+  <div class="d-flex align-items-center justify-content-between">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">🎓</span>
+      <div>
+        <div style="font-weight:600;font-size:13px">Academic History</div>
+        <div style="font-size:11px;color:var(--muted)">View your semester-wise attendance, marks, and enrollment records</div>
+      </div>
+    </div>
+    <a href="/academic/history" class="btn btn-sm" style="background:var(--accent2);color:#fff;font-size:12px">View History →</a>
+  </div>
+</div>
 {% else %}
 <!-- FACULTY / HOD / ADMIN view -->
 <div class="row g-3 mb-4">
@@ -415,6 +429,7 @@ function renderQuickActions() {
     student: [
       { icon:'bi-calculator',       label:'Attendance Simulator',    href:'/attendance/simulator' },
       { icon:'bi-file-earmark-plus',label:'Apply for Leave',         href:'/leave/apply' },
+      { icon:'bi-clock-history',    label:'My Academic History',     href:'/academic/history' },
       { icon:'bi-cpu',              label:'Run AI Prediction',       href:'/ml/predict' },
       { icon:'bi-stars',            label:'Career Assistant',        href:'/placement/career-assistant' },
       { icon:'bi-briefcase',        label:'Update Placement Profile', href:'/placement/profile' },
@@ -432,8 +447,9 @@ function renderQuickActions() {
       { icon:'bi-award',            label:'Placement Eligibility',  href:'/placement/eligible' },
     ],
     admin: [
-      { icon:'bi-person-plus', label:'Register New User', href:'/auth/register' },
-      { icon:'bi-cpu',         label:'Train ML Model',    href:'/ml/train' },
+      { icon:'bi-person-plus',       label:'Register New User',       href:'/auth/register' },
+      { icon:'bi-mortarboard',       label:'Academic Lifecycle',      href:'/academic/manage' },
+      { icon:'bi-cpu',               label:'Train ML Model',          href:'/ml/train' },
     ],
   };
   const list = actions[role] || [];

@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+{% block title %}Semester Promotion | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+.promo-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.4rem 1.6rem;margin-bottom:1.25rem;}
+.step-indicator{display:flex;gap:0;margin-bottom:1.75rem;position:relative;}
+.step-indicator::before{content:"";position:absolute;top:14px;left:28px;right:28px;height:2px;background:var(--border);z-index:0;}
+.si-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;z-index:1;}
+.si-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid var(--border);background:var(--surface2);color:var(--muted);transition:all .3s;}
+.si-dot.active{border-color:var(--accent2);background:var(--accent2);color:#fff;}
+.si-dot.done{border-color:var(--accent);background:var(--accent);color:#fff;}
+.si-label{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);text-align:center;transition:color .3s;}
+.si-label.active{color:var(--accent2);}
+.si-label.done{color:var(--accent);}
+.student-row{padding:10px 14px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);margin-bottom:8px;transition:border-color .2s;}
+.student-row.held-back{border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.04);}
+.student-row.already-done{opacity:.55;border-style:dashed;}
+.usn-mono{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+.hb-reason-row{margin-top:8px;padding:8px 10px;background:var(--surface);border-radius:8px;border:1px solid rgba(248,81,73,.2);}
+.rc-pill{display:inline-block;padding:3px 10px;border-radius:12px;font-size:10px;font-family:'Space Mono',monospace;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);margin:2px;transition:all .15s;}
+.rc-pill.selected{background:var(--danger);color:#fff;border-color:var(--danger);}
+.yb-warning{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.35);border-radius:10px;padding:1rem 1.2rem;}
+.summary-box{background:var(--surface2);border-radius:10px;padding:1rem 1.2rem;margin-bottom:1rem;}
+.stat-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:8px;font-size:12px;font-weight:600;}
+.sc-promote{background:rgba(63,185,80,.12);color:var(--accent);}
+.sc-hold{background:rgba(248,81,73,.12);color:var(--danger);}
+.sc-skip{background:rgba(210,153,34,.12);color:var(--warn);}
+.sc-err{background:rgba(248,81,73,.08);color:var(--danger);}
+.result-row{padding:7px 12px;border-radius:8px;font-size:12px;margin-bottom:4px;}
+.rr-ok{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);}
+.rr-hold{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2);}
+.rr-skip{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.2);}
+.rr-err{background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);}
+.auto-create-info{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);border-radius:10px;padding:.75rem 1rem;}
+.confirm-box{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);border-radius:10px;padding:1rem 1.2rem;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Semester Promotion</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Promote students to the next semester with individual hold-back support</p>
+  </div>
+  <a href="/academic/manage" class="btn btn-sm btn-outline-secondary">&#8592; Back</a>
+</div>
+
+<div class="step-indicator" id="stepIndicator">
+  <div class="si-step"><div class="si-dot active" id="dot1">1</div><div class="si-label active" id="lbl1">Select</div></div>
+  <div class="si-step"><div class="si-dot" id="dot2">2</div><div class="si-label" id="lbl2">Review</div></div>
+  <div class="si-step"><div class="si-dot" id="dot3">3</div><div class="si-label" id="lbl3">Confirm</div></div>
+  <div class="si-step"><div class="si-dot" id="dot4">4</div><div class="si-label" id="lbl4">Execute</div></div>
+  <div class="si-step"><div class="si-dot" id="dot5">&#10003;</div><div class="si-label" id="lbl5">Done</div></div>
+</div>
+
+<!-- STEP 1: Select Source Period -->
+<div class="promo-card" id="step1">
+  <h6 class="mb-3" style="font-weight:600">Step 1 &#8212; Select Source Period</h6>
+  <p style="font-size:12px;color:var(--muted)">
+    Select the academic period to promote students from.
+    The next semester period is determined automatically.
+    If it does not exist yet it will be created automatically when you execute.
+    Semester 8 students must use the Graduation workflow.
+  </p>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label" style="font-size:12px">Source Period <span class="text-danger">*</span></label>
+      <select id="sourcePeriod" class="form-select form-select-sm">
+        <option value="">&#8212; Select source period &#8212;</option>
+      </select>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+      <button class="btn btn-primary btn-sm" onclick="loadPreview()" id="previewBtn">Preview Students &#8594;</button>
+    </div>
+  </div>
+  <div id="step1Msg" class="mt-2" style="font-size:12px"></div>
+</div>
+
+<!-- STEP 2: Review Students -->
+<div class="promo-card" id="step2" style="display:none">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h6 class="mb-0" style="font-weight:600">Step 2 &#8212; Review &amp; Select Students</h6>
+    <div class="d-flex gap-2">
+      <button class="btn btn-xs btn-outline-secondary" onclick="selectAll(true)">Select All</button>
+      <button class="btn btn-xs btn-outline-danger" onclick="selectAll(false)">Deselect All</button>
+    </div>
+  </div>
+  <div class="summary-box mb-3" id="periodSummary"></div>
+
+  <!-- Auto-create info banner -->
+  <div class="auto-create-info mb-3" id="autoCreateBox" style="display:none">
+    <div style="font-size:12px;font-weight:600;color:var(--accent2);margin-bottom:4px">&#9432; Destination Period Will Be Created Automatically</div>
+    <div style="font-size:12px;color:var(--muted)" id="autoCreateMsg"></div>
+  </div>
+
+  <!-- Year Back Warning -->
+  <div class="yb-warning mb-3" id="ybWarningBox" style="display:none">
+    <div class="d-flex gap-3">
+      <span style="font-size:24px;flex-shrink:0">&#9888;</span>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px;color:var(--warn);margin-bottom:6px">Year Back Review Required</div>
+        <div style="font-size:12px;color:var(--muted)" id="ybWarningMsg"></div>
+        <div class="mt-2">
+          <input type="checkbox" id="ybAckCheck" class="form-check-input me-2">
+          <label for="ybAckCheck" style="font-size:12px;cursor:pointer;font-weight:500">
+            I have reviewed all students&#39; first-year subject status.
+            Students are NOT automatically blocked; I will use hold-back for specific students.
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Student roster -->
+  <div id="promotableSection">
+    <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px">
+      Eligible Students &#8212; Pre-selected (<span id="promotableCount">0</span>)
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+      All students selected by default. Un-check any student to hold them back — a mandatory reason is required.
+    </div>
+    <div id="promotableList" style="max-height:440px;overflow-y:auto"></div>
+  </div>
+
+  <div id="detainedSection" class="mt-3" style="display:none">
+    <div style="font-size:12px;font-weight:600;color:var(--warn);margin-bottom:8px">
+      &#9888; Detained / Withdrawn &#8212; Not promoted (<span id="detainedCount">0</span>)
+    </div>
+    <div id="detainedList" style="max-height:120px;overflow-y:auto"></div>
+  </div>
+
+  <div id="alreadySection" class="mt-3" style="display:none">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">
+      &#8617; Already in Destination &#8212; Skipped (<span id="alreadyCount">0</span>)
+    </div>
+    <div id="alreadyList" style="max-height:100px;overflow-y:auto"></div>
+  </div>
+
+  <div class="mt-3 d-flex gap-2 align-items-center flex-wrap">
+    <button class="btn btn-primary btn-sm" onclick="goToConfirm()">Review Summary &#8594;</button>
+    <span style="font-size:11px;color:var(--muted)">Source records always preserved. Full audit trail maintained.</span>
+  </div>
+</div>
+
+<!-- STEP 3: Confirm -->
+<div class="promo-card" id="step3" style="display:none">
+  <h6 class="mb-3" style="font-weight:600">Step 3 &#8212; Confirm Operation</h6>
+  <div class="confirm-box mb-3" id="confirmSummary"></div>
+  <div style="font-size:13px;color:var(--warn);margin-bottom:12px">
+    &#9888; Review carefully. This is permanently recorded in the academic audit log.
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="goToStep(2)">&#8592; Back to Roster</button>
+    <button class="btn btn-success btn-sm" onclick="goToExecute()">&#10003; Confirm &amp; Proceed</button>
+  </div>
+</div>
+
+<!-- STEP 4: Final Confirm + Execute -->
+<div class="promo-card" id="step4" style="display:none">
+  <h6 class="mb-3" style="font-weight:600">Step 4 &#8212; Final Confirmation</h6>
+  <div style="background:rgba(248,81,73,.06);border:1px solid rgba(248,81,73,.25);border-radius:10px;padding:1rem 1.2rem;margin-bottom:1rem">
+    <div style="font-weight:600;font-size:13px;margin-bottom:6px">&#9888; Last Chance to Cancel</div>
+    <div id="finalConfirmText" style="font-size:12px;color:var(--muted)"></div>
+  </div>
+  <div class="mb-3">
+    <input type="checkbox" id="finalCheckbox" class="form-check-input me-2">
+    <label for="finalCheckbox" style="font-size:12px;cursor:pointer">
+      I confirm I have verified all selections and hold-back reasons. This is permanently recorded.
+    </label>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="goToStep(3)">&#8592; Back</button>
+    <button class="btn btn-danger btn-sm" onclick="executePromotion()" id="executeBtn" disabled>
+      &#128640; Execute Promotion Now
+    </button>
+  </div>
+  <div id="step4Msg" class="mt-2" style="font-size:12px"></div>
+</div>
+
+<!-- STEP 5: Results -->
+<div class="promo-card" id="step5" style="display:none">
+  <h6 class="mb-3" style="font-weight:600">&#10003; Promotion Complete</h6>
+  <div id="resultsContent"></div>
+  <div class="mt-3 d-flex gap-2">
+    <a href="/academic/manage" class="btn btn-sm btn-outline-secondary">Academic Management</a>
+    <a href="/academic/audit" class="btn btn-sm btn-outline-secondary">Audit Log</a>
+    <button class="btn btn-sm btn-primary" onclick="resetAll()">New Promotion</button>
+  </div>
+</div>
+
+<script>
+var _preview = null, _sourcePeriod = null, _idemToken = null;
+
+var REASON_LABELS = {
+  year_back_review:        'Year Back Review',
+  administrative_decision: 'Admin Decision',
+  enrollment_issue:        'Enrollment Issue',
+  subject_backlog:         'Subject Backlog',
+  fee_clearance:           'Fee Clearance',
+  other:                   'Other'
+};
+
+function goToStep(n) {
+  for (var i = 1; i <= 5; i++) {
+    document.getElementById('step' + i).style.display = (i === n) ? '' : 'none';
+  }
+  for (var i = 1; i <= 5; i++) {
+    var dot = document.getElementById('dot' + i);
+    var lbl = document.getElementById('lbl' + i);
+    if (i < n)        { dot.className = 'si-dot done';   lbl.className = 'si-label done'; }
+    else if (i === n) { dot.className = 'si-dot active'; lbl.className = 'si-label active'; }
+    else              { dot.className = 'si-dot';        lbl.className = 'si-label'; }
+  }
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+async function loadPeriodOptions() {
+  var res  = await fetch('/academic/api/periods');
+  var data = await res.json();
+  if (!data.success) return;
+  var sel = document.getElementById('sourcePeriod');
+  var grouped = {};
+  data.periods.forEach(function(p) {
+    if (p.semester_number >= 8) return;
+    if (!grouped[p.admission_batch]) grouped[p.admission_batch] = [];
+    grouped[p.admission_batch].push(p);
+  });
+  var opts = '<option value="">-- Select source period --</option>';
+  Object.keys(grouped).sort().reverse().forEach(function(b) {
+    opts += '<optgroup label="Batch ' + b + '">';
+    grouped[b].sort(function(a, bb) { return a.semester_number - bb.semester_number; }).forEach(function(p) {
+      opts += '<option value="' + p.id + '">' + p.label + ' [' + p.status + '] (' + p.enrollment_count + ' students)</option>';
+    });
+    opts += '</optgroup>';
+  });
+  sel.innerHTML = opts;
+}
+
+async function loadPreview() {
+  var srcId = document.getElementById('sourcePeriod').value;
+  if (!srcId) { showMsg('step1Msg', 'Please select a source period.', 'danger'); return; }
+  var btn = document.getElementById('previewBtn');
+  btn.disabled = true; btn.textContent = 'Loading...';
+  var res = await fetch('/academic/api/promote/preview', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({source_period_id: parseInt(srcId)})
+  });
+  var data = await res.json();
+  btn.disabled = false; btn.textContent = 'Preview Students';
+  if (!data.success) {
+    showMsg('step1Msg', data.message, 'danger');
+    if (data.graduation_required)
+      document.getElementById('step1Msg').innerHTML +=
+        ' <a href="/academic/graduation" style="font-size:12px">Go to Graduation &rarr;</a>';
+    return;
+  }
+  _preview = data;
+  _sourcePeriod = data.source_period;
+  renderStep2();
+  goToStep(2);
+}
+
+function renderStep2() {
+  var d = _preview;
+
+  // Period summary banner
+  var destLabel = d.dest_period
+    ? '<strong>' + esc(d.dest_period.label) + '</strong>'
+    : '<span style="color:var(--accent2)">Batch ' + esc(_sourcePeriod.admission_batch) +
+      ' &mdash; Sem ' + d.next_sem_number + ' <em>(will be created automatically)</em></span>';
+
+  document.getElementById('periodSummary').innerHTML =
+    '<div class="d-flex gap-3 flex-wrap align-items-center">'
+    + '<div><div style="font-size:10px;color:var(--muted)">SOURCE</div>'
+    + '<div style="font-size:13px;font-weight:600">' + esc(_sourcePeriod.label) + '</div>'
+    + '<div style="font-size:11px;color:var(--muted)">' + d.summary.total_in_source + ' enrolled</div></div>'
+    + '<div style="font-size:22px;color:var(--muted)">&rarr;</div>'
+    + '<div><div style="font-size:10px;color:var(--muted)">DESTINATION</div>'
+    + '<div style="font-size:13px;font-weight:600">' + destLabel + '</div>'
+    + '<div style="font-size:11px;color:var(--muted)">' + (d.dest_period ? esc(d.dest_period.status) : 'Auto-created on execute') + '</div></div>'
+    + '<div style="flex:1;text-align:right">'
+    + '<span class="stat-chip sc-promote">' + d.summary.promotable_count + ' Eligible</span>'
+    + (d.summary.detained_count ? '<span class="stat-chip sc-hold ms-1">' + d.summary.detained_count + ' Detained</span>' : '')
+    + (d.summary.already_promoted_count ? '<span class="stat-chip sc-skip ms-1">' + d.summary.already_promoted_count + ' Already done</span>' : '')
+    + '</div></div>';
+
+  // Auto-create info box
+  if (d.dest_will_be_created) {
+    document.getElementById('autoCreateBox').style.display = '';
+    var destInfo = d.dest_period || {label: 'Batch ' + _sourcePeriod.admission_batch + ' Sem ' + d.next_sem_number};
+    document.getElementById('autoCreateMsg').textContent =
+      'The destination period "' + (destInfo.label || 'Sem ' + d.next_sem_number) + '" does not exist yet. ' +
+      'It will be created automatically when you execute the promotion. ' +
+      'You can update its dates in Academic Management afterwards.';
+  } else {
+    document.getElementById('autoCreateBox').style.display = 'none';
+  }
+
+  // Year Back warning
+  if (d.year_back_warning) {
+    document.getElementById('ybWarningBox').style.display = '';
+    document.getElementById('ybWarningMsg').textContent = d.year_back_warning.message;
+  } else {
+    document.getElementById('ybWarningBox').style.display = 'none';
+  }
+
+  // Promotable list
+  document.getElementById('promotableCount').textContent = d.summary.promotable_count;
+  var listEl = document.getElementById('promotableList');
+  listEl.innerHTML = d.promotable.length
+    ? d.promotable.map(buildStudentRow).join('')
+    : '<p style="font-size:12px;color:var(--muted)">No eligible students in this period.</p>';
+
+  // Detained
+  if (d.detained.length) {
+    document.getElementById('detainedSection').style.display = '';
+    document.getElementById('detainedCount').textContent = d.detained.length;
+    document.getElementById('detainedList').innerHTML = d.detained.map(function(s) {
+      return '<div class="student-row" style="opacity:.6"><div class="d-flex align-items-center gap-3">'
+        + '<div style="flex:1"><span style="font-size:13px;font-weight:500">' + esc(s.name) + '</span>'
+        + '<span class="usn-mono ms-2">' + esc(s.usn) + '</span></div>'
+        + '<span style="font-size:11px;color:var(--danger)">' + esc(s.skip_reason) + '</span>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  // Already promoted
+  if (d.already_promoted.length) {
+    document.getElementById('alreadySection').style.display = '';
+    document.getElementById('alreadyCount').textContent = d.already_promoted.length;
+    document.getElementById('alreadyList').innerHTML = d.already_promoted.map(function(s) {
+      return '<div class="student-row already-done"><span style="font-size:12px;font-weight:500">'
+        + esc(s.name) + '</span><span class="usn-mono ms-2">' + esc(s.usn)
+        + '</span><span style="font-size:11px;color:var(--muted);margin-left:8px">Already in destination</span></div>';
+    }).join('');
+  }
+}
+
+function buildStudentRow(s) {
+  var rcPills = Object.keys(REASON_LABELS).map(function(code) {
+    return '<span class="rc-pill" id="rc_' + s.student_id + '_' + code + '"'
+      + ' onclick="selectReason(' + s.student_id + ',\'' + code + '\')">'
+      + REASON_LABELS[code] + '</span>';
+  }).join('');
+  var stBg  = (s.enrollment_status === 'completed') ? 'rgba(63,185,80,.12)' : 'rgba(88,166,255,.12)';
+  var stClr = (s.enrollment_status === 'completed') ? 'var(--accent)' : 'var(--accent2)';
+  return '<div class="student-row" id="sr_' + s.student_id + '">'
+    + '<div class="d-flex align-items-center gap-3">'
+    + '<input type="checkbox" class="promote-cb form-check-input" id="cb_' + s.student_id + '"'
+    + ' value="' + s.student_id + '" checked onchange="onStudentToggle(' + s.student_id + ')">'
+    + '<div style="flex:1"><label for="cb_' + s.student_id + '" style="cursor:pointer;font-size:13px;font-weight:500;margin:0">'
+    + esc(s.name) + '</label>'
+    + '<span class="usn-mono ms-2">' + esc(s.usn) + '</span></div>'
+    + '<span style="font-size:11px;color:var(--muted)">' + esc(s.section || '') + '</span>'
+    + '<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:' + stBg + ';color:' + stClr + '">'
+    + esc(s.enrollment_status) + '</span>'
+    + '</div>'
+    + '<div class="hb-reason-row" id="hbr_' + s.student_id + '" style="display:none">'
+    + '<div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:6px">Hold-back reason required:</div>'
+    + '<div class="mb-2">' + rcPills + '</div>'
+    + '<input type="text" class="form-control form-control-sm" id="hbn_' + s.student_id + '"'
+    + ' placeholder="Written notes required (mandatory — recorded in audit log)" maxlength="500">'
+    + '</div></div>';
+}
+
+function onStudentToggle(sid) {
+  var checked = document.getElementById('cb_' + sid).checked;
+  var row = document.getElementById('sr_' + sid);
+  var hbr = document.getElementById('hbr_' + sid);
+  if (checked) { row.classList.remove('held-back'); hbr.style.display = 'none'; }
+  else         { row.classList.add('held-back');    hbr.style.display = ''; }
+}
+
+function selectReason(sid, code) {
+  Object.keys(REASON_LABELS).forEach(function(c) {
+    var el = document.getElementById('rc_' + sid + '_' + c);
+    if (el) el.classList.toggle('selected', c === code);
+  });
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('.promote-cb').forEach(function(cb) {
+    if (cb.checked !== checked) { cb.checked = checked; onStudentToggle(parseInt(cb.value)); }
+  });
+}
+
+function getSelectedReason(sid) {
+  var codes = Object.keys(REASON_LABELS);
+  for (var i = 0; i < codes.length; i++) {
+    var el = document.getElementById('rc_' + sid + '_' + codes[i]);
+    if (el && el.classList.contains('selected')) return codes[i];
+  }
+  return null;
+}
+
+function goToConfirm() {
+  if (_preview.year_back_warning) {
+    var ack = document.getElementById('ybAckCheck');
+    if (!ack.checked) {
+      alert('Please acknowledge the Year Back warning before proceeding.');
+      ack.scrollIntoView({behavior: 'smooth'}); return;
+    }
+  }
+  var promotable = _preview.promotable, valid = true, errs = [];
+  promotable.forEach(function(s) {
+    var cb = document.getElementById('cb_' + s.student_id);
+    if (!cb || cb.checked) return;
+    var code  = getSelectedReason(s.student_id);
+    var notes = (document.getElementById('hbn_' + s.student_id) || {}).value || '';
+    if (!code)        { valid = false; errs.push(s.name + ': select a reason code'); }
+    else if (!notes.trim()) { valid = false; errs.push(s.name + ': enter written notes'); }
+  });
+  if (!valid) {
+    alert('Hold-back validation failed:\n' + errs.slice(0,5).join('\n') +
+          (errs.length > 5 ? '\n...and ' + (errs.length - 5) + ' more' : ''));
+    return;
+  }
+  var hbList = promotable.filter(function(s) { var cb = document.getElementById('cb_' + s.student_id); return cb && !cb.checked; });
+  var pList  = promotable.filter(function(s) { var cb = document.getElementById('cb_' + s.student_id); return cb && cb.checked; });
+
+  var destLabel = _preview.dest_period
+    ? esc(_preview.dest_period.label)
+    : 'Batch ' + esc(_sourcePeriod.admission_batch) + ' Sem ' + _preview.next_sem_number + ' (will be created)';
+
+  var hbHtml = '';
+  if (hbList.length) {
+    hbHtml = '<div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:4px">Held-Back Students:</div>'
+      + '<div style="font-size:12px">'
+      + hbList.map(function(s) {
+          var code  = getSelectedReason(s.student_id);
+          var notes = (document.getElementById('hbn_' + s.student_id) || {}).value || '';
+          return '<div style="padding:4px 0;border-bottom:1px solid var(--border)">'
+            + '<strong>' + esc(s.name) + '</strong> (' + esc(s.usn) + ') &mdash; '
+            + esc(REASON_LABELS[code] || code) + ': ' + esc(notes) + '</div>';
+        }).join('') + '</div>';
+  }
+
+  document.getElementById('confirmSummary').innerHTML =
+    '<div style="font-size:13px;font-weight:600;margin-bottom:10px">Operation Summary</div>'
+    + '<div class="d-flex gap-2 flex-wrap mb-3">'
+    + '<span class="stat-chip sc-promote">&#10003; ' + pList.length + ' to be promoted</span>'
+    + '<span class="stat-chip sc-hold">&#10007; ' + hbList.length + ' held back</span>'
+    + (_preview.detained.length ? '<span class="stat-chip sc-skip">&#9888; ' + _preview.detained.length + ' detained</span>' : '')
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">'
+    + '<strong>From:</strong> ' + esc(_sourcePeriod.label) + '<br>'
+    + '<strong>To:</strong> ' + destLabel + '</div>'
+    + (_preview.dest_will_be_created ? '<div style="font-size:11px;color:var(--accent2);margin-bottom:8px">&#9432; Destination period will be auto-created.</div>' : '')
+    + hbHtml;
+
+  document.getElementById('finalConfirmText').innerHTML =
+    'Promoting <strong>' + pList.length + '</strong> student(s) from <strong>' + esc(_sourcePeriod.label) + '</strong>'
+    + ' to <strong>' + destLabel + '</strong>, holding back <strong>' + hbList.length + '</strong>.'
+    + (_preview.dest_will_be_created ? ' <em>(Destination period will be created automatically.)</em>' : '')
+    + ' This is permanently recorded in the academic audit log.';
+
+  goToStep(3);
+}
+
+function goToExecute() {
+  _idemToken = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36);
+  var cb = document.getElementById('finalCheckbox');
+  cb.checked = false;
+  document.getElementById('executeBtn').disabled = true;
+  cb.onchange = function() { document.getElementById('executeBtn').disabled = !cb.checked; };
+  goToStep(4);
+}
+
+async function executePromotion() {
+  var btn = document.getElementById('executeBtn');
+  btn.disabled = true; btn.textContent = 'Executing...';
+
+  var promotable = _preview.promotable, promote_ids = [], holdbacks = [];
+  promotable.forEach(function(s) {
+    var cb = document.getElementById('cb_' + s.student_id);
+    if (!cb) return;
+    if (cb.checked) {
+      promote_ids.push(s.student_id);
+    } else {
+      holdbacks.push({
+        student_id:  s.student_id,
+        reason_code: getSelectedReason(s.student_id) || 'other',
+        notes: ((document.getElementById('hbn_' + s.student_id) || {}).value || '').trim()
+      });
+    }
+  });
+
+  if (!promote_ids.length && !holdbacks.length) {
+    btn.disabled = false; btn.textContent = 'Execute Promotion Now';
+    alert('No students selected.'); return;
+  }
+
+  // NOTE: dest_period_id is intentionally NOT sent — server auto-resolves/creates it
+  var payload = {
+    source_period_id:       _sourcePeriod.id,
+    promote_ids:            promote_ids,
+    holdbacks:              holdbacks,
+    year_back_acknowledged: !!(_preview.year_back_warning && (document.getElementById('ybAckCheck') || {}).checked),
+    idempotency_token:      _idemToken,
+    mark_source_completed:  true
+  };
+
+  try {
+    var res  = await fetch('/academic/api/promote/v2', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    var data = await res.json();
+    btn.disabled = false; btn.textContent = 'Execute Promotion Now';
+    if (!data.success) {
+      document.getElementById('step4Msg').innerHTML =
+        '<span style="color:var(--danger)">' + esc(data.message) + '</span>';
+      if (data.year_back_required) goToStep(2);
+      return;
+    }
+    renderResults(data); goToStep(5);
+  } catch(err) {
+    btn.disabled = false; btn.textContent = 'Execute Promotion Now';
+    document.getElementById('step4Msg').innerHTML =
+      '<span style="color:var(--danger)">Network error: ' + esc(err.message) + '</span>';
+  }
+}
+
+function renderResults(data) {
+  var html = '<div class="d-flex gap-2 flex-wrap mb-3">'
+    + '<span class="stat-chip sc-promote">&#10003; ' + data.promoted.length + ' Promoted</span>'
+    + '<span class="stat-chip sc-hold">&#10007; ' + data.held_back.length + ' Held Back</span>'
+    + (data.skipped.length  ? '<span class="stat-chip sc-skip">&#8617; '  + data.skipped.length  + ' Skipped</span>' : '')
+    + (data.errors.length   ? '<span class="stat-chip sc-err">&#9888; '   + data.errors.length   + ' Errors</span>'  : '')
+    + '</div>'
+    + (data.dest_auto_created ? '<div style="font-size:12px;color:var(--accent2);margin-bottom:8px;padding:6px 10px;background:rgba(88,166,255,.08);border-radius:6px">&#9432; Destination period was automatically created.</div>' : '')
+    + '<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:8px">' + esc(data.message) + '</div>';
+
+  if (data.promoted.length) {
+    html += '<div style="font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px">PROMOTED</div>';
+    data.promoted.forEach(function(s) {
+      html += '<div class="result-row rr-ok">&#10003; <strong>' + esc(s.name) + '</strong> <span class="usn-mono">' + esc(s.usn) + '</span></div>';
+    });
+  }
+  if (data.held_back.length) {
+    html += '<div style="font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px">HELD BACK</div>';
+    data.held_back.forEach(function(s) {
+      html += '<div class="result-row rr-hold">&#10007; <strong>' + esc(s.name) + '</strong> <span class="usn-mono">' + esc(s.usn) + '</span>'
+        + ' &mdash; <em>' + esc(REASON_LABELS[s.reason_code] || s.reason_code) + '</em>: ' + esc(s.notes) + '</div>';
+    });
+  }
+  if (data.skipped.length) {
+    html += '<div style="font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px">SKIPPED</div>';
+    data.skipped.forEach(function(s) {
+      html += '<div class="result-row rr-skip">' + esc(s.usn || String(s.student_id)) + ' &mdash; ' + esc(s.reason || '') + '</div>';
+    });
+  }
+  if (data.errors.length) {
+    html += '<div style="font-size:12px;font-weight:600;color:var(--danger);margin:10px 0 4px">ERRORS (manual review required)</div>';
+    data.errors.forEach(function(err) {
+      html += '<div class="result-row rr-err">&#9888; ' + esc(err.error || JSON.stringify(err)) + '</div>';
+    });
+  }
+  document.getElementById('resultsContent').innerHTML = html;
+}
+
+function resetAll() {
+  _preview = _sourcePeriod = _idemToken = null;
+  document.getElementById('sourcePeriod').value = '';
+  ['step1Msg','promotableList','detainedList','alreadyList','resultsContent'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.innerHTML = '';
+  });
+  ['detainedSection','alreadySection','ybWarningBox','autoCreateBox'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+  goToStep(1);
+}
+
+function showMsg(id, msg, type) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '<div class="alert alert-' + type + ' py-1 px-2" style="font-size:12px">' + esc(msg) + '</div>';
+}
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.addEventListener('DOMContentLoaded', loadPeriodOptions);
+</script>
+{% endblock %}

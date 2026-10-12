@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}My Academic History | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .history-header{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.25rem;}
+  .sem-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;cursor:pointer;transition:border-color .2s,box-shadow .2s;}
+  .sem-card:hover{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(88,166,255,.08);}
+  .sem-card.active{border-color:var(--accent2);}
+  .sem-num{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0;}
+  .sn-completed{background:rgba(63,185,80,.15);color:var(--accent);border:2px solid var(--accent);}
+  .sn-current{background:rgba(88,166,255,.15);color:var(--accent2);border:2px solid var(--accent2);}
+  .sn-legacy{background:var(--surface2);color:var(--muted);border:2px solid var(--border);}
+  .sn-none{background:var(--surface2);color:var(--border);border:2px dashed var(--border);}
+  .status-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-family:'Space Mono',monospace;padding:2px 8px;border-radius:12px;font-weight:600;}
+  .sb-completed{background:rgba(63,185,80,.15);color:var(--accent);}
+  .sb-enrolled{background:rgba(88,166,255,.15);color:var(--accent2);}
+  .sb-detained{background:rgba(248,81,73,.15);color:var(--danger);}
+  .sb-legacy{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+  .sb-withdrawn{background:rgba(130,130,130,.15);color:var(--muted);}
+  .att-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;}
+  .att-fill{height:100%;border-radius:2px;transition:width .5s ease;}
+  .detail-panel{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;margin-top:.75rem;display:none;}
+  .detail-panel.open{display:block;animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .subj-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
+  .subj-row:last-child{border-bottom:none;}
+  .read-only-badge{background:rgba(130,130,130,.1);border:1px solid var(--border);color:var(--muted);font-size:10px;font-family:'Space Mono',monospace;padding:2px 8px;border-radius:6px;}
+  .empty-state{text-align:center;padding:2rem;color:var(--muted);}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">My Academic History</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Your semester-wise academic record from Semester 1 to Semester 8</p>
+  </div>
+  <a href="/dashboard/" class="btn btn-sm btn-outline-secondary">← Dashboard</a>
+</div>
+
+<!-- Student Info Card -->
+<div class="history-header d-flex align-items-center gap-3 mb-4" id="studentInfoCard" style="display:none!important">
+  <div style="flex:1">
+    <div style="font-weight:600;font-size:15px" id="studentName">—</div>
+    <div style="font-size:12px;color:var(--muted)" id="studentMeta">—</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:11px;color:var(--muted)">STATUS</div>
+    <div id="studentStatus" style="font-size:14px;font-weight:600">—</div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="loadingState" class="empty-state">
+  <span class="spinner-border spinner-border-sm me-2"></span>Loading academic history…
+</div>
+
+<!-- Empty state -->
+<div id="emptyState" class="empty-state" style="display:none">
+  <div style="font-size:40px;margin-bottom:12px">📚</div>
+  <div style="font-size:15px;font-weight:600;margin-bottom:6px">No Academic History Yet</div>
+  <div style="font-size:13px">Your semester enrollment records will appear here once they are created by the admin.</div>
+</div>
+
+<!-- Semester Cards -->
+<div id="semesterList"></div>
+
+<!-- Detail panel (hidden, reused) -->
+<div id="detailContainer"></div>
+
+<script>
+const THRESHOLD = 85.0;
+let _history    = [];
+let _openPeriod = null;
+
+async function loadHistory() {
+  const res  = await fetch('/academic/api/my-history');
+  const data = await res.json();
+
+  document.getElementById('loadingState').style.display = 'none';
+
+  if (!data.success) {
+    document.getElementById('emptyState').style.display = '';
+    document.getElementById('emptyState').innerHTML = `<p class="text-danger">${data.message}</p>`;
+    return;
+  }
+
+  const student = data.student;
+  document.getElementById('studentInfoCard').style.display = '';
+  document.getElementById('studentName').textContent = student.name;
+  document.getElementById('studentMeta').textContent =
+    `USN: ${student.effective_usn||student.username} · Dept: ${student.department||'CSE'} · Batch: ${student.admission_batch||'—'}`;
+  const statusText = student.status === 'graduated' ? '🎓 Graduated' :
+                     student.status === 'active'    ? '● Active'      : student.status;
+  document.getElementById('studentStatus').textContent = statusText;
+  document.getElementById('studentStatus').style.color = student.status === 'graduated' ? 'var(--accent)' : 'var(--text)';
+
+  _history = data.history;
+
+  if (!_history.length) {
+    document.getElementById('emptyState').style.display = '';
+    return;
+  }
+
+  renderSemesterList(_history);
+}
+
+function renderSemesterList(history) {
+  // Render all 8 semesters — show enrollment if available, else future/not-yet placeholder
+  const bySem = {};
+  history.forEach(h => { bySem[h.semester_number] = h; });
+
+  let html = '';
+  for (let sem = 1; sem <= 8; sem++) {
+    const h = bySem[sem];
+    if (h) {
+      const numCls  = h.is_completed ? 'sn-completed' : h.is_current ? 'sn-current' : 'sn-legacy';
+      const stCls   = h.enrollment_status === 'completed' ? 'sb-completed' :
+                      h.enrollment_status === 'enrolled'  ? 'sb-enrolled'  :
+                      h.enrollment_status === 'detained'  ? 'sb-detained'  :
+                      h.enrollment_status === 'legacy'    ? 'sb-legacy'    : 'sb-withdrawn';
+      const attPct  = h.avg_attendance !== null ? h.avg_attendance : null;
+      const attColor = attPct === null ? 'var(--muted)' : attPct >= THRESHOLD ? 'var(--accent)' : attPct >= 75 ? 'var(--warn)' : 'var(--danger)';
+      const periodId = h.period_id;
+      html += `
+        <div class="sem-card" id="sc_${sem}" onclick="toggleDetail(${sem}, ${periodId||'null'})">
+          <div class="d-flex align-items-center gap-3">
+            <div class="sem-num ${numCls}">${sem}</div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600">${h.period_label}</div>
+              <div style="font-size:11px;color:var(--muted)">${h.academic_year||''} ${h.section ? '· Section ' + h.section : ''}</div>
+              ${h.read_only ? '<span class="read-only-badge">CLOSED — READ ONLY</span>' : ''}
+            </div>
+            <div style="text-align:right;min-width:80px">
+              <span class="status-badge ${stCls}">${(h.enrollment_status||'').toUpperCase()}</span>
+              ${attPct !== null ? `<div style="font-size:13px;font-weight:600;color:${attColor};margin-top:4px">${attPct}%</div>
+                <div class="att-bar mt-1"><div class="att-fill" style="width:${Math.min(attPct,100)}%;background:${attColor}"></div></div>` : ''}
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">${h.subject_count||0} subject${h.subject_count!==1?'s':''}</div>
+            </div>
+          </div>
+          <div class="detail-panel" id="dp_${sem}"></div>
+        </div>`;
+    } else {
+      html += `
+        <div class="sem-card" style="opacity:.5;cursor:default" id="sc_${sem}">
+          <div class="d-flex align-items-center gap-3">
+            <div class="sem-num sn-none">${sem}</div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:500;color:var(--muted)">Semester ${sem}</div>
+              <div style="font-size:11px;color:var(--muted)">Not yet available</div>
+            </div>
+          </div>
+        </div>`;
+    }
+  }
+  document.getElementById('semesterList').innerHTML = html;
+}
+
+async function toggleDetail(sem, periodId) {
+  const panel = document.getElementById(`dp_${sem}`);
+  const card  = document.getElementById(`sc_${sem}`);
+  if (!periodId) return;  // future/no-record semesters
+
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    card.classList.remove('active');
+    return;
+  }
+
+  // Close any other open panels
+  document.querySelectorAll('.detail-panel.open').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('.sem-card.active').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+
+  if (panel.innerHTML && panel.dataset.loaded === String(periodId)) {
+    panel.classList.add('open');
+    return;
+  }
+
+  panel.innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</div>';
+  panel.classList.add('open');
+
+  const res  = await fetch(`/academic/api/my-history/period/${periodId}`);
+  const data = await res.json();
+  panel.dataset.loaded = String(periodId);
+
+  if (!data.success) {
+    panel.innerHTML = `<p class="text-danger" style="font-size:12px">${data.message}</p>`;
+    return;
+  }
+
+  // Attendance section
+  let attHtml = '';
+  if (data.attendance.length) {
+    attHtml = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">ATTENDANCE</div>`;
+    data.attendance.forEach(s => {
+      const pct = s.attendance_pct||0;
+      const col = pct >= THRESHOLD ? 'var(--accent)' : pct >= 75 ? 'var(--warn)' : 'var(--danger)';
+      attHtml += `<div class="subj-row">
+        <div style="flex:1">${s.subject}</div>
+        <div style="width:100px"><div class="att-bar"><div class="att-fill" style="width:${Math.min(pct,100)}%;background:${col}"></div></div></div>
+        <div style="min-width:40px;text-align:right;font-weight:600;color:${col}">${pct}%</div>
+        <div style="font-size:10px;color:var(--muted);min-width:70px;text-align:right">${s.classes_attended}/${s.total_classes}</div>
+        ${s.is_defaulter ? '<span style="font-size:10px;color:var(--danger)">⚠ Defaulter</span>' : ''}
+      </div>`;
+    });
+  } else {
+    attHtml = '<p style="font-size:12px;color:var(--muted);margin:0">No attendance records available for this period.</p>';
+  }
+
+  // Marks section
+  let marksHtml = '';
+  if (data.marks.length) {
+    marksHtml = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 8px">INTERNAL MARKS (CIE)</div>`;
+    data.marks.forEach(m => {
+      const cie   = m.total_cie || 0;
+      const maxCIE = 50;
+      const col   = cie >= 40 ? 'var(--accent)' : cie >= 30 ? 'var(--warn)' : 'var(--danger)';
+      marksHtml += `<div class="subj-row">
+        <div style="flex:1">${m.subject} <span style="font-size:10px;color:var(--muted)">${m.subject_code||''}</span></div>
+        <div style="font-size:10px;color:var(--muted)">${m.subject_type||''}</div>
+        <div style="font-weight:600;color:${col}">${cie}/${maxCIE}</div>
+      </div>`;
+    });
+  } else {
+    marksHtml = '<p style="font-size:12px;color:var(--muted);margin:8px 0 0">No internal marks records available for this period.</p>';
+  }
+
+  const readOnly = data.read_only ? `<div class="mb-2"><span class="read-only-badge">CLOSED PERIOD — READ ONLY · Historical records cannot be edited</span></div>` : '';
+
+  panel.innerHTML = readOnly + attHtml + marksHtml;
+}
+
+document.addEventListener('DOMContentLoaded', loadHistory);
+</script>
+{% endblock %}

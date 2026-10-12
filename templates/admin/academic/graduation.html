@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Graduation Management | EduFusion{% endblock %}
+
+{% block extra_css %}
+<style>
+  .grad-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.25rem;}
+  .check-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .check-item:last-child{border-bottom:none;}
+  .check-icon{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:2px;}
+  .ci-ok{background:rgba(63,185,80,.15);color:var(--accent);}
+  .ci-warn{background:rgba(210,153,34,.15);color:var(--warn);}
+  .ci-manual{background:rgba(88,166,255,.15);color:var(--accent2);}
+  .grad-student-row{padding:12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:border-color .2s;}
+  .grad-student-row:hover{border-color:var(--accent2);}
+  .usn-mono{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+  .sem-timeline{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;}
+  .sem-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
+  .sd-completed{background:var(--accent);color:#fff;}
+  .sd-enrolled{background:var(--accent2);color:#fff;}
+  .sd-detained{background:var(--danger);color:#fff;}
+  .sd-none{background:var(--surface);border:1px solid var(--border);color:var(--muted);}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0" style="font-weight:600">Graduation Management</h4>
+    <p style="font-size:13px;color:var(--muted);margin:0">Verify and confirm student graduation after Semester 8</p>
+  </div>
+  <a href="/academic/manage" class="btn btn-sm btn-outline-secondary">← Back</a>
+</div>
+
+<!-- Search -->
+<div class="grad-card">
+  <h6 class="mb-3" style="font-weight:600">Find Student for Graduation</h6>
+  <div class="d-flex gap-2">
+    <input type="text" id="gradSearch" class="form-control form-control-sm" placeholder="Search by USN or name..." style="max-width:300px" oninput="searchStudents()">
+    <select id="gradBatchFilter" class="form-select form-select-sm" style="max-width:150px" onchange="searchStudents()">
+      <option value="">All Batches</option>
+    </select>
+  </div>
+  <div id="gradSearchResults" class="mt-3"></div>
+</div>
+
+<!-- Student Graduation Check Panel -->
+<div class="grad-card" id="gradCheckPanel" style="display:none">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h6 class="mb-0" style="font-weight:600" id="gradStudentTitle">—</h6>
+    <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('gradCheckPanel').style.display='none'">✕</button>
+  </div>
+
+  <div id="alreadyGraduatedBanner" class="alert alert-success d-none" style="font-size:13px"></div>
+
+  <!-- Semester Timeline -->
+  <div class="mb-3">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Semester Enrollment History</div>
+    <div class="sem-timeline" id="semTimeline"></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px">
+      <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span class="sem-dot sd-completed" style="width:16px;height:16px;font-size:9px">✓</span>Completed</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span class="sem-dot sd-enrolled" style="width:16px;height:16px;font-size:9px">→</span>Enrolled</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span class="sem-dot sd-none" style="width:16px;height:16px;font-size:9px">?</span>No Record</span>
+    </div>
+  </div>
+
+  <!-- Graduation Checks -->
+  <div class="mb-3">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Graduation Requirement Checks</div>
+    <div id="gradChecks"></div>
+  </div>
+
+  <!-- Confirm Button -->
+  <div id="gradConfirmSection">
+    <div class="mb-2">
+      <label class="form-label" style="font-size:12px">Reason / Notes (required)</label>
+      <input type="text" id="gradReason" class="form-control form-control-sm" placeholder="e.g. All exams cleared, fees paid, project submitted">
+    </div>
+    <button class="btn btn-sm btn-success" onclick="confirmGraduation()" id="gradConfirmBtn">
+      🎓 Confirm Graduation
+    </button>
+    <p style="font-size:11px;color:var(--muted);margin-top:6px">
+      ⚠ This action marks the student as Graduated. All historical records are preserved.
+      Verify all requirements manually before confirming.
+    </p>
+  </div>
+  <div id="gradResult" class="alert d-none mt-2" style="font-size:12px"></div>
+</div>
+
+<!-- Graduated Students List -->
+<div class="grad-card">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h6 class="mb-0" style="font-weight:600">Graduated Students</h6>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadGraduated()">↻ Refresh</button>
+  </div>
+  <div id="graduatedList">
+    <p style="font-size:13px;color:var(--muted);text-align:center;padding:1rem">Loading…</p>
+  </div>
+</div>
+
+<script>
+let _currentGradStudentId = null;
+
+async function searchStudents() {
+  const q    = document.getElementById('gradSearch').value.trim();
+  const batch = document.getElementById('gradBatchFilter').value;
+  if (!q && !batch) { document.getElementById('gradSearchResults').innerHTML=''; return; }
+  const url  = `/academic/api/students/search?q=${encodeURIComponent(q)}&batch=${encodeURIComponent(batch)}&status=active&per_page=20`;
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (!data.success || !data.students.length) {
+    document.getElementById('gradSearchResults').innerHTML = '<p style="font-size:12px;color:var(--muted)">No students found.</p>';
+    return;
+  }
+  document.getElementById('gradSearchResults').innerHTML = data.students.map(s => `
+    <div class="grad-student-row" onclick="loadGradCheck(${s.id})">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1"><div style="font-size:13px;font-weight:500">${s.name}</div>
+          <div class="usn-mono">${s.effective_usn||s.username} · Sem ${s.semester||'?'} · ${s.section||'?'} · Batch ${s.admission_batch||'—'}</div></div>
+        <span style="font-size:11px;color:var(--accent2)">Check →</span>
+      </div>
+    </div>`).join('');
+}
+
+async function loadGradCheck(studentId) {
+  _currentGradStudentId = studentId;
+  const res  = await fetch(`/academic/api/graduation/check/${studentId}`);
+  const data = await res.json();
+  if (!data.success) { alert(data.message); return; }
+
+  const panel = document.getElementById('gradCheckPanel');
+  panel.style.display='';
+  document.getElementById('gradStudentTitle').textContent =
+    `${data.student.name} (${data.student.effective_usn||data.student.username})`;
+
+  // Already graduated?
+  const alreadyBanner = document.getElementById('alreadyGraduatedBanner');
+  if (data.already_graduated) {
+    alreadyBanner.className = 'alert alert-success';
+    alreadyBanner.textContent = `✓ Already graduated on ${data.graduated_at ? new Date(data.graduated_at).toLocaleDateString() : 'N/A'}`;
+    document.getElementById('gradConfirmSection').style.display = 'none';
+  } else {
+    alreadyBanner.className = 'alert alert-success d-none';
+    document.getElementById('gradConfirmSection').style.display = '';
+  }
+
+  // Semester timeline
+  const semMap = {};
+  (data.enrollments||[]).forEach(e => { semMap[e.semester_number] = e; });
+  let timelineHtml = '';
+  for (let i=1; i<=8; i++) {
+    const e = semMap[i];
+    const cls = e ? (e.status==='completed'?'sd-completed':e.status==='enrolled'?'sd-enrolled':'sd-detained') : 'sd-none';
+    timelineHtml += `<div class="sem-dot ${cls}" title="Sem ${i}${e?' — '+e.status:' — no record'}">${i}</div>`;
+  }
+  document.getElementById('semTimeline').innerHTML = timelineHtml;
+
+  // Checks
+  const reqs = data.graduation_requirements || {};
+  let checksHtml = '';
+  for (const [key, req] of Object.entries(reqs)) {
+    const cls = req.met ? 'ci-ok' : 'ci-warn';
+    const icon = req.met ? '✓' : '!';
+    checksHtml += `<div class="check-item">
+      <div class="check-icon ${cls}">${icon}</div>
+      <div><div style="font-size:13px;font-weight:500">${req.description}</div>
+        <div style="font-size:11px;color:var(--muted)">${req.note||''}</div></div>
+    </div>`;
+  }
+  checksHtml += `<div class="check-item">
+    <div class="check-icon ci-manual">✎</div>
+    <div><div style="font-size:13px;font-weight:500">Manual Verification Required</div>
+      <div style="font-size:11px;color:var(--muted)">University exam clearance, fee clearance, library NOC, project submission, and other college requirements must be verified manually before confirming graduation.</div></div>
+  </div>`;
+  document.getElementById('gradChecks').innerHTML = checksHtml;
+  document.getElementById('gradResult').className = 'alert d-none';
+}
+
+async function confirmGraduation() {
+  const reason = document.getElementById('gradReason').value.trim();
+  if (!reason) { alert('Please enter a reason/notes before confirming.'); return; }
+  if (!confirm('Confirm graduation for this student? All historical records will be preserved.')) return;
+
+  document.getElementById('gradConfirmBtn').disabled = true;
+  document.getElementById('gradConfirmBtn').textContent = 'Processing…';
+  const res  = await fetch('/academic/api/graduation/confirm', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({student_id: _currentGradStudentId, reason})
+  });
+  const data = await res.json();
+  document.getElementById('gradConfirmBtn').disabled = false;
+  document.getElementById('gradConfirmBtn').textContent = '🎓 Confirm Graduation';
+
+  const resultEl = document.getElementById('gradResult');
+  resultEl.className = `alert alert-${data.success?'success':'danger'}`;
+  resultEl.textContent = data.message;
+  if (data.success) {
+    loadGraduated();
+    document.getElementById('gradConfirmSection').style.display = 'none';
+  }
+}
+
+async function loadGraduated() {
+  const res  = await fetch('/academic/api/students/search?status=graduated&per_page=200');
+  const data = await res.json();
+  if (!data.success) return;
+  if (!data.students.length) {
+    document.getElementById('graduatedList').innerHTML = '<p style="font-size:13px;color:var(--muted);text-align:center;padding:1rem">No graduated students yet.</p>';
+    return;
+  }
+  document.getElementById('graduatedList').innerHTML = data.students.map(s => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${s.name}</div>
+        <div class="usn-mono">${s.effective_usn||s.username} · Batch ${s.admission_batch||'—'}</div></div>
+      <span style="font-size:11px;color:var(--accent)">🎓 Graduated ${s.graduated_at||''}</span>
+    </div>`).join('');
+}
+
+async function loadBatches() {
+  const res = await fetch('/academic/api/periods');
+  const data = await res.json();
+  if (!data.success) return;
+  const batches = [...new Set(data.periods.map(p=>p.admission_batch))].sort();
+  const sel = document.getElementById('gradBatchFilter');
+  sel.innerHTML = '<option value="">All Batches</option>' + batches.map(b=>`<option value="${b}">${b}</option>`).join('');
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadGraduated(); loadBatches(); });
+</script>
+{% endblock %}
