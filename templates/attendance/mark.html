@@ -32,8 +32,9 @@
   .seg { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; width: fit-content; }
   .seg button {
     border:none; background:transparent; color:var(--muted);
-    font-size:11px; font-family:'Space Mono',monospace; padding:6px 12px;
+    font-size:12px; font-weight:700; font-family:'Space Mono',monospace; padding:8px 14px;
     cursor:pointer; transition:all .15s; border-right:1px solid var(--border);
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
   .seg button:last-child { border-right:none; }
   .seg button.active.p { background:rgba(63,185,80,.15); color:var(--accent); }
@@ -117,15 +118,15 @@
     <button class="btn btn-success btn-sm" id="downloadBtn" onclick="downloadSheet()">
       <i class="bi bi-file-earmark-excel me-1"></i>Download Excel
     </button>
-    <a href="/attendance/mark/grid" class="btn btn-outline-secondary btn-sm"><i class="bi bi-table me-1"></i>Excel Grid View</a>
+    <button class="btn btn-outline-secondary btn-sm" onclick="goToGridView()"><i class="bi bi-table me-1"></i>Excel Grid View</button>
     <span class="badge-blue mono">FACULTY / HOD</span>
   </div>
 </div>
 
 <!-- Selectors -->
-<div class="card p-4 mb-3">
+<div class="card p-3 p-md-4 mb-3">
   <div class="row g-2">
-    <div class="col-md-4">
+    <div class="col-12 col-md-4">
       <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SUBJECT</label>
       <select class="form-select form-select-sm" id="mSubject" onchange="onSubjectChange()">
         <option value="" disabled selected>Loading subjects…</option>
@@ -134,19 +135,19 @@
       <input type="text" class="form-control form-control-sm mt-2" id="mSubjectNew"
              placeholder="Type the new subject name" style="display:none">
     </div>
-    <div class="col-md-2">
+    <div class="col-6 col-md-2">
       <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SEMESTER</label>
       <select class="form-select form-select-sm" id="mSemester">
         {% for i in range(1,9) %}<option value="{{ i }}" {% if i==4 %}selected{% endif %}>Sem {{ i }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-md-2">
+    <div class="col-6 col-md-2">
       <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SECTION</label>
       <select class="form-select form-select-sm" id="mSection">
         <option>A</option><option>B</option><option>C</option>
       </select>
     </div>
-    <div class="col-md-4">
+    <div class="col-12 col-md-4">
       <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">DATE</label>
       <input type="date" class="form-control form-control-sm" id="mDate">
     </div>
@@ -206,10 +207,10 @@
     <table class="roster-table">
       <thead>
         <tr>
-          <th style="width:70px">ROLL NO</th>
+          <th style="min-width:96px;width:96px">ROLL NO</th>
           <th>NAME</th>
-          <th class="center" style="width:110px">ATTENDANCE %</th>
-          <th class="center" style="width:170px">MARK</th>
+          <th class="center" style="min-width:110px">ATTENDANCE %</th>
+          <th class="center" style="min-width:140px">MARK</th>
         </tr>
       </thead>
       <tbody id="rosterList"></tbody>
@@ -234,17 +235,32 @@
 <script>
 let rosterData = [];
 
-// Default date = today, can't pick the future
-(function initDate() {
+// Default date = today, or from URL; can't pick the future
+(function initDateAndFilters() {
+  const params = new URLSearchParams(window.location.search);
   const d = new Date();
   const iso = d.toISOString().slice(0, 10);
   const input = document.getElementById('mDate');
-  input.value = iso;
+  input.value = params.get('date') || iso;
   input.max = iso;
+  if (params.get('semester')) document.getElementById('mSemester').value = params.get('semester');
+  if (params.get('section')) document.getElementById('mSection').value = params.get('section');
+  loadSubjects(params.get('subject') || null, params.get('autoload') === '1');
 })();
 
+function goToGridView() {
+  const subj = getSelectedSubject();
+  const sem  = document.getElementById('mSemester').value;
+  const sec  = document.getElementById('mSection').value;
+  const params = new URLSearchParams();
+  if (subj && subj !== '__new__') params.set('subject', subj);
+  if (sem) params.set('semester', sem);
+  if (sec) params.set('section', sec);
+  window.location.href = '/attendance/mark/grid?' + params.toString();
+}
+
 // ── Subject picker ──────────────────────────────────────────────────────────
-async function loadSubjects(preselect) {
+async function loadSubjects(preselect, autoTrigger) {
   const sel = document.getElementById('mSubject');
   try {
     const res  = await fetch('/attendance/api/subjects');
@@ -254,12 +270,14 @@ async function loadSubjects(preselect) {
     sel.innerHTML = '<option value="" disabled' + (preselect ? '' : ' selected') + '>Choose a subject…</option>' +
       existing.map(s => `<option value="${s}"${s === preselect ? ' selected' : ''}>${s}</option>`).join('') +
       '<option value="__new__">+ Add new subject</option>';
+    if (preselect && autoTrigger) {
+      loadRoster();
+    }
   } catch (e) {
     sel.innerHTML = '<option value="__new__" selected>+ Add new subject</option>';
     onSubjectChange();
   }
 }
-loadSubjects();
 
 function onSubjectChange() {
   const sel    = document.getElementById('mSubject');
