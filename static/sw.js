@@ -3,20 +3,19 @@
  * Handles: offline caching, push notifications, background sync
  */
 
-const CACHE_NAME    = 'edufusion-v4';
+const CACHE_NAME    = 'edufusion-v5';
 const OFFLINE_URL   = '/offline';
 
 // Assets to pre-cache on install (app shell)
 const PRECACHE_URLS = [
   '/',
-  '/dashboard/',
   '/offline',
   '/static/manifest.json',
   '/static/icons/icon-192.png',
   '/static/icons/icon-512.png',
 ];
 
-// ── Install: pre-cache app shell ─────────────────────────────────────────────
+// ── Install: pre-cache core app shell ────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async cache => {
@@ -24,7 +23,7 @@ self.addEventListener('install', event => {
         try {
           await cache.add(url);
         } catch (err) {
-          console.warn('[SW] Pre-cache partial failure (expected if unauthenticated):', url);
+          console.warn('[SW] Pre-cache partial failure:', url, err);
         }
       }
     })
@@ -39,14 +38,24 @@ self.addEventListener('message', event => {
   }
 });
 
-// ── Activate: clear old caches ───────────────────────────────────────────────
+// ── Activate: migrate existing cached user data before purging old caches ─────
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+    caches.keys().then(async keys => {
+      const oldKeys = keys.filter(k => k !== CACHE_NAME);
+      const newCache = await caches.open(CACHE_NAME);
+      for (const oldKey of oldKeys) {
+        try {
+          const oldCache = await caches.open(oldKey);
+          const oldReqs = await oldCache.keys();
+          for (const req of oldReqs) {
+            const res = await oldCache.match(req);
+            if (res) await newCache.put(req, res);
+          }
+        } catch (e) {}
+        await caches.delete(oldKey);
+      }
+    }).then(() => self.clients.claim())
   );
 });
 
@@ -81,14 +90,14 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') {
     event.respondWith(
       fetch(request).catch(() => new Response(
-        JSON.stringify({ success: false, message: 'You are offline. Please reconnect to submit.' }),
+        JSON.stringify({ success: false, offline: true, message: 'You are offline. Reconnect to perform this action.' }),
         { headers: { 'Content-Type': 'application/json' } }
       ))
     );
     return;
   }
 
-  // Read-only GET API calls — network-first with cache fallback (so offline user can view dashboard/attendance data)
+  // Read-only GET API calls — network-first with cache fallback
   if (url.pathname.startsWith('/dashboard/api') ||
       url.pathname.startsWith('/attendance/api') ||
       url.pathname.startsWith('/alert/my') ||
@@ -98,29 +107,34 @@ self.addEventListener('fetch', event => {
         .then(response => {
           if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+            caches.open(CACHE_NAME).then(c => {
+              c.put(request, clone);
+              c.put(url.pathname, response.clone());
+            });
           }
           return response;
         })
-        .catch(() => caches.match(request).then(cached => {
+        .catch(async () => {
+          let cached = await caches.match(request);
+          if (!cached) cached = await caches.match(url.pathname);
           if (cached) return cached;
           return new Response(
-            JSON.stringify({ success: false, message: 'You are offline.' }),
+            JSON.stringify({ success: false, offline: true, message: 'You are offline.' }),
             { headers: { 'Content-Type': 'application/json' } }
           );
-        }))
+        })
     );
     return;
   }
 
-  // Other API endpoints (e.g. notifications, auth) — network-first, offline message on failure
+  // Other API endpoints — network-only with friendly offline response
   if (url.pathname.startsWith('/leave/api') ||
       url.pathname.startsWith('/alert/') ||
       url.pathname.startsWith('/auth/api') ||
       url.pathname.startsWith('/notify/')) {
     event.respondWith(
       fetch(request).catch(() => new Response(
-        JSON.stringify({ success: false, message: 'You are offline.' }),
+        JSON.stringify({ success: false, offline: true, message: 'You are offline.' }),
         { headers: { 'Content-Type': 'application/json' } }
       ))
     );
@@ -142,7 +156,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // HTML pages — network-first, fall back to cache, then offline fallback page
+  // HTML pages & Navigations — network-first with resilient multi-key cache fallback
   event.respondWith(
     fetch(request)
       .then(response => {
@@ -150,14 +164,44 @@ self.addEventListener('fetch', event => {
           const ct = response.headers.get('content-type') || '';
           if (ct.includes('text/html')) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+            caches.open(CACHE_NAME).then(c => {
+              c.put(request, clone);
+              c.put(url.pathname, response.clone());
+              const normalized = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname + '/';
+              c.put(normalized, response.clone());
+            });
           }
         }
         return response;
       })
-      .catch(() =>
-        caches.match(request).then(cached => cached || caches.match(OFFLINE_URL))
-      )
+      .catch(async () => {
+        // 1. Try exact Request match
+        let cached = await caches.match(request);
+        if (cached) return cached;
+
+        // 2. Try URL pathname
+        cached = await caches.match(url.pathname);
+        if (cached) return cached;
+
+        // 3. Try with / without trailing slash
+        const alt = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname + '/';
+        cached = await caches.match(alt);
+        if (cached) return cached;
+
+        // 4. If navigating to dashboard or root, match any stored dashboard
+        if (url.pathname === '/' || url.pathname.startsWith('/dashboard')) {
+          cached = await caches.match('/dashboard/');
+          if (cached) return cached;
+          cached = await caches.match('/dashboard');
+          if (cached) return cached;
+        }
+
+        // 5. Fallback to offline page
+        return (await caches.match(OFFLINE_URL)) || new Response('Offline', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' }
+        });
+      })
   );
 });
 

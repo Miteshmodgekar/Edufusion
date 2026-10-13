@@ -219,12 +219,37 @@ Chart.defaults.borderColor = '#30363d';
 
 async function loadStudentDashboard() {
   try {
-    const [dashRes, attRes] = await Promise.all([
-      fetch('/dashboard/api/data'),
-      fetch('/attendance/api/my-full'),
-    ]);
-    const dash = await dashRes.json().catch(() => ({}));
-    const att  = await attRes.json().catch(() => ({}));
+    let dash = {};
+    let att = {};
+    try {
+      const [dashRes, attRes] = await Promise.all([
+        fetch('/dashboard/api/data'),
+        fetch('/attendance/api/my-full'),
+      ]);
+      dash = await dashRes.json().catch(() => ({}));
+      att  = await attRes.json().catch(() => ({}));
+    } catch(err) {
+      console.warn('Network fetch failed; using offline cache:', err);
+    }
+
+    // Persist or restore from localStorage for seamless offline experience
+    if (dash && dash.success) {
+      try { localStorage.setItem('edufusion_cache_dash_' + uid, JSON.stringify(dash)); } catch(e) {}
+    } else {
+      try {
+        const cached = JSON.parse(localStorage.getItem('edufusion_cache_dash_' + uid) || '{}');
+        if (cached.success) dash = cached;
+      } catch(e) {}
+    }
+
+    if (att && att.success) {
+      try { localStorage.setItem('edufusion_cache_att_' + uid, JSON.stringify(att)); } catch(e) {}
+    } else {
+      try {
+        const cached = JSON.parse(localStorage.getItem('edufusion_cache_att_' + uid) || '{}');
+        if (cached.success) att = cached;
+      } catch(e) {}
+    }
 
     if (dash.success) {
       document.getElementById('statLeave').textContent = (dash.leaves?.pending || 0) + ' Pending';
@@ -268,8 +293,10 @@ function renderAttWidget(att) {
   // Sync info
   const syncEl = document.getElementById('syncInfo');
   if (att.last_sync) {
+    const isOnline = navigator.onLine !== false;
+    const dot = isOnline ? '🟢 Connected' : '🟡 Offline Mode (Cached)';
     syncEl.innerHTML =
-      `<span style="color:var(--accent)">🟢 Connected</span><br>` +
+      `<span style="color:${isOnline ? 'var(--accent)' : 'var(--warn)'}">${dot}</span><br>` +
       `<span style="color:var(--text)">Updated by <strong>${att.last_sync.uploaded_by}</strong></span><br>` +
       `<span style="font-size:10px;color:var(--muted)">${att.last_sync.uploaded_at}</span>`;
     document.getElementById('syncText').textContent = att.last_sync.uploaded_at.split(',')[0];
