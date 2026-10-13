@@ -6,10 +6,15 @@
 .marks-card:hover { border-color:rgba(88,166,255,.3); box-shadow:0 4px 20px rgba(0,0,0,.25); }
 .subject-title { font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px; }
 .subject-meta  { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; }
-.ia-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:16px; }
-@media(max-width:600px){ .ia-grid { grid-template-columns:1fr 1fr; } }
-.ia-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center; }
-.ia-box .score { font-size:26px; font-weight:800; font-family:'Space Mono',monospace; line-height:1; }
+
+.ia-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px; }
+.ia-grid.cols-2 { grid-template-columns:repeat(2,1fr); }
+.ia-grid.cols-3 { grid-template-columns:repeat(3,1fr); }
+.ia-grid.cols-4 { grid-template-columns:repeat(4,1fr); }
+.ia-grid.cols-5 { grid-template-columns:repeat(5,1fr); }
+
+.ia-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center; display:flex; flex-direction:column; justify-content:center; }
+.ia-box .score { font-size:26px; font-weight:800; font-family:'Space Mono',monospace; line-height:1.1; }
 .ia-box .label { font-size:10px; color:var(--muted); margin-top:4px; }
 .ia-box .max   { font-size:11px; color:var(--muted); }
 .ia1-box { border-color:rgba(63,185,80,.3); }
@@ -18,9 +23,62 @@
 .ia2-box .score { color:#58a6ff; }
 .asgn-box { border-color:rgba(210,153,34,.3); }
 .asgn-box .score { color:#d29922; }
-.total-box { grid-column:1/-1; background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(88,166,255,.08));
-             border-color:rgba(63,185,80,.3); padding:18px; }
-.total-box .score { font-size:34px; color:var(--text); }
+.total-box { grid-column:1/-1 !important; background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(88,166,255,.08));
+             border-color:rgba(63,185,80,.3); padding:16px; }
+.total-box .score { font-size:32px; color:var(--text); }
+
+@media(max-width:768px){
+  .ia-grid,
+  .ia-grid.cols-3,
+  .ia-grid.cols-4,
+  .ia-grid.cols-5 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+  .ia-grid.cols-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+  .ia-box {
+    padding: 12px 8px;
+  }
+  .ia-box .score {
+    font-size: 22px;
+  }
+  .ia-box .label {
+    font-size: 10px;
+    line-height: 1.25;
+  }
+  .marks-card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+  .sub-grid {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 4px;
+  }
+  .sub-cell {
+    padding: 6px 4px;
+  }
+  .sub-cell .sv {
+    font-size: 12px;
+  }
+}
+
+@media(max-width:390px){
+  .ia-box {
+    padding: 10px 6px;
+  }
+  .ia-box .score {
+    font-size: 20px;
+  }
+  .ia-box .max {
+    font-size: 10px;
+  }
+  .total-box .score {
+    font-size: 28px;
+  }
+}
 
 /* Breakdown accordion */
 .breakdown-toggle { background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; padding:4px 0; display:flex; align-items:center; gap:5px; margin-top:10px; }
@@ -88,7 +146,7 @@ function renderIAGrid(m){
     const ia2raw     = parseFloat(m.ia2_total || 0);         // raw /50
     const labRaw     = m.lab_theory        != null ? parseFloat(m.lab_theory)        : null;
     const labScaled  = m.lab_theory_scaled != null ? parseFloat(m.lab_theory_scaled) : null;
-    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+    return `<div class="ia-grid cols-4">
       <div class="ia-box ia1-box">
         <div class="score">${ia1raw.toFixed(1)}</div>
         <div class="max">/ 50</div>
@@ -109,7 +167,7 @@ function renderIAGrid(m){
         <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(Raw: ${labRaw != null ? labRaw.toFixed(1) : '—'}/50)</span></div>
         <div class="label">Lab Marks</div>
       </div>
-      <div class="ia-box total-box" style="grid-column:1/-1">
+      <div class="ia-box total-box">
         <div class="score">${cie.toFixed(1)}</div>
         <div class="max">/ 50</div>
         <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
@@ -121,7 +179,7 @@ function renderIAGrid(m){
     const ia1raw  = parseFloat(m.ia1_total || 0);
     const ia2raw  = parseFloat(m.ia2_total || 0);
     const iaScale = Math.ceil((ia1raw + ia2raw) / 4);   // combined scaled /25
-    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+    return `<div class="ia-grid cols-4">
       <div class="ia-box ia1-box">
         <div class="score">${fmt(ia1raw)}</div>
         <div class="max">/ 50</div>
@@ -142,7 +200,7 @@ function renderIAGrid(m){
         <div class="max">/ 25</div>
         <div class="label">Asgn + Seminar</div>
       </div>
-      <div class="ia-box total-box" style="grid-column:1/-1">
+      <div class="ia-box total-box">
         <div class="score">${cie.toFixed(1)}</div>
         <div class="max">/ 50</div>
         <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
@@ -156,7 +214,7 @@ function renderIAGrid(m){
     const ia2raw    = parseFloat(m.ia2_total || 0);
     const labRaw    = m.lab_ia        != null ? parseFloat(m.lab_ia)        : null;
     const labScaled = m.lab_ia_scaled != null ? parseFloat(m.lab_ia_scaled) : null;
-    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+    return `<div class="ia-grid cols-4">
       <div class="ia-box ia1-box">
         <div class="score">${ia1raw.toFixed(1)}</div>
         <div class="max">/ 50</div>
@@ -177,7 +235,7 @@ function renderIAGrid(m){
         <div class="max">/ 15 <span style="font-size:9px;opacity:.6">(Raw: ${labRaw != null ? labRaw.toFixed(1) : '—'}/50)</span></div>
         <div class="label">Lab Marks</div>
       </div>
-      <div class="ia-box total-box" style="grid-column:1/-1">
+      <div class="ia-box total-box">
         <div class="score">${cie.toFixed(1)}</div>
         <div class="max">/ 50</div>
         <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
@@ -195,9 +253,9 @@ function renderIAGrid(m){
         <div class="label">Module ${j}</div>
       </div>`;
     }
-    return `<div class="ia-grid" style="grid-template-columns:repeat(5,1fr)">
+    return `<div class="ia-grid cols-5">
       ${mods}
-      <div class="ia-box total-box" style="grid-column:1/-1">
+      <div class="ia-box total-box">
         <div class="score">${cie.toFixed(1)}</div>
         <div class="max">/ 100</div>
         <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
@@ -207,7 +265,7 @@ function renderIAGrid(m){
   } else if(st === 'cc_oe'){
     const gen   = m.oe_gen != null ? parseFloat(m.oe_gen).toFixed(1) : '—';
     const oecie = m.oe_cie != null ? parseFloat(m.oe_cie).toFixed(1) : '—';
-    return `<div class="ia-grid" style="grid-template-columns:1fr 1fr">
+    return `<div class="ia-grid cols-2">
       <div class="ia-box ia1-box">
         <div class="score">${gen}</div>
         <div class="max">/ 30</div>
@@ -218,7 +276,7 @@ function renderIAGrid(m){
         <div class="max">/ 20</div>
         <div class="label">CIE</div>
       </div>
-      <div class="ia-box total-box" style="grid-column:1/-1">
+      <div class="ia-box total-box">
         <div class="score">${cie.toFixed(1)}</div>
         <div class="max">/ 50</div>
         <div class="label" style="font-size:12px;font-weight:600">Total CIE</div>
@@ -226,7 +284,7 @@ function renderIAGrid(m){
     </div>`;
 
   } else {
-    return `<div class="ia-grid">
+    return `<div class="ia-grid cols-3">
       <div class="ia-box ia1-box">
         <div class="score">${fmt(m.ia1_total)}</div>
         <div class="max">/ 50</div>
