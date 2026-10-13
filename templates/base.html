@@ -991,8 +991,8 @@
       // Offline prep: Pre-cache essential student pages with session credentials
       if ('caches' in window && {{ (current_user.is_authenticated | lower) }}) {
         setTimeout(() => {
-          caches.open('edufusion-v6').then(cache => {
-            ['/dashboard/', '/attendance/my', '/marks/my', '/attendance/simulator', '/leave/apply'].forEach(path => {
+          caches.open('edufusion-v7').then(cache => {
+            ['/dashboard/', '/attendance/my', '/marks/my', '/placement/career-assistant', '/attendance/simulator', '/leave/apply'].forEach(path => {
               fetch(path).then(r => { if (r.ok) cache.put(path, r); }).catch(()=>{});
             });
           }).catch(()=>{});

@@ -10,21 +10,65 @@
   gap:16px;
   height:calc(100vh - 56px - 2rem);
   min-height:500px;
-}
-@media(max-width:900px){
-  .ca-wrap{ grid-template-columns:1fr; height:calc(100dvh - 56px - 1.5rem); min-height:480px; }
-  .ca-sidebar{ display:none; }
-  .chat-panel{ border-radius:12px; }
-  .chat-topbar{ padding:12px 14px; }
-  .chat-msgs{ padding:12px; gap:12px; }
+  position:relative;
 }
 
-/* ══ LEFT SIDEBAR ════════════════════════════════════════════════════════ */
+/* ══ LEFT SIDEBAR (Desktop: static rail; Mobile: slide-out drawer) ════════ */
 .ca-sidebar {
   display:flex;flex-direction:column;gap:12px;overflow-y:auto;
 }
 .ca-sidebar::-webkit-scrollbar{ width:3px; }
 .ca-sidebar::-webkit-scrollbar-thumb{ background:var(--border);border-radius:3px; }
+
+/* Backdrop overlay for mobile drawer */
+.ca-backdrop {
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(3px);
+  z-index:1060;
+}
+.ca-backdrop.show { display:block; }
+
+@media(max-width:991px){
+  .ca-wrap {
+    display:flex;
+    flex-direction:column;
+    height:calc(100dvh - 56px - 1.25rem);
+    min-height:460px;
+    gap:0;
+  }
+  .ca-sidebar {
+    position:fixed;
+    top:0;left:0;bottom:0;
+    width:min(320px, 85vw);
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    padding:18px 16px;
+    z-index:1070;
+    transform:translateX(-100%);
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 0 40px rgba(0,0,0,.5);
+  }
+  .ca-sidebar.drawer-open {
+    transform:translateX(0);
+  }
+  .chat-panel {
+    flex:1;
+    height:100%;
+    border-radius:12px;
+  }
+  .chat-topbar { padding:10px 14px; }
+  .chat-msgs { padding:12px; gap:12px; }
+  .chips-row {
+    padding:8px 12px;
+    gap:6px;
+    overflow-x:auto;
+    flex-wrap:nowrap;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .chips-row::-webkit-scrollbar { display:none; }
+  .chat-input-zone { padding:8px 12px; }
+}
 
 /* AI identity card */
 .ai-card {
@@ -252,9 +296,18 @@
 {% else %}
 
 <div class="ca-wrap">
+  <!-- Mobile drawer backdrop -->
+  <div class="ca-backdrop" id="caBackdrop" onclick="toggleSidebarDrawer()"></div>
 
-  <!-- ── LEFT SIDEBAR ─────────────────────────────────────────────── -->
+  <!-- ── LEFT SIDEBAR (Desktop: rail; Mobile: slide-out drawer) ─────── -->
   <div class="ca-sidebar">
+    <!-- Mobile close header inside drawer -->
+    <div class="d-flex justify-content-between align-items-center d-lg-none mb-2">
+      <span style="font-size:11px;font-weight:700;color:var(--text);font-family:'Space Grotesk',sans-serif;letter-spacing:.5px">PROFILE &amp; HISTORY</span>
+      <button class="btn btn-outline-secondary btn-sm" onclick="toggleSidebarDrawer()" style="padding:2px 8px;font-size:12px" aria-label="Close">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
 
     <!-- AI identity -->
     <div class="ai-card">
@@ -315,9 +368,14 @@
           <div class="topbar-sub"><span class="status-dot"></span>Online · Powered by Groq AI</div>
         </div>
       </div>
-      <button class="btn btn-outline-secondary btn-sm" onclick="clearChat()" title="Clear conversation">
-        <i class="bi bi-trash3"></i>
-      </button>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary btn-sm d-lg-none" onclick="toggleSidebarDrawer()" title="Profile &amp; Past Chats">
+          <i class="bi bi-person-lines-fill"></i>
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="clearChat()" title="Clear conversation">
+          <i class="bi bi-trash3"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Messages -->
@@ -583,6 +641,14 @@ async function send(){
     document.getElementById('sendBtn').disabled=false;
     inp.focus();
   }
+}
+
+function toggleSidebarDrawer(){
+  const s = document.querySelector('.ca-sidebar');
+  const b = document.getElementById('caBackdrop');
+  if(!s) return;
+  const isOpen = s.classList.toggle('drawer-open');
+  if(b) b.classList.toggle('show', isOpen);
 }
 
 // Auto-load on page open
