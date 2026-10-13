@@ -18,36 +18,170 @@
   .risk-low  { background: rgba(63,185,80,.15);  color: var(--accent); }
   .risk-med  { background: rgba(210,153,34,.15); color: var(--warn); }
   .risk-high { background: rgba(248,81,73,.15);  color: var(--danger); }
-  .reason-item { font-size: 12px; padding: 7px 10px; border-radius: 8px; background: var(--surface2); margin-bottom: 6px; border-left: 2px solid var(--warn); }
+  .reason-item { font-size: 12px; padding: 7px 10px; border-radius: 8px; background: var(--surface2); margin-bottom: 6px; border-left: 2px solid var(--warn); color: var(--text) !important; }
   .reason-item.danger { border-left-color: var(--danger); }
-  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
   .slider-row label { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; min-width: 160px; }
   .slider-row input[type=range] { flex: 1; }
-  .student-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 8px; cursor: pointer; transition: background .15s; }
-  .student-row:hover { background: var(--surface2); }
+  .slider-row .val { font-size: 13px; font-weight: 500; min-width: 40px; text-align: right; color: var(--text) !important; }
+
+  /* ── Student Row Card ── */
+  .student-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .student-row:hover { background: var(--surface2); border-color: var(--accent2); }
+
+  .srow-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+  }
+  .srow-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+  .srow-name-block {
+    min-width: 0;
+    flex: 1;
+  }
+  .srow-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .srow-meta {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .srow-tags {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .srow-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border-radius: 8px;
+    text-align: center;
+    width: 100%;
+  }
+  .sstat-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .sstat-lbl {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 2px;
+  }
+  .sstat-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  @media (min-width: 768px) {
+    .student-row {
+      flex-direction: row;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+    .srow-header {
+      width: auto;
+      flex: 1;
+      min-width: 0;
+      justify-content: flex-start;
+    }
+    .srow-stats {
+      width: auto;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0;
+      background: transparent;
+    }
+    .sstat-col {
+      min-width: 75px;
+    }
+    .srow-tags {
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      min-width: 75px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .slider-row {
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .slider-row label {
+      min-width: auto;
+      flex: 1;
+      font-size: 10.5px;
+    }
+    .slider-row .val {
+      min-width: auto;
+      font-size: 13px;
+    }
+    .slider-row input[type=range] {
+      width: 100%;
+      flex-basis: 100%;
+      margin-top: 2px;
+    }
+  }
+
   .av { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
   .av-low  { background: rgba(63,185,80,.15);  color: var(--accent); }
   .av-med  { background: rgba(210,153,34,.15); color: var(--warn); }
   .av-high { background: rgba(248,81,73,.15);  color: var(--danger); }
-  .mini-bar { height: 4px; border-radius: 2px; background: var(--surface2); overflow: hidden; margin-top: 4px; width: 80px; }
+  .mini-bar { height: 4px; border-radius: 2px; background: var(--surface2); overflow: hidden; margin-top: 4px; width: 68px; }
   .mini-fill { height: 100%; border-radius: 2px; }
   .fill-ok  { background: var(--accent); }
   .fill-warn { background: var(--warn); }
   .fill-bad  { background: var(--danger); }
-  .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-family: 'Space Mono', monospace; }
+  .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-family: 'Space Mono', monospace; font-weight: 600; }
   .tag-low  { background: rgba(63,185,80,.15);  color: var(--accent); }
   .tag-med  { background: rgba(210,153,34,.15); color: var(--warn); }
   .tag-high { background: rgba(248,81,73,.15);  color: var(--danger); }
   .tag-pass { background: rgba(63,185,80,.15);  color: var(--accent); }
   .tag-fail { background: rgba(248,81,73,.15);  color: var(--danger); }
-  .stat-box { background: var(--surface2); border-radius: 10px; padding: 1rem 1.25rem; }
+  .stat-box { background: var(--surface2); border-radius: 10px; padding: .85rem 1rem; }
   .stat-box .label { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; margin-bottom: 4px; }
-  .stat-box .value { font-size: 26px; font-weight: 600; color: var(--text); }
-  /* slider value readout */
-  .slider-row .val { font-size: 13px; font-weight: 500; min-width: 40px; text-align: right; color: var(--text) !important; }
-  /* risk reason list items */
-  .reason-item { font-size: 12px; padding: 7px 10px; border-radius: 8px; background: var(--surface2); margin-bottom: 6px; border-left: 2px solid var(--warn); color: var(--text) !important; }
-  .reason-item.danger { border-left-color: var(--danger); }
+  .stat-box .value { font-size: 24px; font-weight: 600; color: var(--text); }
 </style>
 {% endblock %}
 
@@ -165,7 +299,7 @@
 
   <!-- ── Tab 2: Risk Analysis ────────────────────────────────────────────── -->
   <div class="tab-pane fade" id="tab-risk">
-    <div class="row g-3 mb-4">
+    <div class="row g-2 g-md-3 mb-4">
       <div class="col-6 col-md-3">
         <div class="stat-box"><div class="label">HIGH RISK</div><div class="value" style="color:var(--danger)" id="rHigh">—</div></div>
       </div>
@@ -180,9 +314,9 @@
       </div>
     </div>
     <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <div class="card-header rounded">STUDENT RISK CLASSIFICATION</div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-1 gap-md-2 flex-wrap">
           <button class="btn btn-outline-secondary btn-sm active" onclick="filterRisk('all',this)">All</button>
           <button class="btn btn-outline-secondary btn-sm" onclick="filterRisk('HIGH',this)">High</button>
           <button class="btn btn-outline-secondary btn-sm" onclick="filterRisk('MEDIUM',this)">Medium</button>
@@ -410,6 +544,17 @@ async function loadClassData(sem='', sec='') {
   _loadingClassData = false;
 }
 
+function inspectStudent(roll) {
+  if (!roll) return;
+  document.getElementById('studentIdInput').value = roll;
+  const tabBtn = document.querySelector('a[href="#tab-predict"]');
+  if (tabBtn) {
+    const tab = new bootstrap.Tab(tabBtn);
+    tab.show();
+  }
+  fetchStudent();
+}
+
 function renderRiskTable(filter) {
   riskFilter = filter;
   const show = filter === 'all' ? enriched : enriched.filter(s => s.level === filter);
@@ -419,31 +564,41 @@ function renderRiskTable(filter) {
   if (!show.length) {
     el.innerHTML = '<div style="text-align:center;padding:2rem;font-size:12px;color:var(--muted)"><i class="bi bi-inbox me-2"></i>No students found for this filter.</div>';
   } else {
-    el.innerHTML = show.map(s => `
-      <div class="student-row">
-        <div class="av av-${s.level.toLowerCase()}">${s.name.split(' ').map(w=>w[0]).join('')}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.name}</div>
-          <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">${s.roll} ${s.sem?'· Sem '+s.sem:''} ${s.sec?'· Sec '+s.sec:''}</div>
+    el.innerHTML = show.map(s => {
+      const initials = (s.name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'ST';
+      const meta = [s.roll, s.sem ? 'Sem ' + s.sem : '', s.sec ? 'Sec ' + s.sec : ''].filter(Boolean).join(' · ');
+      return `
+      <div class="student-row" onclick="inspectStudent('${s.roll}')" title="Tap to inspect in Predict tab">
+        <div class="srow-header">
+          <div class="srow-user">
+            <div class="av av-${(s.level || 'low').toLowerCase()}">${initials}</div>
+            <div class="srow-name-block">
+              <div class="srow-name">${s.name}</div>
+              <div class="srow-meta">${meta}</div>
+            </div>
+          </div>
+          <div class="srow-tags">
+            <span class="tag tag-${(s.level || 'low').toLowerCase()}">${s.level}</span>
+            <span class="tag tag-${s.result === 'PASS' ? 'pass' : 'fail'}">${s.result}</span>
+          </div>
         </div>
-        <div style="text-align:center;min-width:70px">
-          <div style="font-size:11px;color:var(--muted)">Att</div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.att}%</div>
-          <div class="mini-bar"><div class="mini-fill ${attCls(s.att)}" style="width:${s.att}%"></div></div>
+        <div class="srow-stats">
+          <div class="sstat-col">
+            <div class="sstat-lbl">ATTENDANCE</div>
+            <div class="sstat-val">${s.att}%</div>
+            <div class="mini-bar"><div class="mini-fill ${attCls(s.att)}" style="width:${Math.min(100, s.att)}%"></div></div>
+          </div>
+          <div class="sstat-col">
+            <div class="sstat-lbl">INTERNAL</div>
+            <div class="sstat-val">${s.int_m}<span style="font-size:10px;color:var(--muted)">/50</span></div>
+          </div>
+          <div class="sstat-col">
+            <div class="sstat-lbl">EXTERNAL</div>
+            <div class="sstat-val">${s.ext_m}<span style="font-size:10px;color:var(--muted)">/100</span></div>
+          </div>
         </div>
-        <div style="text-align:center;min-width:70px">
-          <div style="font-size:11px;color:var(--muted)">Internal</div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.int_m}/50</div>
-        </div>
-        <div style="text-align:center;min-width:70px">
-          <div style="font-size:11px;color:var(--muted)">External</div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${s.ext_m}/100</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:80px">
-          <span class="tag tag-${s.level.toLowerCase()}">${s.level}</span>
-          <span class="tag tag-${s.result === 'PASS' ? 'pass' : 'fail'}">${s.result}</span>
-        </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   document.getElementById('rHigh').textContent = enriched.filter(s => s.level === 'HIGH').length;

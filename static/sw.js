@@ -3,7 +3,7 @@
  * Handles: offline caching, push notifications, background sync
  */
 
-const CACHE_NAME    = 'edufusion-v9';
+const CACHE_NAME    = 'edufusion-v10';
 const OFFLINE_URL   = '/offline';
 
 // Assets to pre-cache on install (app shell)
