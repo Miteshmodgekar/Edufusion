@@ -19,11 +19,15 @@
   .sd-enrolled{background:var(--accent2);color:#fff;}
   .sd-detained{background:var(--danger);color:#fff;}
   .sd-none{background:var(--surface);border:1px solid var(--border);color:var(--muted);}
+  @media(max-width:576px){
+    .grad-card{padding:1rem;}
+    #gradSearch,#gradBatchFilter{max-width:100%!important;width:100%!important;}
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Graduation Management</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Verify and confirm student graduation after Semester 8</p>
@@ -34,7 +38,7 @@
 <!-- Search -->
 <div class="grad-card">
   <h6 class="mb-3" style="font-weight:600">Find Student for Graduation</h6>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     <input type="text" id="gradSearch" class="form-control form-control-sm" placeholder="Search by USN or name..." style="max-width:300px" oninput="searchStudents()">
     <select id="gradBatchFilter" class="form-select form-select-sm" style="max-width:150px" onchange="searchStudents()">
       <option value="">All Batches</option>

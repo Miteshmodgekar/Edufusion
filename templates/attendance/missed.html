@@ -57,7 +57,8 @@
     border-radius: 8px; padding: 8px 12px; font-size: 13px; min-width: 130px;
   }
 
-  table.att-table { width: 100%; border-collapse: collapse; }
+  table.att-table { width: 100%; border-collapse: collapse; min-width: 480px; }
+
   table.att-table thead th {
     background: var(--accent2); color: #fff; font-size: 11px;
     text-transform: uppercase; letter-spacing: .04em;
@@ -235,7 +236,8 @@ async function loadMonth() {
     });
 
     area.innerHTML = `
-      <div class="card p-0" style="overflow:hidden">
+      <div class="card p-0" style="overflow-x:auto;overflow-y:visible">
+
         <table class="att-table">
           <thead>
             <tr>

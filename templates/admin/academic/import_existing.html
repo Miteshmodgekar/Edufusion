@@ -15,11 +15,16 @@
   .stat-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'Space Mono',monospace;padding:3px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);}
   .required-star{color:var(--danger);margin-left:2px;}
   .info-box{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:12px;color:var(--text);}
+  @media(max-width:576px){
+    .import-card{padding:1rem;}
+    .sem-group{padding:.875rem;}
+    .sem-group-header{flex-wrap:wrap;gap:8px;}
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Import Existing Students</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Onboard students already in the database into the Academic Lifecycle system</p>

@@ -164,13 +164,130 @@
     h1,h2,h3,h4,h5,h6{color:var(--heading) !important;font-family:'Space Grotesk',sans-serif;letter-spacing:-.2px;}
     h4,h5{font-weight:600 !important;}
 
-    @media(max-width:768px){
-      .sidebar{display:none;}
-      .main-content{margin-left:0;padding:1rem;padding-top:calc(56px + 1rem);}
+    /* ═══════════════════════════════════════════════════════════
+       RESPONSIVE SYSTEM — mobile-first, covers 320px → 1920px
+       ═══════════════════════════════════════════════════════════ */
+
+    /* Hamburger toggler (visible only below desktop breakpoint) */
+    .sidebar-toggler{
+      display:none;width:36px;height:36px;
+      border:1px solid var(--border);background:var(--surface2);
+      border-radius:8px;color:var(--muted);
+      align-items:center;justify-content:center;
+      cursor:pointer;font-size:18px;flex-shrink:0;
+      transition:background .2s,color .2s;
     }
+    .sidebar-toggler:hover{background:var(--surface);color:var(--text);}
+
+    /* Sidebar close button (inside drawer, hidden on desktop) */
+    .sidebar-close{
+      display:none;position:absolute;top:8px;right:8px;
+      width:30px;height:30px;border:1px solid var(--border);
+      background:var(--surface2);border-radius:7px;
+      color:var(--muted);cursor:pointer;font-size:14px;
+      align-items:center;justify-content:center;transition:all .2s;
+    }
+    .sidebar-close:hover{color:var(--text);border-color:var(--muted);}
+
+    /* Overlay backdrop for mobile/tablet drawer */
+    .sidebar-backdrop{
+      display:none;position:fixed;inset:0;
+      background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
+      z-index:1040;
+    }
+    .sidebar-backdrop.show{display:block;}
+
+    /* ── Breakpoint: below desktop (< 992px) — drawer mode ─────── */
+    @media(max-width:991px){
+      /* Show hamburger */
+      .sidebar-toggler{display:flex!important;visibility:visible!important;opacity:1!important;}
+      .sidebar-close{display:flex!important;}
+      .navbar .container-fluid{flex-wrap:nowrap!important;}
+
+      /* Sidebar becomes a hidden-by-default drawer */
+      .sidebar{
+        transform:translateX(-100%);
+        transition:transform .28s cubic-bezier(.4,0,.2,1);
+        z-index:1050;
+        width:240px;
+      }
+      .sidebar.sidebar-open{transform:translateX(0);}
+
+      /* Main content: full width (no left margin) */
+      .main-content{margin-left:0;padding:1rem;padding-top:calc(56px + 1rem);}
+
+      /* Notification dropdown: cap to viewport width */
+      #notifDropdown .dropdown-menu{width:min(340px,calc(100vw - 20px))!important;}
+
+      /* Nav tabs: horizontally scrollable */
+      .nav-tabs{flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;
+                scrollbar-width:none;-ms-overflow-style:none;
+                -webkit-overflow-scrolling:touch;}
+      .nav-tabs::-webkit-scrollbar{display:none;}
+      .nav-tabs .nav-link{white-space:nowrap;}
+    }
+
+    /* ── Breakpoint: mobile (≤ 768px) — extra overrides ────────── */
+    @media(max-width:768px){
+      /* Navbar user name: truncate */
+      .navbar-username{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+      /* Toast stack: use full available width */
+      #toastStack{right:10px;left:10px;max-width:none;}
+
+      /* Modals: full-width on mobile */
+      .modal-dialog{margin:.5rem;max-width:calc(100vw - 1rem)!important;}
+      .modal-body{max-height:70vh;overflow-y:auto;}
+
+      /* Page header row: stack on small screens */
+      .page-header-row{flex-direction:column!important;align-items:flex-start!important;gap:.5rem!important;}
+
+      /* Forms: larger font to prevent iOS auto-zoom */
+      .form-control,.form-select{font-size:16px!important;}
+
+      /* Buttons: touch-friendly */
+      .btn{min-height:36px;}
+
+      /* Cards: slightly tighter padding */
+      .card-body{padding:.875rem!important;}
+
+      /* Main content padding */
+      .main-content{padding:.875rem;padding-top:calc(56px + .875rem);}
+    }
+
+    /* ── Breakpoint: small phones (< 430px) ───────────────────── */
+    @media(max-width:430px){
+      h4{font-size:1.1rem!important;}
+      h5{font-size:1rem!important;}
+      .badge-blue,.badge-accent,.badge-warn,.badge-danger{font-size:9px;padding:2px 7px;}
+      .main-content{padding:.625rem;padding-top:calc(56px + .625rem);}
+    }
+
+    /* ── Desktop: sidebar always visible, no transform ─────────── */
+    @media(min-width:992px){
+      .sidebar{transform:none!important;transition:none;}
+      .sidebar-backdrop{display:none!important;}
+      .sidebar-toggler{display:none!important;}
+    }
+
+    /* Global: prevent horizontal page overflow */
+    html,body{overflow-x:hidden;max-width:100%;}
+
+    /* Global: responsive images & embeds */
+    img,iframe,canvas{max-width:100%;height:auto;}
+
+    /* Global: safe word-break for long IDs/names */
+    .word-break-safe{word-break:break-word;overflow-wrap:anywhere;}
+
+    /* Global: horizontal-scroll table wrapper utility */
+    .table-responsive-x{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .table-responsive-x table{min-width:480px;}
+
     @media (prefers-reduced-motion:reduce){
       .main-content{animation:none;}
+      .sidebar{transition:none;}
     }
+
 
     /* ══════════════════════════════════════════════════════════
        PREMIUM DESIGN SYSTEM — foundation (cursor, glass, toasts)
@@ -242,20 +359,59 @@
       #appPreloader{display:none;}
       .skeleton::after{animation:none;}
     }
+
+    /* ── Global responsive table auto-wrapping ──────────────────────────────
+       Every .table inside a .card or .main-content gets horizontal scroll
+       on mobile without modifying individual templates.                     */
+    @media(max-width:991px){
+      .main-content .table-responsive,
+      .card .table-responsive { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+      /* Inline tables not already in .table-responsive */
+      .main-content > table,
+      .card-body > table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    }
+
+    /* ── Global: page section headers ──────────────────────────────────────
+       Patterns like <div class="d-flex align-items-center justify-content-between mb-4">
+       should wrap on small screens instead of clipping.                     */
+    @media(max-width:576px){
+      .d-flex.justify-content-between {
+        flex-wrap:wrap;
+        gap:.5rem;
+      }
+    }
+
+    /* ── Global: impersonation banner mobile ──────────────────────────────── */
+    @media(max-width:576px){
+      /* Impersonation banner: stack vertically */
+      [style*="Preview Mode"] { flex-direction:column!important;align-items:flex-start!important; }
+    }
+
+    /* ── Global: chart containers ─────────────────────────────────────────── */
+    canvas { max-width:100% !important; }
+
   </style>
   {% block extra_css %}{% endblock %}
+
 </head>
 <body>
 <div id="appPreloader"><div class="pre-bar"></div><div class="pre-mark">Edu<b>Fusion</b></div></div>
 
 <div id="toastStack"></div>
+<!-- Mobile sidebar backdrop -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()" aria-hidden="true"></div>
 
 <!-- Navbar -->
 <nav class="navbar navbar-expand-lg fixed-top">
-  <div class="container-fluid">
+  <div class="container-fluid gap-2">
+    <!-- Mobile: hamburger toggler -->
+    <button class="sidebar-toggler flex-shrink-0" id="sidebarToggler" type="button" onclick="openSidebar()"
+            aria-label="Open navigation menu" aria-expanded="false" aria-controls="sidebar">
+      <i class="bi bi-list"></i>
+    </button>
     <a class="navbar-brand" href="/dashboard/">CSE<span style="color:#58a6ff">.</span>SMART</a>
-    <div class="d-flex align-items-center gap-3 ms-auto">
-      <span style="font-size:12px;color:var(--muted)">{{ current_user.name }}</span>
+    <div class="d-flex align-items-center gap-2 ms-auto" style="min-width:0">
+      <span class="navbar-username d-none d-sm-inline" style="font-size:12px;color:var(--muted)">{{ current_user.name }}</span>
       <span class="badge-blue">{{ current_user.role | upper }}</span>
       <button class="theme-toggle magnetic" id="themeToggle" onclick="toggleTheme()" title="Switch theme">
         <i class="bi bi-moon-stars" id="themeIcon"></i>
@@ -282,7 +438,7 @@
                 id="bellBadge">0</span>
         </button>
         <div class="dropdown-menu dropdown-menu-end p-0"
-             style="width:340px;max-height:420px;overflow-y:auto;
+             style="width:clamp(280px,90vw,340px);max-height:min(420px,70vh);overflow-y:auto;
                     background:var(--surface);border:1px solid var(--border);
                     border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.4)">
           <div style="padding:12px 16px;border-bottom:1px solid var(--border);
@@ -311,9 +467,13 @@
   </div>
 </nav>
 
-<!-- Sidebar -->
-<div class="sidebar">
-  <nav class="nav flex-column">
+<!-- Sidebar (desktop: fixed rail; mobile: slide-in drawer) -->
+<div class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+  <!-- Close button — visible only on mobile -->
+  <button class="sidebar-close" onclick="closeSidebar()" aria-label="Close navigation menu">
+    <i class="bi bi-x-lg"></i>
+  </button>
+  <nav class="nav flex-column" style="margin-top:8px">
 
     <!-- Common -->
     {% if current_user.role == 'admin' %}
@@ -598,6 +758,43 @@
   (window.__flashedMessages || []).forEach(([cat, msg]) => {
     showToast(_catMap[cat] || 'info', null, msg);
   });
+
+  // ── Mobile Sidebar Drawer ──────────────────────────────────────────
+  function openSidebar() {
+    const sidebar  = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    const toggler  = document.getElementById('sidebarToggler');
+    if (!sidebar) return;
+    sidebar.classList.add('sidebar-open');
+    if (backdrop) backdrop.classList.add('show');
+    if (toggler)  toggler.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    const sidebar  = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    const toggler  = document.getElementById('sidebarToggler');
+    if (!sidebar) return;
+    sidebar.classList.remove('sidebar-open');
+    if (backdrop) backdrop.classList.remove('show');
+    if (toggler)  toggler.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+  window.openSidebar  = openSidebar;
+  window.closeSidebar = closeSidebar;
+
+  // Close drawer when a nav link is clicked on mobile
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        if (window.innerWidth <= 768) closeSidebar();
+      });
+    });
+    // Close on Escape key
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeSidebar();
+    });
+  });
 </script>
 <script>
   // ── Notification Bell ────────────────────────────────────────────────────
@@ -764,6 +961,7 @@
         .then(reg => {
           console.log('[PWA] SW registered:', reg.scope);
           window._swReg = reg;
+          reg.update().catch(()=>{});
 
           // Handle SW update silently — auto-apply without repeated native popup
           reg.addEventListener('updatefound', () => {
@@ -786,11 +984,7 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!refreshing) {
           refreshing = true;
-          // Only auto-refresh if there was already a controller (not first install)
-          if (sessionStorage.getItem('pwa_sw_ready')) {
-            window.location.reload();
-          }
-          sessionStorage.setItem('pwa_sw_ready', '1');
+          window.location.reload();
         }
       });
     });

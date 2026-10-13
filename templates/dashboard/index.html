@@ -65,7 +65,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Dashboard</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Welcome back, {{ current_user.name }}</p>
@@ -148,7 +148,7 @@
 
 <!-- Academic History Banner (students only) -->
 <div class="card p-3 mb-4" style="border-color:rgba(88,166,255,.25);background:rgba(88,166,255,.04)">
-  <div class="d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:22px">🎓</span>
       <div>
@@ -178,7 +178,7 @@
 
 <!-- Uploaded Sheets Registry -->
 <div class="card p-3 mb-4">
-  <div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div class="card-header rounded">UPLOADED ATTENDANCE SHEETS</div>
     <a href="/attendance/upload" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-upload me-1"></i>Upload New Sheet

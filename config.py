@@ -31,6 +31,7 @@ class Config:
     SESSION_COOKIE_HTTPONLY   = True
     SESSION_COOKIE_SAMESITE   = "Lax"
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+    TEMPLATES_AUTO_RELOAD      = True
 
     # ── Database ───────────────────────────────────────────────────────────
     MYSQL_HOST     = os.environ.get("MYSQL_HOST",     "localhost")

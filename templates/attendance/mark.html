@@ -3,7 +3,7 @@
 
 {% block extra_css %}
 <style>
-  .roster-table { width:100%; border-collapse:collapse; }
+  .roster-table { width:100%; border-collapse:collapse; min-width:520px; }
   .roster-table th {
     text-align:left; font-size:10px; font-family:'Space Mono',monospace; color:var(--muted);
     letter-spacing:.5px; padding:8px 10px; border-bottom:1px solid var(--border);
@@ -108,7 +108,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Mark Attendance</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Tick the roster, hit save — no Excel needed. Students see it instantly.</p>

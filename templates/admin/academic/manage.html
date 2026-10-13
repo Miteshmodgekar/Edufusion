@@ -24,7 +24,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Academic Management</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Manage academic periods, promotions, graduation, and batches</p>
@@ -34,35 +34,35 @@
 
 <!-- Quick Links -->
 <div class="row g-3 mb-4">
-  <div class="col-12 col-md-3">
+  <div class="col-12 col-sm-6 col-md-4 col-xl">
     <a href="/academic/import" class="quick-link" style="border-color:rgba(88,166,255,.3);background:rgba(88,166,255,.04)">
       <span class="sem-chip" style="background:var(--accent2)">⬆</span>
       <div><div style="font-weight:600;font-size:13px">Import Existing Students</div>
       <div style="font-size:11px;color:var(--muted)">Onboard students already in DB</div></div>
     </a>
   </div>
-  <div class="col-12 col-md-3">
+  <div class="col-12 col-sm-6 col-md-4 col-xl">
     <a href="/academic/promote" class="quick-link">
       <span class="sem-chip">→</span>
       <div><div style="font-weight:600;font-size:13px">Semester Promotion</div>
       <div style="font-size:11px;color:var(--muted)">Promote eligible students</div></div>
     </a>
   </div>
-  <div class="col-12 col-md-3">
+  <div class="col-12 col-sm-6 col-md-4 col-xl">
     <a href="/academic/graduation" class="quick-link">
       <span class="sem-chip" style="background:var(--accent)">🎓</span>
       <div><div style="font-weight:600;font-size:13px">Graduation</div>
       <div style="font-size:11px;color:var(--muted)">Verify & mark graduated</div></div>
     </a>
   </div>
-  <div class="col-12 col-md-3">
+  <div class="col-12 col-sm-6 col-md-4 col-xl">
     <a href="/academic/batches" class="quick-link">
       <span class="sem-chip" style="background:var(--warn)">+</span>
       <div><div style="font-weight:600;font-size:13px">New Batch</div>
       <div style="font-size:11px;color:var(--muted)">Add admission batch</div></div>
     </a>
   </div>
-  <div class="col-12 col-md-3">
+  <div class="col-12 col-sm-6 col-md-4 col-xl">
     <a href="/academic/audit" class="quick-link">
       <span class="sem-chip" style="background:var(--muted)">📋</span>
       <div><div style="font-weight:600;font-size:13px">Audit Log</div>

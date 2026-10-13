@@ -13,7 +13,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">New Admission Batch</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Register a new cohort of students without affecting previous batches</p>
@@ -95,11 +95,11 @@ function addStudentRow(usn='', name='', email='', section='A') {
   div.id = `row_${id}`;
   div.innerHTML = `
     <div class="row g-2 align-items-center">
-      <div class="col"><input type="text" class="form-control form-control-sm usn-input" placeholder="USN *" value="${usn}" title="University Seat Number — must be unique"></div>
-      <div class="col"><input type="text" class="form-control form-control-sm name-input" placeholder="Full Name *" value="${name}"></div>
-      <div class="col"><input type="email" class="form-control form-control-sm email-input" placeholder="Email *" value="${email}"></div>
-      <div class="col-1"><input type="text" class="form-control form-control-sm sect-input" placeholder="Sec" value="${section}" maxlength="2"></div>
-      <div class="col-auto"><button class="btn btn-xs btn-outline-danger" onclick="document.getElementById('row_${id}').remove()">✕</button></div>
+      <div class="col-12 col-sm-3"><input type="text" class="form-control form-control-sm usn-input" placeholder="USN *" value="${usn}" title="University Seat Number — must be unique"></div>
+      <div class="col-12 col-sm-3"><input type="text" class="form-control form-control-sm name-input" placeholder="Full Name *" value="${name}"></div>
+      <div class="col-12 col-sm-3"><input type="email" class="form-control form-control-sm email-input" placeholder="Email *" value="${email}"></div>
+      <div class="col-6 col-sm-2"><input type="text" class="form-control form-control-sm sect-input" placeholder="Sec" value="${section}" maxlength="2"></div>
+      <div class="col-6 col-sm-1 text-end"><button class="btn btn-sm btn-outline-danger w-100" onclick="document.getElementById('row_${id}').remove()">✕</button></div>
     </div>`;
   document.getElementById('studentRows').appendChild(div);
 }

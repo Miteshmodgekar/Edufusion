@@ -52,7 +52,15 @@
   color:var(--text);border-radius:8px;padding:7px 14px;font-size:12.5px;min-width:220px; }
 
 /* ── Grid ── */
-.fc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px; }
+.fc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%, 300px),1fr));gap:14px; }
+
+@media(max-width:576px){
+  .hod-hero{padding:16px 18px;}
+  .srch{margin-left:0;width:100%!important;min-width:0;}
+  .toolbar{gap:6px;}
+  .mbox{padding:20px 16px!important;}
+  .stats-row{gap:6px;}
+}
 
 /* ── Faculty Card ── */
 .fc { background:var(--surface);border:1px solid var(--border);border-radius:16px;

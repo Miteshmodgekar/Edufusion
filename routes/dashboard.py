@@ -17,10 +17,12 @@ dashboard_bp = Blueprint("dashboard", __name__)
 @dashboard_bp.route("/index")
 @login_required
 def index():
-    from flask import redirect, url_for
+    from flask import redirect, url_for, make_response
     if current_user.role == "admin":
         return redirect(url_for("admin.dashboard"))
-    return render_template("dashboard/index.html", user=current_user)
+    resp = make_response(render_template("dashboard/index.html", user=current_user))
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
 
 
 @dashboard_bp.route("/api/data")

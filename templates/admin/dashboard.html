@@ -49,11 +49,18 @@
   .search-wrap { position:relative; }
   .search-wrap .bi-search { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:13px; }
   .search-wrap input { padding-left:30px; }
+  .user-panel table { min-width: 650px; }
+  @media(max-width:576px){
+    .view-toggle { width:100%; justify-content:stretch; }
+    .view-toggle .vt-btn { flex:1; justify-content:center; padding:6px 10px; font-size:11px; }
+    #userSearch { width:100% !important; }
+    .search-wrap { width:100%; }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Admin Dashboard</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">System overview · User management · ML controls · Reports</p>

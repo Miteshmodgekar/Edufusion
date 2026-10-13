@@ -112,12 +112,23 @@
               border-radius: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer;
               color: var(--muted); transition: all .15s; }
 .filter-tab.active { background: rgba(88,166,255,.15); border-color: #58a6ff; color: #58a6ff; }
+@media(max-width:768px){
+  .stats-strip { grid-template-columns: repeat(2, 1fr); }
+  .info-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media(max-width:576px){
+  .action-bar { flex-direction: column; align-items: stretch; }
+  .btn-approve, .btn-reject { width: 100%; text-align: center; }
+}
+@media(max-width:420px){
+  .stats-strip { grid-template-columns: 1fr; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <div class="d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 page-header-row">
     <div>
       <h4><i class="bi bi-person-check me-2" style="color:#58a6ff"></i>Mentor — Leave Approvals</h4>
       <p>Review student leave requests · Approved leaves are forwarded to HOD for final sign-off</p>

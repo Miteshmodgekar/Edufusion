@@ -34,11 +34,22 @@
 .rr-err{background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);}
 .auto-create-info{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);border-radius:10px;padding:.75rem 1rem;}
 .confirm-box{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);border-radius:10px;padding:1rem 1.2rem;}
+@media(max-width:576px){
+  .step-indicator{margin-bottom:1.25rem;}
+  .step-indicator::before{top:12px;left:14px;right:14px;}
+  .si-dot{width:24px;height:24px;font-size:11px;}
+  .si-label{font-size:9px;}
+  .promo-card{padding:1rem;}
+  .student-row .d-flex{flex-wrap:wrap;gap:.5rem!important;}
+}
+@media(max-width:420px){
+  .si-label{display:none;}
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Semester Promotion</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Promote students to the next semester with individual hold-back support</p>

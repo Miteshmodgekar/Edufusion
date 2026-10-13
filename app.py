@@ -9,6 +9,7 @@ from extensions import db, login_manager, bcrypt, mail, MAIL_AVAILABLE
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    app.jinja_env.auto_reload = True
 
     # Initialise extensions with app
     db.init_app(app)

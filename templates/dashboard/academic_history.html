@@ -27,11 +27,17 @@
   .subj-row:last-child{border-bottom:none;}
   .read-only-badge{background:rgba(130,130,130,.1);border:1px solid var(--border);color:var(--muted);font-size:10px;font-family:'Space Mono',monospace;padding:2px 8px;border-radius:6px;}
   .empty-state{text-align:center;padding:2rem;color:var(--muted);}
+  @media(max-width:576px){
+    .history-header{flex-direction:column;align-items:flex-start!important;gap:8px;}
+    .history-header > div:last-child{text-align:left!important;}
+    .sem-card{padding:1rem;}
+    .sem-card .d-flex{flex-wrap:wrap;gap:.5rem!important;}
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">My Academic History</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Your semester-wise academic record from Semester 1 to Semester 8</p>

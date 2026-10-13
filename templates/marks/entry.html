@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}CIE Marks Management — EduFusion{% endblock %}
 
 {% block extra_css %}
@@ -13,7 +13,7 @@
 .stb-cc_oe       { background:rgba(230,182,0,.14);  color:#e8b600; }
 
 /* ── Subject cards grid ── */
-.subj-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+.subj-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%, 240px),1fr)); gap:14px; }
 .subj-card {
   background:var(--surface); border:1.5px solid var(--border);
   border-radius:14px; padding:18px 20px; cursor:pointer;

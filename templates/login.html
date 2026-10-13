@@ -371,17 +371,32 @@
     }
 
     @media (prefers-reduced-motion:reduce) {
-      #scene-canvas {
-        display: none;
-      }
+      #scene-canvas { display: none; }
+      .card { animation: none; opacity: 1; transform: none; }
+    }
 
-      .card {
-        animation: none;
-        opacity: 1;
-        transform: none;
-      }
+    /* ── Login page mobile responsive ──────────────────────────── */
+    html, body { overflow-x: hidden; }
+
+    @media (max-width: 576px) {
+      .topbar { padding: 10px 16px; }
+      .main { padding: 1rem; }
+      .card { border-radius: 12px; max-width: 100%; }
+      .card-top { padding: 20px 18px 0; }
+      .card-top h2 { font-size: 22px; }
+      .role-tabs { padding: 14px 18px 0; gap: 4px; }
+      .rtab { padding: 8px 3px; font-size: 10px; }
+      .form-area { padding: 14px 18px 20px; }
+      input, select { font-size: 16px !important; } /* prevent iOS zoom */
+      .footer { padding: 10px 16px; }
+    }
+
+    @media (max-width: 375px) {
+      .role-tabs { flex-wrap: wrap; }
+      .rtab { flex: 1 1 calc(50% - 4px); min-width: 0; }
     }
   </style>
+
 </head>
 
 <body>

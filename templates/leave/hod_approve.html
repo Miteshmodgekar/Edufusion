@@ -128,8 +128,14 @@
   animation:slideUp .3s ease;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.3)}
 .ts{background:#1a3a1a;border:1px solid #3fb950;color:#3fb950}
 .td{background:#3a1a1a;border:1px solid #f85149;color:#f85149}
-.tw_{background:#3a2e1a;border:1px solid #d2991c;color:#d2991c}
 @keyframes slideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(max-width:576px){
+  .hod-hero{padding:16px 18px;}
+  .stats-row{grid-template-columns:repeat(2,1fr);}
+  .info-grid{grid-template-columns:repeat(2,1fr);}
+  .action-bar{flex-direction:column;align-items:stretch;}
+  .btn-app,.btn-rej{width:100%;text-align:center;}
+}
 </style>
 {% endblock %}
 

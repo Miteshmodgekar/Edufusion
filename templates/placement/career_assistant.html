@@ -9,8 +9,15 @@
   grid-template-columns:280px 1fr;
   gap:16px;
   height:calc(100vh - 56px - 2rem);
+  min-height:500px;
 }
-@media(max-width:900px){ .ca-wrap{ grid-template-columns:1fr; } .ca-sidebar{ display:none; } }
+@media(max-width:900px){
+  .ca-wrap{ grid-template-columns:1fr; height:calc(100dvh - 56px - 1.5rem); min-height:480px; }
+  .ca-sidebar{ display:none; }
+  .chat-panel{ border-radius:12px; }
+  .chat-topbar{ padding:12px 14px; }
+  .chat-msgs{ padding:12px; gap:12px; }
+}
 
 /* ══ LEFT SIDEBAR ════════════════════════════════════════════════════════ */
 .ca-sidebar {

@@ -14,11 +14,16 @@
   .ev-usn_correction{background:rgba(248,81,73,.15);color:var(--danger);}
   .ev-enrollment_status_change{background:rgba(88,166,255,.08);color:var(--accent2);}
   .audit-time{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;}
+  @media(max-width:576px){
+    .audit-card{padding:1rem;}
+    .audit-row{flex-direction:column;gap:4px;}
+    #auditEventFilter{max-width:100%!important;width:100%!important;}
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Academic Audit Log</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Immutable record of all academic lifecycle operations</p>

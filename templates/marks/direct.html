@@ -52,10 +52,10 @@
 .subj-fetching { font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; }
 
 /* Tab bar */
-.ia-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); }
+.ia-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
 .ia-tab  { padding:10px 22px; font-size:12px; font-weight:600; font-family:'Space Mono',monospace;
            letter-spacing:.4px; cursor:pointer; border-bottom:2px solid transparent;
-           margin-bottom:-2px; transition:all .15s; color:var(--muted); }
+           margin-bottom:-2px; transition:all .15s; color:var(--muted); white-space:nowrap; }
 .ia-tab:hover { color:var(--text); }
 .ia-tab.t1.active { border-color:#3fb950; color:#3fb950; }
 .ia-tab.t2.active { border-color:#58a6ff; color:#58a6ff; }

@@ -85,11 +85,16 @@
   }
   .modal-body-area::-webkit-scrollbar { width:4px; }
   .modal-body-area::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+  @media(max-width:576px){
+    .push-banner{flex-direction:column;align-items:flex-start;gap:8px;}
+    .notif-card,.inapp-card{flex-wrap:wrap;}
+    .notif-time{margin-left:0;padding-left:0;width:100%;margin-top:4px;}
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 page-header-row">
   <div>
     <h4 class="mb-0" style="font-weight:600">Notification Centre</h4>
     <p style="font-size:13px;color:var(--muted);margin:0">Email alerts · PWA push · Broadcast tools</p>
