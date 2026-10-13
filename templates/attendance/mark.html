@@ -137,13 +137,13 @@
     </div>
     <div class="col-6 col-md-2">
       <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SEMESTER</label>
-      <select class="form-select form-select-sm" id="mSemester">
+      <select class="form-select form-select-sm" id="mSemester" onchange="onSemesterOrSectionChange()">
         {% for i in range(1,9) %}<option value="{{ i }}" {% if i==4 %}selected{% endif %}>Sem {{ i }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md-2">
       <label class="form-label" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace">SECTION</label>
-      <select class="form-select form-select-sm" id="mSection">
+      <select class="form-select form-select-sm" id="mSection" onchange="onSemesterOrSectionChange()">
         <option>A</option><option>B</option><option>C</option>
       </select>
     </div>
@@ -259,17 +259,41 @@ function goToGridView() {
   window.location.href = '/attendance/mark/grid?' + params.toString();
 }
 
+function onSemesterOrSectionChange() {
+  const currentSubj = getSelectedSubject();
+  loadSubjects(currentSubj);
+}
+
 // ── Subject picker ──────────────────────────────────────────────────────────
 async function loadSubjects(preselect, autoTrigger) {
   const sel = document.getElementById('mSubject');
+  const sem = document.getElementById('mSemester')?.value || '';
+  const sec = document.getElementById('mSection')?.value || '';
   try {
-    const res  = await fetch('/attendance/api/subjects');
+    const params = new URLSearchParams();
+    if (sem) params.set('semester', sem);
+    if (sec) params.set('section', sec);
+
+    const res  = await fetch('/attendance/api/subjects?' + params.toString());
     const data = await res.json();
     const existing = data.success ? data.subjects : [];
 
-    sel.innerHTML = '<option value="" disabled' + (preselect ? '' : ' selected') + '>Choose a subject…</option>' +
-      existing.map(s => `<option value="${s}"${s === preselect ? ' selected' : ''}>${s}</option>`).join('') +
-      '<option value="__new__">+ Add new subject</option>';
+    let optionsHtml = '';
+    if (existing.length === 0) {
+      optionsHtml = `<option value="" disabled selected>No subjects for Sem ${sem} yet</option>`;
+    } else {
+      const hasMatch = preselect && existing.includes(preselect);
+      optionsHtml = `<option value="" disabled${!hasMatch ? ' selected' : ''}>Choose a subject…</option>` +
+        existing.map(s => `<option value="${s}"${s === preselect ? ' selected' : ''}>${s}</option>`).join('');
+    }
+
+    if (preselect && !existing.includes(preselect) && preselect !== '__new__') {
+      optionsHtml = `<option value="${preselect}" selected>${preselect}</option>` + optionsHtml;
+    }
+
+    optionsHtml += '<option value="__new__">+ Add new subject</option>';
+    sel.innerHTML = optionsHtml;
+
     if (preselect && autoTrigger) {
       loadRoster();
     }

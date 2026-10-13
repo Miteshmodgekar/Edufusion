@@ -159,7 +159,7 @@ def api_subjects_by_sem():
     if not semester:
         return jsonify({"success": False, "message": "semester required"}), 400
 
-    from models.attendance import AttendanceSummary
+    from models.attendance import AttendanceSummary, AttendanceRecord
     import re
 
     _LAB_SUFFIXES = re.compile(
@@ -173,13 +173,17 @@ def api_subjects_by_sem():
         is_lab   = stripped.lower() != (name or '').strip().lower()
         return stripped.strip() or (name or '').strip(), is_lab
 
-    # Collect all raw attendance subjects first
-    att_q = (AttendanceSummary.query
-             .with_entities(AttendanceSummary.subject)
-             .filter_by(semester=semester))
-    if section:
-        att_q = att_q.filter_by(section=section)
-    raw_att = [row.subject for row in att_q.distinct().all() if row.subject]
+    # Collect all raw attendance subjects marked for this semester at least once
+    att_sum_q = (AttendanceSummary.query
+                 .with_entities(AttendanceSummary.subject)
+                 .filter_by(semester=semester))
+    att_rec_q = (AttendanceRecord.query
+                 .with_entities(AttendanceRecord.subject)
+                 .filter_by(semester=semester))
+    raw_att = sorted({
+        row.subject.strip() for row in (att_sum_q.distinct().all() + att_rec_q.distinct().all())
+        if row.subject and row.subject.strip()
+    }, key=str.lower)
 
     # Determine which canonical names have a lab variant
     lab_bases = set()

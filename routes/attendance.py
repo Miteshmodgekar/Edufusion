@@ -527,20 +527,30 @@ def _recompute_summary(student_id, subject, semester, section=None):
 @login_required
 def api_subjects():
     """
-    Distinct subject names already on file, so faculty pick from a list
-    instead of retyping (retyping is how 'Biology' and 'bio' end up as
-    two different subjects). Add a brand-new subject via the '+ Add new'
-    option in the picker.
+    Distinct subject names already on file for the selected semester (and section).
+    Faculty pick from the subjects belonging to that semester instead of all college subjects.
+    Add a brand-new subject via '+ Add new' option in the picker.
     """
     if not (current_user.is_faculty or current_user.is_hod or current_user.is_admin):
         return jsonify({"success": False, "message": "Access denied."}), 403
 
-    from_summary = {s[0] for s in db.session.query(AttendanceSummary.subject).distinct()}
-    from_records = {s[0] for s in db.session.query(AttendanceRecord.subject).distinct()}
-    subjects = sorted({s.strip() for s in (from_summary | from_records) if s and s.strip()},
-                       key=str.lower)
+    semester = request.args.get("semester", type=int)
+    section  = (request.args.get("section") or "").strip()
 
-    return jsonify({"success": True, "subjects": subjects})
+    if semester:
+        sum_q = db.session.query(AttendanceSummary.subject).filter_by(semester=semester)
+        rec_q = db.session.query(AttendanceRecord.subject).filter_by(semester=semester)
+        from_summary = {s[0] for s in sum_q.distinct() if s[0]}
+        from_records = {s[0] for s in rec_q.distinct() if s[0]}
+        subjects = sorted({s.strip() for s in (from_summary | from_records) if s and s.strip()},
+                          key=str.lower)
+    else:
+        from_summary = {s[0] for s in db.session.query(AttendanceSummary.subject).distinct() if s[0]}
+        from_records = {s[0] for s in db.session.query(AttendanceRecord.subject).distinct() if s[0]}
+        subjects = sorted({s.strip() for s in (from_summary | from_records) if s and s.strip()},
+                          key=str.lower)
+
+    return jsonify({"success": True, "subjects": subjects, "semester": semester})
 
 
 # ── Excel-style monthly grid: one subject, whole month, click cells ─────────
