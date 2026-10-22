@@ -50,13 +50,16 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # ── Auto-enable SSL for Aiven MySQL ──────────────────────────────────────
-    # PyMySQL SSL connect_args: use ssl_verify_cert=False for Aiven's
-    # self-signed certificate. Note: {"ssl": {"ssl_disabled": False}} is
-    # mysql-connector-python syntax and is NOT recognised by PyMySQL —
-    # it was causing DECRYPTION_FAILED_OR_BAD_RECORD_MAC errors on
-    # pooled connections because SSL was never properly initialised.
+    # Aiven MySQL requires SSL with its self-signed certificate.
+    # PyMySQL requires an SSLContext passed as {"ssl": ctx} in connect_args.
     _db_url  = os.environ.get("DATABASE_URL", "")
-    _ssl_args = {"ssl_verify_cert": False} if "aivencloud.com" in _db_url else {}
+    _ssl_args = {}
+    if "aivencloud.com" in _db_url:
+        import ssl as _ssl
+        _ctx = _ssl.create_default_context()
+        _ctx.check_hostname = False
+        _ctx.verify_mode = _ssl.CERT_NONE
+        _ssl_args = {"ssl": _ctx}
 
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_recycle":  120,    # Aiven closes idle connections; recycle well before that
@@ -84,13 +87,21 @@ class Config:
     ML_SCALER_PATH = os.path.join(BASE_DIR, "ml", "scaler.pkl")
 
     # ── Email ──────────────────────────────────────────────────────────────
-    MAIL_SERVER         = os.environ.get("MAIL_SERVER",   "smtp.gmail.com")
-    MAIL_PORT           = int(os.environ.get("MAIL_PORT", 587))
-    MAIL_USE_TLS        = True
-    MAIL_USERNAME       = os.environ.get("MAIL_USERNAME", "")
-    MAIL_PASSWORD       = os.environ.get("MAIL_PASSWORD", "")
-    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@cse.edu")
-    MAIL_SUPPRESS_SEND  = os.environ.get("MAIL_SUPPRESS_SEND", "true").lower() not in ("false", "0", "no")
+    MAIL_SERVER         = os.environ.get("MAIL_SERVER",   "smtp.gmail.com").strip()
+    MAIL_PORT           = int(os.environ.get("MAIL_PORT", 465 if os.environ.get("MAIL_USE_SSL", "").lower() in ("true", "1") else 587))
+    MAIL_USE_TLS        = os.environ.get("MAIL_USE_TLS", "false" if MAIL_PORT == 465 else "true").lower() in ("true", "1")
+    MAIL_USE_SSL        = os.environ.get("MAIL_USE_SSL", "true" if MAIL_PORT == 465 else "false").lower() in ("true", "1")
+    _raw_mail_user      = os.environ.get("MAIL_USERNAME", "")
+    MAIL_USERNAME       = _raw_mail_user.strip() if _raw_mail_user else ""
+    _raw_mail_pw        = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_PASSWORD       = _raw_mail_pw.replace(" ", "").strip() if _raw_mail_pw else ""
+    MAIL_DEFAULT_SENDER = (
+        os.environ.get("MAIL_DEFAULT_SENDER", "").strip() or
+        MAIL_USERNAME or
+        "noreply@cse.edu"
+    )
+    _default_suppress   = "false" if MAIL_PASSWORD else "true"
+    MAIL_SUPPRESS_SEND  = os.environ.get("MAIL_SUPPRESS_SEND", _default_suppress).lower() not in ("false", "0", "no")
 
     # ── AI Career Assistant ─────────────────────────────────────────────────
     # Primary: Google Gemini (1M TPM free — get key at aistudio.google.com)

@@ -24,32 +24,82 @@ def send_email(
     body_text: Optional[str] = None,
 ) -> dict:
     """
-    Send an email via Flask-Mail.
+    Send an email via Flask-Mail with dual-port fallback (SMTPS 465 / SMTP 587).
     Requires MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in config/.env
     Returns {"success": True/False, "message": str}
     """
+    from flask import current_app
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    mail_user = (current_app.config.get("MAIL_USERNAME") or "").strip()
+    mail_pw   = (current_app.config.get("MAIL_PASSWORD") or "").replace(" ", "").strip()
+    mail_srv  = (current_app.config.get("MAIL_SERVER") or "smtp.gmail.com").strip()
+    sender    = (current_app.config.get("MAIL_DEFAULT_SENDER") or mail_user or "noreply@cse.edu").strip()
+    suppress  = current_app.config.get("MAIL_SUPPRESS_SEND", False)
+
+    if suppress or not mail_user or not mail_pw:
+        msg = "Email service not configured (MAIL_USERNAME/MAIL_PASSWORD missing or suppressed)."
+        logger.warning(f"[EMAIL] {msg}")
+        return {"success": False, "message": msg}
+
+    plain_text = body_text or _html_to_text(body_html)
+
+    # 1. Primary: Flask-Mail
     try:
-        from flask_mail import Message
-        from flask import current_app
-        mail = current_app.extensions.get("mail")
-        if not mail:
-            return {"success": False, "message": "Flask-Mail not initialised."}
-
-        msg = Message(
-            subject    = subject,
-            recipients = [to],
-            html       = body_html,
-            body       = body_text or _html_to_text(body_html),
-            sender     = current_app.config.get("MAIL_DEFAULT_SENDER", "noreply@cse.edu"),
-        )
-        mail.send(msg)
-        logger.info(f"[EMAIL] Sent to {to}: {subject}")
-        return {"success": True, "message": f"Email sent to {to}"}
-
-    except ImportError:
-        return {"success": False, "message": "flask-mail not installed. Run: pip install flask-mail"}
+        from extensions import mail, MAIL_AVAILABLE
+        if MAIL_AVAILABLE and mail:
+            from flask_mail import Message
+            msg = Message(
+                subject    = subject,
+                recipients = [to],
+                html       = body_html,
+                body       = plain_text,
+                sender     = sender,
+            )
+            mail.send(msg)
+            logger.info(f"[EMAIL] Sent via Flask-Mail to {to}: {subject}")
+            return {"success": True, "message": f"Email sent to {to}"}
     except Exception as e:
-        logger.error(f"[EMAIL] Failed to {to}: {e}")
+        logger.warning(f"[EMAIL] Flask-Mail send to {to} failed ({type(e).__name__}: {e}). Trying port 465 SSL fallback...")
+
+    # 2. Fallback: Direct SMTPS (Port 465 SSL)
+    try:
+        mime_msg = MIMEMultipart("alternative")
+        mime_msg["Subject"] = subject
+        mime_msg["From"] = sender
+        mime_msg["To"] = to
+        mime_msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+        if body_html:
+            mime_msg.attach(MIMEText(body_html, "html", "utf-8"))
+
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=12) as s:
+            s.login(mail_user, mail_pw)
+            s.sendmail(sender, [to], mime_msg.as_string())
+        logger.info(f"[EMAIL] Sent via direct SMTPS port 465 to {to}: {subject}")
+        return {"success": True, "message": f"Email sent to {to}"}
+    except Exception as e:
+        logger.warning(f"[EMAIL] SMTPS port 465 fallback to {to} failed ({type(e).__name__}: {e}). Trying port 587 TLS...")
+
+    # 3. Fallback: Direct STARTTLS (Port 587)
+    try:
+        mime_msg = MIMEMultipart("alternative")
+        mime_msg["Subject"] = subject
+        mime_msg["From"] = sender
+        mime_msg["To"] = to
+        mime_msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+        if body_html:
+            mime_msg.attach(MIMEText(body_html, "html", "utf-8"))
+
+        with smtplib.SMTP(mail_srv, 587, timeout=12) as s:
+            s.starttls()
+            s.login(mail_user, mail_pw)
+            s.sendmail(sender, [to], mime_msg.as_string())
+        logger.info(f"[EMAIL] Sent via direct SMTP port 587 to {to}: {subject}")
+        return {"success": True, "message": f"Email sent to {to}"}
+    except Exception as e:
+        logger.error(f"[EMAIL] All email delivery methods failed to {to}: {type(e).__name__}: {e}")
         return {"success": False, "message": str(e)}
 
 
