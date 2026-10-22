@@ -598,7 +598,7 @@
     });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/sw.js').catch(() => { });
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => { });
     }
 
     // ---------- premium ambient 3D scene ----------

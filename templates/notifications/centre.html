@@ -341,7 +341,13 @@ async function initPush() {
 }
 
 async function subscribePush() {
-  if (!swRegistration) return;
+  if (!swRegistration && 'serviceWorker' in navigator) {
+    try { swRegistration = await navigator.serviceWorker.ready; } catch(e) {}
+  }
+  if (!swRegistration) {
+    showToast('Service Worker is still activating. Please refresh and try again.', 'warning');
+    return;
+  }
   const btn = document.getElementById('subscribeBtn');
   btn.textContent = 'Enabling...'; btn.disabled = true;
 
@@ -704,7 +710,9 @@ async function markAllInAppRead() {
   showToast('All notifications marked as read.', 'success');
 }
 
-// Load in-app notifications on page ready
+// Load on page ready
 loadInApp();
+loadLogs();
+initPush();
 </script>
 {% endblock %}

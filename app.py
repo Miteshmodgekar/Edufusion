@@ -174,8 +174,9 @@ def create_app(config_class=Config):
     def service_worker():
         from flask import send_from_directory, make_response
         resp = make_response(send_from_directory("static", "sw.js"))
-        resp.headers["Content-Type"]  = "application/javascript"
-        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Content-Type"]           = "application/javascript"
+        resp.headers["Cache-Control"]          = "no-cache, no-store, must-revalidate"
+        resp.headers["Service-Worker-Allowed"] = "/"
         return resp
 
     # ── PWA: Offline fallback page ────────────────────────────────────────────

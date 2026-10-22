@@ -561,7 +561,7 @@ document.getElementById('tickerTrack').innerHTML =
 })();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
 }
 </script>
 </body>
