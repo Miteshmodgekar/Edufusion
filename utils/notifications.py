@@ -47,7 +47,7 @@ def send_email(
     plain_text = body_text or _html_to_text(body_html)
 
     # 0. HTTPS REST API (Port 443 — works 100% on Render Free Tier where SMTP is blocked)
-    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    resend_key = (current_app.config.get("RESEND_API_KEY") or os.environ.get("RESEND_API_KEY", "")).strip()
     if resend_key:
         try:
             import urllib.request
@@ -60,16 +60,20 @@ def send_email(
             req = urllib.request.Request(
                 "https://api.resend.com/emails",
                 data=payload,
-                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"}
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
+                }
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 if resp.status in (200, 201):
                     logger.info(f"[EMAIL] Sent via Resend HTTPS API to {to}")
                     return {"success": True, "message": f"Email sent to {to}"}
         except Exception as e:
             logger.warning(f"[EMAIL] Resend HTTPS send failed ({type(e).__name__}: {e})")
 
-    brevo_key = os.environ.get("BREVO_API_KEY", "").strip()
+    brevo_key = (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip()
     if brevo_key:
         try:
             import urllib.request
@@ -82,9 +86,13 @@ def send_email(
             req = urllib.request.Request(
                 "https://api.brevo.com/v3/smtp/email",
                 data=payload,
-                headers={"api-key": brevo_key, "Content-Type": "application/json"}
+                headers={
+                    "api-key": brevo_key,
+                    "Content-Type": "application/json",
+                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
+                }
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 if resp.status in (200, 201):
                     logger.info(f"[EMAIL] Sent via Brevo HTTPS API to {to}")
                     return {"success": True, "message": f"Email sent to {to}"}

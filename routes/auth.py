@@ -94,9 +94,13 @@ def _send_reset_email(user, reset_url):
             req = urllib.request.Request(
                 "https://api.resend.com/emails",
                 data=payload,
-                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"}
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
+                }
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 if resp.status in (200, 201):
                     _log.info("[RESET-EMAIL] Sent via Resend HTTPS API to user %s", user.id)
                     return True
@@ -116,9 +120,13 @@ def _send_reset_email(user, reset_url):
             req = urllib.request.Request(
                 "https://api.brevo.com/v3/smtp/email",
                 data=payload,
-                headers={"api-key": brevo_key, "Content-Type": "application/json"}
+                headers={
+                    "api-key": brevo_key,
+                    "Content-Type": "application/json",
+                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
+                }
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 if resp.status in (200, 201):
                     _log.info("[RESET-EMAIL] Sent via Brevo HTTPS API to user %s", user.id)
                     return True
