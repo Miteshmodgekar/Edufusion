@@ -15,9 +15,9 @@ _CSP = {
     "style-src":   ["'self'", "'unsafe-inline'",
                     "https://cdn.jsdelivr.net", "https://fonts.googleapis.com",
                     "https://cdnjs.cloudflare.com"],
-    "font-src":    ["'self'", "https://fonts.gstatic.com",
-                    "https://cdnjs.cloudflare.com"],
-    "img-src":     ["'self'", "data:", "https:"],
+    "font-src":    ["'self'", "data:", "https://fonts.gstatic.com",
+                    "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+    "img-src":     ["'self'", "data:", "https:", "blob:"],
     "connect-src": ["'self'"],
     "frame-ancestors": ["'none'"],   # Clickjacking prevention
     "object-src":  ["'none'"],
