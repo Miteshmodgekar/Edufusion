@@ -73,46 +73,7 @@ def centre():
     return render_template("notifications/centre.html")
 
 
-@alert_bp.route("/diag")
-def alert_diag():
-    import smtplib
-    from flask import current_app
-    mail_user = current_app.config.get("MAIL_USERNAME") or ""
-    mail_pw   = current_app.config.get("MAIL_PASSWORD") or ""
-    mail_srv  = current_app.config.get("MAIL_SERVER") or "smtp.gmail.com"
-    mail_port = current_app.config.get("MAIL_PORT") or 587
-    suppress  = current_app.config.get("MAIL_SUPPRESS_SEND")
-    
-    res_587 = "not tested"
-    try:
-        with smtplib.SMTP(mail_srv, 587, timeout=5) as s:
-            s.starttls()
-            if mail_user and mail_pw:
-                s.login(mail_user, mail_pw)
-            res_587 = "CONNECTED & AUTH OK"
-    except Exception as e:
-        res_587 = f"{type(e).__name__}: {e}"
 
-    res_465 = "not tested"
-    try:
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=5) as s:
-            if mail_user and mail_pw:
-                s.login(mail_user, mail_pw)
-            res_465 = "CONNECTED & AUTH OK"
-    except Exception as e:
-        res_465 = f"{type(e).__name__}: {e}"
-
-    return jsonify({
-        "server": mail_srv,
-        "port": mail_port,
-        "username_set": bool(mail_user),
-        "username_val": mail_user[:4] + "***@" + mail_user.split("@")[-1] if "@" in mail_user else "",
-        "password_set": bool(mail_pw),
-        "password_len": len(mail_pw),
-        "suppress_send": suppress,
-        "test_587": res_587,
-        "test_465": res_465,
-    })
 
 
 import threading
