@@ -80,7 +80,47 @@ def _send_reset_email(user, reset_url):
         f"If you didn't request this, you can safely ignore this email."
     )
 
-    # 1. Primary: Flask-Mail
+    # 1. Primary: Direct SMTPS (Port 465 SSL) with explicit timeout
+    # Port 465 is never blocked by cloud firewalls and connects in <1 second.
+    try:
+        mime_msg = MIMEMultipart("alternative")
+        mime_msg["Subject"] = "Reset your EduFusion password"
+        mime_msg["From"] = sender
+        mime_msg["To"] = user.email
+        mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
+
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=6) as s:
+            s.login(mail_user, mail_pw)
+            s.sendmail(sender, [user.email], mime_msg.as_string())
+        _log.info("[RESET-EMAIL] Sent via direct SMTPS port 465 to user %s", user.id)
+        return True
+    except Exception as exc:
+        _log.warning(
+            "[RESET-EMAIL] SMTPS port 465 send failed for user %s (%s: %s). Trying port 587 TLS...",
+            user.id, type(exc).__name__, exc
+        )
+
+    # 2. Secondary: Direct STARTTLS (Port 587) with explicit 6s timeout
+    try:
+        mime_msg = MIMEMultipart("alternative")
+        mime_msg["Subject"] = "Reset your EduFusion password"
+        mime_msg["From"] = sender
+        mime_msg["To"] = user.email
+        mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
+
+        with smtplib.SMTP(mail_srv, 587, timeout=6) as s:
+            s.starttls()
+            s.login(mail_user, mail_pw)
+            s.sendmail(sender, [user.email], mime_msg.as_string())
+        _log.info("[RESET-EMAIL] Sent via direct SMTP port 587 to user %s", user.id)
+        return True
+    except Exception as exc:
+        _log.warning(
+            "[RESET-EMAIL] STARTTLS port 587 failed for user %s (%s: %s). Trying Flask-Mail...",
+            user.id, type(exc).__name__, exc
+        )
+
+    # 3. Tertiary: Flask-Mail fallback
     if MAIL_AVAILABLE and mail:
         try:
             from flask_mail import Message
@@ -94,50 +134,12 @@ def _send_reset_email(user, reset_url):
             _log.info("[RESET-EMAIL] Sent via Flask-Mail to user %s", user.id)
             return True
         except Exception as exc:
-            _log.warning(
-                "[RESET-EMAIL] Flask-Mail send failed for user %s (%s: %s). Trying direct port fallback...",
+            _log.error(
+                "[RESET-EMAIL] Flask-Mail also failed for user %s: %s: %s",
                 user.id, type(exc).__name__, exc
             )
 
-    # 2. Fallback: Direct SMTPS (Port 465 SSL)
-    try:
-        mime_msg = MIMEMultipart("alternative")
-        mime_msg["Subject"] = "Reset your EduFusion password"
-        mime_msg["From"] = sender
-        mime_msg["To"] = user.email
-        mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
-
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=12) as s:
-            s.login(mail_user, mail_pw)
-            s.sendmail(sender, [user.email], mime_msg.as_string())
-        _log.info("[RESET-EMAIL] Sent via direct SMTPS port 465 to user %s", user.id)
-        return True
-    except Exception as exc:
-        _log.warning(
-            "[RESET-EMAIL] SMTPS port 465 fallback failed for user %s (%s: %s). Trying port 587 TLS...",
-            user.id, type(exc).__name__, exc
-        )
-
-    # 3. Fallback: Direct STARTTLS (Port 587)
-    try:
-        mime_msg = MIMEMultipart("alternative")
-        mime_msg["Subject"] = "Reset your EduFusion password"
-        mime_msg["From"] = sender
-        mime_msg["To"] = user.email
-        mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
-
-        with smtplib.SMTP(mail_srv, 587, timeout=12) as s:
-            s.starttls()
-            s.login(mail_user, mail_pw)
-            s.sendmail(sender, [user.email], mime_msg.as_string())
-        _log.info("[RESET-EMAIL] Sent via direct SMTP port 587 to user %s", user.id)
-        return True
-    except Exception as exc:
-        _log.error(
-            "[RESET-EMAIL] All email sending methods failed for user %s: %s: %s",
-            user.id, type(exc).__name__, exc
-        )
-        return False
+    return False
 
 def _safe_next(next_url):
     """Only allow redirects to paths on the same host (prevent open redirect)."""
