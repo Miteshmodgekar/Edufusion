@@ -31,20 +31,31 @@ def create_app(config_class=Config):
     # Respect TEMPLATES_AUTO_RELOAD from config (True in dev, False in prod)
     app.jinja_env.auto_reload = app.config.get("TEMPLATES_AUTO_RELOAD", False)
 
-    # ── Security headers (Flask-Talisman) ─────────────────────────────────────
+    # ── Reverse-proxy fix (Render / Gunicorn) ──────────────────────────────────
+    # Render terminates TLS at its load balancer and forwards HTTP internally.
+    # ProxyFix makes Flask trust X-Forwarded-Proto / X-Forwarded-For so that
+    # url_for(_external=True) generates https:// links correctly.
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+    # ── Security headers (Flask-Talisman) ──────────────────────────────────
+    # force_https=False: Render's load balancer already enforces HTTPS and
+    # issues the redirect BEFORE the request reaches Gunicorn. Setting
+    # force_https=True here causes an infinite redirect loop because Gunicorn
+    # receives plain HTTP from the load balancer.
     try:
         from flask_talisman import Talisman
         Talisman(
             app,
-            force_https              = app.config.get("SESSION_COOKIE_SECURE", False),
-            strict_transport_security = app.config.get("SESSION_COOKIE_SECURE", False),
-            strict_transport_security_max_age = 31536000,   # 1 year
-            content_security_policy = _CSP,
-            content_security_policy_nonce_in = [],          # no nonces yet
-            referrer_policy          = "strict-origin-when-cross-origin",
-            x_content_type_options   = True,
-            x_xss_protection         = True,
-            session_cookie_secure    = app.config.get("SESSION_COOKIE_SECURE", False),
+            force_https                       = False,   # Render handles HTTPS redirect
+            strict_transport_security          = True,    # still send HSTS header
+            strict_transport_security_max_age  = 31536000,
+            content_security_policy            = _CSP,
+            content_security_policy_nonce_in   = [],
+            referrer_policy                    = "strict-origin-when-cross-origin",
+            x_content_type_options             = True,
+            x_xss_protection                   = True,
+            session_cookie_secure              = app.config.get("SESSION_COOKIE_SECURE", False),
         )
         app.logger.info("[SECURITY] Flask-Talisman security headers active.")
     except ImportError:
