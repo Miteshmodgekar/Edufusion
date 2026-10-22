@@ -118,15 +118,24 @@ class Config:
     @staticmethod
     def _load_vapid_private():
         # New format: base64-encoded PEM string
-        pem_b64 = os.environ.get("VAPID_PRIVATE_PEM_B64", "")
+        pem_b64 = os.environ.get("VAPID_PRIVATE_PEM_B64", "").strip()
         if pem_b64:
+            # Handle accidental duplicate key names (e.g., VAPID_PRIVATE_PEM_B64=VAPID_PRIVATE_PEM_B64=...)
+            while pem_b64.startswith("VAPID_PRIVATE_PEM_B64="):
+                pem_b64 = pem_b64[len("VAPID_PRIVATE_PEM_B64="):].strip()
+            pem_b64 = pem_b64.strip('"\'')
             import base64
             try:
-                return base64.b64decode(pem_b64).decode()
+                decoded = base64.b64decode(pem_b64).decode()
+                if "BEGIN PRIVATE KEY" in decoded:
+                    return decoded
             except Exception:
                 pass
         # Legacy fallback: raw PEM or base64 DER
-        return os.environ.get("VAPID_PRIVATE_KEY", "")
+        raw = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+        while raw.startswith("VAPID_PRIVATE_KEY="):
+            raw = raw[len("VAPID_PRIVATE_KEY="):].strip()
+        return raw.strip('"\'')
 
     VAPID_PRIVATE_KEY = _load_vapid_private.__func__()
 
