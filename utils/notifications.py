@@ -7,7 +7,7 @@ Both channels are optional — system works fine if neither is configured.
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 from extensions import db
 from models.notification import InAppNotification
@@ -91,44 +91,60 @@ def send_email(
         except Exception as e:
             logger.warning(f"[EMAIL] Brevo HTTPS send failed ({type(e).__name__}: {e})")
 
-    # 1. Primary SMTP: Direct SMTPS (Port 465 SSL) with fast 1.5s timeout
-    try:
-        mime_msg = MIMEMultipart("alternative")
-        mime_msg["Subject"] = subject
-        mime_msg["From"] = sender
-        mime_msg["To"] = to
-        mime_msg.attach(MIMEText(plain_text, "plain", "utf-8"))
-        if body_html:
-            mime_msg.attach(MIMEText(body_html, "html", "utf-8"))
+    from email.header import Header
 
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=1.5) as s:
+    def _build_mime():
+        mime = MIMEMultipart("alternative")
+        mime["Subject"] = Header(subject, "utf-8")
+        mime["From"]    = sender
+        mime["To"]      = to
+        mime.attach(MIMEText(plain_text, "plain", "utf-8"))
+        if body_html:
+            mime.attach(MIMEText(body_html, "html", "utf-8"))
+        return mime
+
+    # 1. Primary SMTP: Direct SMTPS (Port 465 SSL)
+    try:
+        mime_msg = _build_mime()
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=8) as s:
             s.login(mail_user, mail_pw)
-            s.sendmail(sender, [to], mime_msg.as_string())
+            s.send_message(mime_msg)
         logger.info(f"[EMAIL] Sent via direct SMTPS port 465 to {to}: {subject}")
         return {"success": True, "message": f"Email sent to {to}"}
     except Exception as e:
-        logger.warning(f"[EMAIL] SMTPS port 465 fallback to {to} failed ({type(e).__name__}: {e}). Trying port 587...")
+        logger.warning(f"[EMAIL] SMTPS port 465 to {to} failed ({type(e).__name__}: {e}). Trying port 587...")
 
-    # 2. Secondary: Direct STARTTLS (Port 587) with fast 1.5s timeout
+    # 2. Secondary: Direct STARTTLS (Port 587)
     try:
-        mime_msg = MIMEMultipart("alternative")
-        mime_msg["Subject"] = subject
-        mime_msg["From"] = sender
-        mime_msg["To"] = to
-        mime_msg.attach(MIMEText(plain_text, "plain", "utf-8"))
-        if body_html:
-            mime_msg.attach(MIMEText(body_html, "html", "utf-8"))
-
-        with smtplib.SMTP(mail_srv, 587, timeout=1.5) as s:
+        mime_msg = _build_mime()
+        with smtplib.SMTP(mail_srv, 587, timeout=8) as s:
             s.starttls()
             s.login(mail_user, mail_pw)
-            s.sendmail(sender, [to], mime_msg.as_string())
+            s.send_message(mime_msg)
         logger.info(f"[EMAIL] Sent via direct SMTP port 587 to {to}: {subject}")
         return {"success": True, "message": f"Email sent to {to}"}
     except Exception as e:
-        logger.warning(f"[EMAIL] Direct SMTP port 587 failed to {to}: {type(e).__name__}: {e}.")
+        logger.warning(f"[EMAIL] Direct SMTP port 587 failed to {to}: {type(e).__name__}: {e}. Trying Flask-Mail...")
 
-    return {"success": False, "message": "Email delivery blocked on host free tier."}
+    # 3. Tertiary: Flask-Mail
+    try:
+        from extensions import mail, MAIL_AVAILABLE
+        if MAIL_AVAILABLE and mail:
+            from flask_mail import Message
+            msg = Message(
+                subject    = subject,
+                recipients = [to],
+                html       = body_html,
+                body       = plain_text,
+                sender     = sender,
+            )
+            mail.send(msg)
+            logger.info(f"[EMAIL] Sent via Flask-Mail to {to}: {subject}")
+            return {"success": True, "message": f"Email sent to {to}"}
+    except Exception as e:
+        logger.warning(f"[EMAIL] Flask-Mail also failed to {to}: {type(e).__name__}: {e}")
+
+    return {"success": False, "message": "Email delivery failed on all methods."}
 
 
 def send_bulk_email(recipients: List[dict], subject: str, template_fn) -> dict:

@@ -125,17 +125,22 @@ def _send_reset_email(user, reset_url):
         except Exception as e:
             _log.warning("[RESET-EMAIL] Brevo HTTPS send failed: %s", e)
 
-    # 1. Primary SMTP: Direct SMTPS (Port 465 SSL) with fast 1.5s timeout
-    try:
-        mime_msg = MIMEMultipart("alternative")
-        mime_msg["Subject"] = "Reset your EduFusion password"
-        mime_msg["From"] = sender
-        mime_msg["To"] = user.email
-        mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
+    from email.header import Header
 
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=1.5) as s:
+    def _build_reset_mime():
+        mime = MIMEMultipart("alternative")
+        mime["Subject"] = Header("Reset your EduFusion password", "utf-8")
+        mime["From"]    = sender
+        mime["To"]      = user.email
+        mime.attach(MIMEText(body_text, "plain", "utf-8"))
+        return mime
+
+    # 1. Primary SMTP: Direct SMTPS (Port 465 SSL)
+    try:
+        mime_msg = _build_reset_mime()
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=4) as s:
             s.login(mail_user, mail_pw)
-            s.sendmail(sender, [user.email], mime_msg.as_string())
+            s.send_message(mime_msg)
         _log.info("[RESET-EMAIL] Sent via direct SMTPS port 465 to user %s", user.id)
         return True
     except Exception as exc:
@@ -144,18 +149,13 @@ def _send_reset_email(user, reset_url):
             user.id, type(exc).__name__, exc
         )
 
-    # 2. Secondary: Direct STARTTLS (Port 587) with fast 1s timeout
+    # 2. Secondary: Direct STARTTLS (Port 587)
     try:
-        mime_msg = MIMEMultipart("alternative")
-        mime_msg["Subject"] = "Reset your EduFusion password"
-        mime_msg["From"] = sender
-        mime_msg["To"] = user.email
-        mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
-
-        with smtplib.SMTP(mail_srv, 587, timeout=1.5) as s:
+        mime_msg = _build_reset_mime()
+        with smtplib.SMTP(mail_srv, 587, timeout=4) as s:
             s.starttls()
             s.login(mail_user, mail_pw)
-            s.sendmail(sender, [user.email], mime_msg.as_string())
+            s.send_message(mime_msg)
         _log.info("[RESET-EMAIL] Sent via direct SMTP port 587 to user %s", user.id)
         return True
     except Exception as exc:
