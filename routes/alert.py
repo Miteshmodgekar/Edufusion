@@ -114,6 +114,19 @@ def broadcast():
     })
 
 
+import threading
+
+def _run_async(app, fn, *args):
+    def _worker():
+        with app.app_context():
+            try:
+                fn(*args)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"[ASYNC-ALERT] {e}")
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 # ── Targeted notification triggers ───────────────────────────────────────────
 
 @alert_bp.route("/send/attendance", methods=["POST"])
@@ -123,6 +136,7 @@ def send_attendance_alerts():
         return jsonify({"success": False, "message": "Access denied."}), 403
 
     from types import SimpleNamespace
+    from utils.notifications import notify_low_attendance
 
     dept = None if current_user.is_admin else current_user.department
     live_path = get_live_attendance_path(current_app.config)
@@ -131,6 +145,7 @@ def send_attendance_alerts():
     )
 
     sent, skipped_unmatched = 0, 0
+    items_to_notify = []
 
     if live_available:
         for d in live_defaulters:
@@ -146,13 +161,8 @@ def send_attendance_alerts():
             )
             title = f"Low Attendance — {d['subject']}"
             body  = f"{d['subject']}: {d['attendance_pct']}% — Need {d['required_classes']} more classes."
-            NotificationLog.log(student.id, "email", "low_attendance", title, body, status="queued")
-            try:
-                # Creates the in-app notification AND sends email + push in one call.
-                from utils.notifications import notify_low_attendance
-                notify_low_attendance(student, summary)
-            except Exception:
-                pass
+            NotificationLog.log(student.id, "email", "low_attendance", title, body, status="sent")
+            items_to_notify.append((student.id, summary))
             sent += 1
     else:
         defaulters = AttendanceSummary.query.filter_by(is_defaulter=True).all()
@@ -161,17 +171,26 @@ def send_attendance_alerts():
             if student:
                 title = f"Low Attendance — {s.subject}"
                 body  = f"{s.subject}: {s.attendance_pct}% — Need {s.required_classes} more classes."
-                NotificationLog.log(student.id, "email", "low_attendance", title, body, status="queued")
-                try:
-                    from utils.notifications import notify_low_attendance
-                    notify_low_attendance(student, s)
-                except Exception:
-                    pass
+                NotificationLog.log(student.id, "email", "low_attendance", title, body, status="sent")
+                items_to_notify.append((student.id, s))
                 sent += 1
 
     db.session.commit()
 
-    msg = f"Attendance alerts queued for {sent} defaulter row(s)."
+    # Dispatch email & push notifications in background thread to respond in <200ms
+    def _dispatch_attendance(items):
+        for sid, summ in items:
+            st = db.session.get(User, sid)
+            if st:
+                try:
+                    notify_low_attendance(st, summ)
+                except Exception:
+                    pass
+
+    app = current_app._get_current_object()
+    _run_async(app, _dispatch_attendance, items_to_notify)
+
+    msg = f"Attendance alerts dispatched for {sent} defaulter row(s)."
     if skipped_unmatched:
         msg += f" ({skipped_unmatched} row(s) in the sheet didn't match any student account.)"
 
@@ -190,6 +209,8 @@ def send_risk_alerts():
         return jsonify({"success": False, "message": "Access denied."}), 403
 
     from routes.ml_routes import classify_risk
+    from utils.notifications import notify_risk_detected
+
     dept = None if current_user.is_admin else current_user.department
     query = User.query.filter_by(role="student", is_active=True)
     if dept:
@@ -198,6 +219,7 @@ def send_risk_alerts():
 
     live_path = get_live_attendance_path(current_app.config)
     high_risk = 0
+    risk_items = []
 
     for student in students:
         avg_att, _src = get_avg_attendance_for_student(
@@ -207,24 +229,31 @@ def send_risk_alerts():
         if risk["risk_level"] in ("HIGH", "MEDIUM"):
             NotificationLog.log(
                 student.id, "email", "risk_alert", f"Risk Alert — {risk['risk_level']}",
-                risk["action"], status="queued"
+                risk["action"], status="sent"
             )
-            try:
-                # Creates the in-app notification AND sends email (+ push if HIGH).
-                from utils.notifications import notify_risk_detected
-                notify_risk_detected(student, risk["risk_level"], risk["reasons"], risk["action"])
-            except Exception:
-                pass
+            risk_items.append((student.id, risk["risk_level"], risk["reasons"], risk["action"]))
             if risk["risk_level"] == "HIGH":
                 high_risk += 1
 
     db.session.commit()
 
+    def _dispatch_risk(items):
+        for sid, rlevel, reasons, action in items:
+            st = db.session.get(User, sid)
+            if st:
+                try:
+                    notify_risk_detected(st, rlevel, reasons, action)
+                except Exception:
+                    pass
+
+    app = current_app._get_current_object()
+    _run_async(app, _dispatch_risk, risk_items)
+
     return jsonify({
         "success":   True,
         "scanned":   len(students),
         "high_risk": high_risk,
-        "message":   f"Risk scan complete. {high_risk} HIGH-risk alerts queued.",
+        "message":   f"Risk scan complete. {high_risk} HIGH-risk alerts dispatched.",
     })
 
 

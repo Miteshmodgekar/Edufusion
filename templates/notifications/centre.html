@@ -150,7 +150,7 @@
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
           Email + push to all students below 85% threshold.
         </div>
-        <button class="btn btn-outline-secondary btn-sm w-100" onclick="sendAttendanceAlerts()">
+        <button class="btn btn-outline-secondary btn-sm w-100" id="btnDefaulters" onclick="sendAttendanceAlerts(event)">
           Send to all defaulters
         </button>
       </div>
@@ -163,7 +163,7 @@
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
           Run ML scan and alert high/medium-risk students.
         </div>
-        <button class="btn btn-outline-secondary btn-sm w-100" onclick="sendRiskAlerts()">
+        <button class="btn btn-outline-secondary btn-sm w-100" id="btnRisk" onclick="sendRiskAlerts(event)">
           Run scan and notify
         </button>
       </div>
@@ -401,28 +401,34 @@ async function testPush() {
 }
 
 // ── Send helpers ──────────────────────────────────────────────────────────
-async function sendAttendanceAlerts() {
-  const btn = event.target;
-  btn.textContent = 'Sending...'; btn.disabled = true;
+async function sendAttendanceAlerts(e) {
+  const btn = (e && e.target) || document.getElementById('btnDefaulters');
+  if (btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
   try {
     const res  = await fetch('/alert/send/attendance', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.message, data.success ? 'success' : 'danger');
+    const data = await res.json().catch(() => ({ success: false, message: 'Server error' }));
+    showToast(data.message || 'Alerts dispatched.', data.success ? 'success' : 'danger');
     loadLogs();
-  } catch { showToast('Server error.', 'danger'); }
-  btn.textContent = 'Send to all defaulters'; btn.disabled = false;
+  } catch (err) {
+    showToast('Failed to send alerts. Please try again.', 'danger');
+  } finally {
+    if (btn) { btn.textContent = 'Send to all defaulters'; btn.disabled = false; }
+  }
 }
 
-async function sendRiskAlerts() {
-  const btn = event.target;
-  btn.textContent = 'Scanning...'; btn.disabled = true;
+async function sendRiskAlerts(e) {
+  const btn = (e && e.target) || document.getElementById('btnRisk');
+  if (btn) { btn.textContent = 'Scanning...'; btn.disabled = true; }
   try {
     const res  = await fetch('/alert/send/risk', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.message, data.success ? 'success' : 'danger');
+    const data = await res.json().catch(() => ({ success: false, message: 'Server error' }));
+    showToast(data.message || 'Risk alerts dispatched.', data.success ? 'success' : 'danger');
     loadLogs();
-  } catch { showToast('Server error.', 'danger'); }
-  btn.textContent = 'Run scan and notify'; btn.disabled = false;
+  } catch (err) {
+    showToast('Failed to run risk scan. Please try again.', 'danger');
+  } finally {
+    if (btn) { btn.textContent = 'Run scan and notify'; btn.disabled = false; }
+  }
 }
 
 async function sendBroadcast() {
