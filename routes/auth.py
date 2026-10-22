@@ -80,7 +80,52 @@ def _send_reset_email(user, reset_url):
         f"If you didn't request this, you can safely ignore this email."
     )
 
-    # 1. Primary: Direct SMTPS (Port 465 SSL) with fast 1s timeout
+    # 0. HTTPS REST API (Port 443 — works 100% on Render Free Tier where SMTP is blocked)
+    resend_key = (current_app.config.get("RESEND_API_KEY") or os.environ.get("RESEND_API_KEY", "")).strip()
+    if resend_key:
+        try:
+            import urllib.request, json
+            payload = json.dumps({
+                "from": "EduFusion <onboarding@resend.dev>",
+                "to": [user.email],
+                "subject": "Reset your EduFusion password",
+                "html": f"<p>{body_text.replace(chr(10), '<br>')}</p>",
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status in (200, 201):
+                    _log.info("[RESET-EMAIL] Sent via Resend HTTPS API to user %s", user.id)
+                    return True
+        except Exception as e:
+            _log.warning("[RESET-EMAIL] Resend HTTPS send failed: %s", e)
+
+    brevo_key = (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip()
+    if brevo_key:
+        try:
+            import urllib.request, json
+            payload = json.dumps({
+                "sender": {"name": "EduFusion", "email": sender if "@" in sender else "admin@cse.edu"},
+                "to": [{"email": user.email}],
+                "subject": "Reset your EduFusion password",
+                "htmlContent": f"<p>{body_text.replace(chr(10), '<br>')}</p>",
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.brevo.com/v3/smtp/email",
+                data=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status in (200, 201):
+                    _log.info("[RESET-EMAIL] Sent via Brevo HTTPS API to user %s", user.id)
+                    return True
+        except Exception as e:
+            _log.warning("[RESET-EMAIL] Brevo HTTPS send failed: %s", e)
+
+    # 1. Primary SMTP: Direct SMTPS (Port 465 SSL) with fast 1.5s timeout
     try:
         mime_msg = MIMEMultipart("alternative")
         mime_msg["Subject"] = "Reset your EduFusion password"
