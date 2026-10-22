@@ -73,6 +73,19 @@ def centre():
     return render_template("notifications/centre.html")
 
 
+import threading
+
+def _run_async(app, fn, *args):
+    def _worker():
+        with app.app_context():
+            try:
+                fn(*args)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"[ASYNC-ALERT] {e}")
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 # ── Broadcast ─────────────────────────────────────────────────────────────────
 
 @alert_bp.route("/broadcast", methods=["POST"])
@@ -94,7 +107,7 @@ def broadcast():
 
     # Log notification + create in-app bell notification for each student
     for sid in sids:
-        NotificationLog.log(sid, "push", "broadcast", title, body, status="sent")
+        NotificationLog.log(sid, "both", "broadcast", title, body, status="sent")
         db.session.add(InAppNotification(
             user_id    = sid,
             title      = title,
@@ -108,23 +121,47 @@ def broadcast():
     # Try push notifications (won't crash if pywebpush not installed)
     push_sent = _try_push_bulk(sids, title, body)
 
+    # Email students in background thread so HTTP response returns in <200ms
+    def _dispatch_broadcast_email(student_ids, b_title, b_body):
+        from utils.notifications import send_email
+        for sid in student_ids:
+            st = db.session.get(User, sid)
+            if st and st.email and "@" in st.email:
+                html = f"""
+                <div style="font-family:Segoe UI,Arial,sans-serif;max-width:600px;margin:0 auto;
+                            background:#0d1117;color:#e6edf3;border-radius:12px;overflow:hidden">
+                  <div style="background:#58a6ff;padding:24px 32px">
+                    <h2 style="margin:0;color:#fff;font-size:20px">{b_title}</h2>
+                    <p style="margin:4px 0 0;color:rgba(255,255,255,.8);font-size:13px">
+                      CSE Department — Smart Academic System
+                    </p>
+                  </div>
+                  <div style="padding:28px 32px">
+                    <p style="font-size:15px;margin-bottom:16px">Dear <strong>{st.name}</strong>,</p>
+                    <div style="background:#161b22;border-radius:10px;padding:16px;margin-bottom:20px;
+                                border-left:4px solid #58a6ff;line-height:1.6">
+                      {b_body}
+                    </div>
+                    <p style="font-size:13px;color:#8b949e">
+                      Please log in to the portal for more details and actions.
+                    </p>
+                  </div>
+                  <div style="background:#161b22;padding:16px 32px;font-size:11px;color:#8b949e">
+                    CSE Department · Academic Management System · Broadcast Announcement
+                  </div>
+                </div>"""
+                try:
+                    send_email(st.email, f"Department Announcement: {b_title}", html, b_body)
+                except Exception:
+                    pass
+
+    app = current_app._get_current_object()
+    _run_async(app, _dispatch_broadcast_email, sids, title, body)
+
     return jsonify({
         "success": True,
         "message": f"Broadcast sent to {len(sids)} students. Push: {push_sent}",
     })
-
-
-import threading
-
-def _run_async(app, fn, *args):
-    def _worker():
-        with app.app_context():
-            try:
-                fn(*args)
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"[ASYNC-ALERT] {e}")
-    threading.Thread(target=_worker, daemon=True).start()
 
 
 # ── Targeted notification triggers ───────────────────────────────────────────

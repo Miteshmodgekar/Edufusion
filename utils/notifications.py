@@ -338,12 +338,20 @@ def send_push_notification(
         if not vapid_private:
             return {"success": False, "message": "VAPID_PRIVATE_KEY not configured."}
 
+        vapid_key_param = vapid_private
+        try:
+            from py_vapid import Vapid
+            if isinstance(vapid_private, str) and "BEGIN PRIVATE KEY" in vapid_private:
+                vapid_key_param = Vapid.from_pem(vapid_private.encode())
+        except Exception:
+            pass
+
         payload = json.dumps({"title": title, "body": body, "url": url, "icon": icon})
 
         webpush(
             subscription_info = subscription_info,
             data              = payload,
-            vapid_private_key = vapid_private,
+            vapid_private_key = vapid_key_param,
             vapid_claims      = vapid_claims,
         )
         return {"success": True, "message": "Push notification sent."}

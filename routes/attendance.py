@@ -95,9 +95,9 @@ def upload():
             try:
                 from utils.notifications import notify_low_attendance
                 from sqlalchemy import func as sqlfunc
-                for def_data in result.get("defaulters", []):
                     student = User.query.filter(
-                        sqlfunc.upper(User.roll_number) == def_data["roll_number"].upper(),
+                        (sqlfunc.upper(User.roll_number) == def_data["roll_number"].upper()) |
+                        (sqlfunc.upper(User.username) == def_data["roll_number"].upper()),
                         User.role == "student"
                     ).first()
                     if student:
@@ -1018,8 +1018,10 @@ def api_mark_save():
         try:
             from utils.notifications import notify_low_attendance
             for d in defaulters:
+                roll_val = (d.get("roll_number") or "").strip().upper()
                 stu = next((u for u in student_map.values()
-                            if u.roll_number and u.roll_number.upper() == (d["roll_number"] or "").upper()), None)
+                            if (u.roll_number and u.roll_number.strip().upper() == roll_val) or
+                               (u.username and u.username.strip().upper() == roll_val)), None)
                 summary = existing_summaries.get(stu.id) if stu else None
                 if stu and summary:
                     notify_low_attendance(stu, summary)
