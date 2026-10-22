@@ -21,9 +21,13 @@ env/
 # Database
 *.db
 *.sqlite3
+# SQL dumps — may contain student PII; never commit to version control
+*.sql
+cse_final.sql
 
 # Uploads (user files - not committed to git)
 uploads/
+**/uploads/
 
 # ML models — small pre-trained files ARE committed (model.pkl ~740B, scaler.pkl ~522B)
 # ml/*.pkl   ← intentionally kept tracked for Render deployment

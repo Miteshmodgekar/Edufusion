@@ -30,8 +30,10 @@ class Config:
     SECRET_KEY = _secret
     SESSION_COOKIE_HTTPONLY   = True
     SESSION_COOKIE_SAMESITE   = "Lax"
+    # Secure flag: on in production (HTTPS), off in local dev (HTTP).
+    # Override in ProductionConfig below, or set FORCE_HTTPS=1 in .env.
+    SESSION_COOKIE_SECURE     = os.environ.get("FORCE_HTTPS", "0").strip() not in ("0", "", "false")
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
-    TEMPLATES_AUTO_RELOAD      = True
 
     # ── Database ───────────────────────────────────────────────────────────
     MYSQL_HOST     = os.environ.get("MYSQL_HOST",     "localhost")
@@ -47,14 +49,19 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # ── Auto-enable SSL for Aiven MySQL (requires SSL but no cert file needed) ──
-    _db_url = os.environ.get("DATABASE_URL", "")
-    _ssl_args = {"ssl": {"ssl_disabled": False}} if "aivencloud.com" in _db_url else {}
+    # ── Auto-enable SSL for Aiven MySQL ──────────────────────────────────────
+    # PyMySQL SSL connect_args: use ssl_verify_cert=False for Aiven's
+    # self-signed certificate. Note: {"ssl": {"ssl_disabled": False}} is
+    # mysql-connector-python syntax and is NOT recognised by PyMySQL —
+    # it was causing DECRYPTION_FAILED_OR_BAD_RECORD_MAC errors on
+    # pooled connections because SSL was never properly initialised.
+    _db_url  = os.environ.get("DATABASE_URL", "")
+    _ssl_args = {"ssl_verify_cert": False} if "aivencloud.com" in _db_url else {}
 
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_recycle":  280,    # recycle connections before MySQL's default timeout
-        "pool_pre_ping": True,   # test connection before use
-        "pool_size":     5,      # lower for Render free tier (shared resources)
+        "pool_recycle":  120,    # Aiven closes idle connections; recycle well before that
+        "pool_pre_ping": True,   # test connection liveness before checkout
+        "pool_size":     5,      # keep low for Render free tier
         "max_overflow":  10,
         "pool_timeout":  30,
         "connect_args":  _ssl_args,
@@ -115,12 +122,15 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    DEBUG = True
+    DEBUG                = True
+    TEMPLATES_AUTO_RELOAD = True   # hot-reload Jinja templates in dev
+    SESSION_COOKIE_SECURE = False  # HTTP is fine locally
 
 
 class ProductionConfig(Config):
     DEBUG                 = False
-    SESSION_COOKIE_SECURE = True
+    TEMPLATES_AUTO_RELOAD = False  # no dev feature in prod
+    SESSION_COOKIE_SECURE = True   # must be HTTPS in production
     MAIL_SUPPRESS_SEND    = False
 
 

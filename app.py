@@ -1,15 +1,57 @@
-"""
-AI-Driven Smart Academic, Attendance & Placement Management System
-"""
 from flask import Flask
 from config import Config
 from extensions import db, login_manager, bcrypt, mail, MAIL_AVAILABLE
 
 
+# ── Security-header defaults (Flask-Talisman) ────────────────────────────────
+# CSP: allow same-origin scripts/styles + CDN sources used by the app.
+# Inline scripts/styles are whitelisted with nonces in production — for now
+# we use 'unsafe-inline' to avoid breaking existing templates; tighten this
+# once templates are migrated to use {% raw %}{{ csp_nonce() }}{% endraw %}.
+_CSP = {
+    "default-src": ["'self'"],
+    "script-src":  ["'self'", "'unsafe-inline'",
+                    "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+    "style-src":   ["'self'", "'unsafe-inline'",
+                    "https://cdn.jsdelivr.net", "https://fonts.googleapis.com",
+                    "https://cdnjs.cloudflare.com"],
+    "font-src":    ["'self'", "https://fonts.gstatic.com",
+                    "https://cdnjs.cloudflare.com"],
+    "img-src":     ["'self'", "data:", "https:"],
+    "connect-src": ["'self'"],
+    "frame-ancestors": ["'none'"],   # Clickjacking prevention
+    "object-src":  ["'none'"],
+    "base-uri":    ["'self'"],
+    "form-action": ["'self'"],
+}
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
-    app.jinja_env.auto_reload = True
+    # Respect TEMPLATES_AUTO_RELOAD from config (True in dev, False in prod)
+    app.jinja_env.auto_reload = app.config.get("TEMPLATES_AUTO_RELOAD", False)
+
+    # ── Security headers (Flask-Talisman) ─────────────────────────────────────
+    try:
+        from flask_talisman import Talisman
+        Talisman(
+            app,
+            force_https              = app.config.get("SESSION_COOKIE_SECURE", False),
+            strict_transport_security = app.config.get("SESSION_COOKIE_SECURE", False),
+            strict_transport_security_max_age = 31536000,   # 1 year
+            content_security_policy = _CSP,
+            content_security_policy_nonce_in = [],          # no nonces yet
+            referrer_policy          = "strict-origin-when-cross-origin",
+            x_content_type_options   = True,
+            x_xss_protection         = True,
+            session_cookie_secure    = app.config.get("SESSION_COOKIE_SECURE", False),
+        )
+        app.logger.info("[SECURITY] Flask-Talisman security headers active.")
+    except ImportError:
+        app.logger.warning(
+            "[SECURITY] Flask-Talisman not installed — security headers are DISABLED. "
+            "Install with: pip install flask-talisman"
+        )
 
     # Initialise extensions with app
     db.init_app(app)
@@ -22,15 +64,36 @@ def create_app(config_class=Config):
     from routes.auth import limiter
     limiter.init_app(app)
 
-    # Return rate-limit errors as JSON (default is an HTML page, which breaks
-    # any frontend fetch() call expecting res.json() to succeed).
-    from flask import jsonify, request as flask_request
+    # ── Error handlers ──────────────────────────────────────────────────────────
+    from flask import jsonify, request as flask_request, render_template as _rt
+
     @app.errorhandler(429)
     def _rate_limit_handler(e):
         msg = "Too many attempts. Please wait a moment and try again."
         if flask_request.is_json or flask_request.path.startswith(("/auth/", "/attendance/api", "/placement/api",
                                                                      "/drives/api", "/ml/", "/dashboard/api")):
             return jsonify({"success": False, "message": msg}), 429
+        return e
+
+    @app.errorhandler(500)
+    def _server_error(e):
+        """Generic 500 handler — never expose tracebacks to the browser."""
+        import logging, traceback, os as _os
+        logging.getLogger(__name__).error(
+            "Unhandled 500 error: %s\n%s", e, traceback.format_exc()
+        )
+        if flask_request.is_json or flask_request.path.startswith("/api"):
+            return jsonify({"success": False, "message": "An internal server error occurred."}), 500
+        # Only try to render the custom template if the file actually exists.
+        _tmpl = _os.path.join(app.template_folder or "", "errors", "500.html")
+        if app.template_folder and _os.path.isfile(_tmpl):
+            return _rt("errors/500.html"), 500
+        return "An internal server error occurred.", 500
+
+    @app.errorhandler(404)
+    def _not_found(e):
+        if flask_request.is_json or flask_request.path.startswith("/api"):
+            return jsonify({"success": False, "message": "Resource not found."}), 404
         return e
 
     login_manager.login_view             = "auth.login"
@@ -350,22 +413,31 @@ def _seed_demo_data():
     ]
     db.session.add_all(users)
     db.session.commit()
-    print("\n" + "="*45)
-    print("  [SEED] Demo users created!")
-    print("  Student : CS21001 / student123")
-    print("  Faculty : FAC001  / faculty123")
-    print("  HOD     : HOD001  / hod123")
-    print("  Admin   : admin   / admin123")
-    print("="*45 + "\n")
+    import logging as _log
+    _log.getLogger(__name__).warning(
+        "[SEED] Demo users created. "
+        "CHANGE THESE PASSWORDS immediately via the admin panel before going live."
+    )
+    print("\n" + "="*55)
+    print("  [SEED] Demo users created. Roles: student, faculty, hod, admin.")
+    print("  ⚠️  Change demo passwords before deploying to production!")
+    print("="*55 + "\n")
 
 
 if __name__ == "__main__":
-    app = create_app()
+    import os as _os
+    # Read debug flag from env — NEVER hardcode debug=True.
+    # Set FLASK_DEBUG=1 in .env for local development.
+    _debug = _os.environ.get("FLASK_DEBUG", "0").strip() == "1"
+    from config import config_by_name
+    _env    = _os.environ.get("FLASK_ENV", "development")
+    _config = config_by_name.get(_env, config_by_name["development"])
+    app = create_app(_config)
     app.run(
-        host="0.0.0.0",       # Accept connections from all devices on network
-        debug=True,
+        host="0.0.0.0",
+        debug=_debug,
         port=5000,
-        use_reloader=True,
-        reloader_type="stat",
+        use_reloader=_debug,
+        reloader_type="stat" if _debug else None,
         exclude_patterns=["*/site-packages/*", "*/anaconda/*"],
     )

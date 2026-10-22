@@ -121,22 +121,38 @@ def predict_page():
 @ml_bp.route("/predict", methods=["POST"])
 @login_required
 def predict():
-    data           = request.get_json()
-    attendance_pct = float(data.get("attendance_pct", 0))
-    internal_marks = float(data.get("internal_marks", 0))
-    external_marks = float(data.get("external_marks", 0))
-    result         = predict_performance(attendance_pct, internal_marks, external_marks)
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "JSON body required."}), 400
+    try:
+        attendance_pct = max(0.0, min(100.0, float(data.get("attendance_pct", 0))))
+        internal_marks = max(0.0, min(100.0, float(data.get("internal_marks", 0))))
+        external_marks = max(0.0, min(100.0, float(data.get("external_marks", 0))))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Numeric inputs required (attendance_pct, internal_marks, external_marks)."}), 400
+    import math
+    if any(math.isnan(v) or math.isinf(v) for v in (attendance_pct, internal_marks, external_marks)):
+        return jsonify({"success": False, "message": "Invalid numeric values."}), 400
+    result = predict_performance(attendance_pct, internal_marks, external_marks)
     return jsonify({"success": True, **result})
 
 
 @ml_bp.route("/risk", methods=["POST"])
 @login_required
 def risk():
-    data           = request.get_json()
-    attendance_pct = float(data.get("attendance_pct", 0))
-    internal_marks = float(data.get("internal_marks", 0))
-    progress_pct   = float(data.get("progress_pct", 0))
-    result         = classify_risk(attendance_pct, internal_marks, progress_pct)
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "JSON body required."}), 400
+    try:
+        attendance_pct = max(0.0, min(100.0, float(data.get("attendance_pct", 0))))
+        internal_marks = max(0.0, min(100.0, float(data.get("internal_marks", 0))))
+        progress_pct   = max(0.0, min(100.0, float(data.get("progress_pct", 0))))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Numeric inputs required."}), 400
+    import math
+    if any(math.isnan(v) or math.isinf(v) for v in (attendance_pct, internal_marks, progress_pct)):
+        return jsonify({"success": False, "message": "Invalid numeric values."}), 400
+    result = classify_risk(attendance_pct, internal_marks, progress_pct)
     return jsonify({"success": True, **result})
 
 

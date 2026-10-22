@@ -47,9 +47,10 @@ def _verify_reset_token(token, max_age=RESET_TOKEN_MAX_AGE):
 def _send_reset_email(user, reset_url):
     """
     Sends the reset link if SMTP is configured (MAIL_SUPPRESS_SEND=False).
-    If email isn't configured yet, returns the link instead so it can be
-    shown/logged for testing — nothing is silently lost.
+    Returns True if the email was accepted by the SMTP server, False otherwise.
     """
+    import logging as _ml
+    _log = _ml.getLogger(__name__)
     if MAIL_AVAILABLE and mail and not current_app.config.get("MAIL_SUPPRESS_SEND", True):
         from flask_mail import Message
         msg = Message(
@@ -63,8 +64,22 @@ def _send_reset_email(user, reset_url):
                 f"If you didn't request this, you can safely ignore this email."
             ),
         )
-        mail.send(msg)
-        return True
+        try:
+            mail.send(msg)
+            return True
+        except Exception as exc:
+            # Log the error type only — never log the message body or the reset URL.
+            _log.error(
+                "[RESET-EMAIL] SMTP send failed for user %s: %s: %s",
+                user.id, type(exc).__name__, exc
+            )
+            return False
+    # Gate failed — log which sub-condition is responsible.
+    _log.warning(
+        "[RESET-EMAIL] Gate failed: MAIL_AVAILABLE=%s, mail=%s, MAIL_SUPPRESS_SEND=%s",
+        MAIL_AVAILABLE, bool(mail),
+        current_app.config.get("MAIL_SUPPRESS_SEND", "(key missing)"),
+    )
     return False
 
 def _safe_next(next_url):
@@ -233,7 +248,10 @@ def register_post():
         db.session.commit()
     except Exception as exc:
         db.session.rollback()
-        msg = f"Registration failed: {exc}"
+        import logging as _reglog
+        _reglog.getLogger(__name__).error("[REGISTER] DB error: %s", exc)
+        # Never expose raw DB exception text (leaks table/constraint names).
+        msg = "Registration failed. The username or email may already be taken."
         if request.is_json:
             return jsonify({"success": False, "message": msg}), 409
         flash(msg, "danger")
@@ -323,10 +341,12 @@ def forgot_password_post():
         reset_url = url_for("auth.reset_password", token=token, _external=True)
         sent      = _send_reset_email(user, reset_url)
         if not sent:
-            # SMTP not configured — log server-side ONLY, never expose to browser.
+            # SMTP not configured — log server-side ONLY (no URL — it could
+            # be stolen by anyone with log access).
             logger.warning(
-                "[FORGOT-PW] Email not configured. Reset link for user %s: %s",
-                user.id, reset_url
+                "[FORGOT-PW] Email not configured. User ID %s requested a reset. "
+                "Admin: use the admin panel to manually reset this account.",
+                user.id if user else "unknown",
             )
             # Tell the user to contact admin instead of leaking the link.
             if request.is_json:
