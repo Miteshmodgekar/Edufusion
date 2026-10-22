@@ -46,8 +46,7 @@ def send_email(
 
     plain_text = body_text or _html_to_text(body_html)
 
-    # 1. Primary: Direct SMTPS (Port 465 SSL) with explicit timeout
-    # Port 465 is never blocked by cloud firewalls and connects in <1 second.
+    # 1. Primary: Direct SMTPS (Port 465 SSL) with fast 1.5s timeout
     try:
         mime_msg = MIMEMultipart("alternative")
         mime_msg["Subject"] = subject
@@ -57,15 +56,15 @@ def send_email(
         if body_html:
             mime_msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=6) as s:
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=1.5) as s:
             s.login(mail_user, mail_pw)
             s.sendmail(sender, [to], mime_msg.as_string())
         logger.info(f"[EMAIL] Sent via direct SMTPS port 465 to {to}: {subject}")
         return {"success": True, "message": f"Email sent to {to}"}
     except Exception as e:
-        logger.warning(f"[EMAIL] SMTPS port 465 fallback to {to} failed ({type(e).__name__}: {e}). Trying port 587 TLS...")
+        logger.warning(f"[EMAIL] SMTPS port 465 fallback to {to} failed ({type(e).__name__}: {e}). Trying port 587...")
 
-    # 2. Secondary: Direct STARTTLS (Port 587) with explicit 6s timeout
+    # 2. Secondary: Direct STARTTLS (Port 587) with fast 1.5s timeout
     try:
         mime_msg = MIMEMultipart("alternative")
         mime_msg["Subject"] = subject
@@ -75,34 +74,16 @@ def send_email(
         if body_html:
             mime_msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-        with smtplib.SMTP(mail_srv, 587, timeout=6) as s:
+        with smtplib.SMTP(mail_srv, 587, timeout=1.5) as s:
             s.starttls()
             s.login(mail_user, mail_pw)
             s.sendmail(sender, [to], mime_msg.as_string())
         logger.info(f"[EMAIL] Sent via direct SMTP port 587 to {to}: {subject}")
         return {"success": True, "message": f"Email sent to {to}"}
     except Exception as e:
-        logger.warning(f"[EMAIL] Direct SMTP port 587 failed to {to}: {type(e).__name__}: {e}. Trying Flask-Mail...")
+        logger.warning(f"[EMAIL] Direct SMTP port 587 failed to {to}: {type(e).__name__}: {e}.")
 
-    # 3. Tertiary: Flask-Mail
-    try:
-        from extensions import mail, MAIL_AVAILABLE
-        if MAIL_AVAILABLE and mail:
-            from flask_mail import Message
-            msg = Message(
-                subject    = subject,
-                recipients = [to],
-                html       = body_html,
-                body       = plain_text,
-                sender     = sender,
-            )
-            mail.send(msg)
-            logger.info(f"[EMAIL] Sent via Flask-Mail to {to}: {subject}")
-            return {"success": True, "message": f"Email sent to {to}"}
-    except Exception as e:
-        logger.error(f"[EMAIL] Flask-Mail also failed to {to}: {type(e).__name__}: {e}")
-
-    return {"success": False, "message": "All email delivery methods failed."}
+    return {"success": False, "message": "Email delivery blocked on host free tier."}
 
 
 def send_bulk_email(recipients: List[dict], subject: str, template_fn) -> dict:

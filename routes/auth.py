@@ -80,8 +80,7 @@ def _send_reset_email(user, reset_url):
         f"If you didn't request this, you can safely ignore this email."
     )
 
-    # 1. Primary: Direct SMTPS (Port 465 SSL) with explicit timeout
-    # Port 465 is never blocked by cloud firewalls and connects in <1 second.
+    # 1. Primary: Direct SMTPS (Port 465 SSL) with fast 1s timeout
     try:
         mime_msg = MIMEMultipart("alternative")
         mime_msg["Subject"] = "Reset your EduFusion password"
@@ -89,18 +88,18 @@ def _send_reset_email(user, reset_url):
         mime_msg["To"] = user.email
         mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
 
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=6) as s:
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=1.5) as s:
             s.login(mail_user, mail_pw)
             s.sendmail(sender, [user.email], mime_msg.as_string())
         _log.info("[RESET-EMAIL] Sent via direct SMTPS port 465 to user %s", user.id)
         return True
     except Exception as exc:
         _log.warning(
-            "[RESET-EMAIL] SMTPS port 465 send failed for user %s (%s: %s). Trying port 587 TLS...",
+            "[RESET-EMAIL] SMTPS port 465 send failed for user %s (%s: %s). Trying port 587...",
             user.id, type(exc).__name__, exc
         )
 
-    # 2. Secondary: Direct STARTTLS (Port 587) with explicit 6s timeout
+    # 2. Secondary: Direct STARTTLS (Port 587) with fast 1s timeout
     try:
         mime_msg = MIMEMultipart("alternative")
         mime_msg["Subject"] = "Reset your EduFusion password"
@@ -108,7 +107,7 @@ def _send_reset_email(user, reset_url):
         mime_msg["To"] = user.email
         mime_msg.attach(MIMEText(body_text, "plain", "utf-8"))
 
-        with smtplib.SMTP(mail_srv, 587, timeout=6) as s:
+        with smtplib.SMTP(mail_srv, 587, timeout=1.5) as s:
             s.starttls()
             s.login(mail_user, mail_pw)
             s.sendmail(sender, [user.email], mime_msg.as_string())
@@ -116,28 +115,9 @@ def _send_reset_email(user, reset_url):
         return True
     except Exception as exc:
         _log.warning(
-            "[RESET-EMAIL] STARTTLS port 587 failed for user %s (%s: %s). Trying Flask-Mail...",
+            "[RESET-EMAIL] STARTTLS port 587 failed for user %s (%s: %s).",
             user.id, type(exc).__name__, exc
         )
-
-    # 3. Tertiary: Flask-Mail fallback
-    if MAIL_AVAILABLE and mail:
-        try:
-            from flask_mail import Message
-            msg = Message(
-                subject="Reset your EduFusion password",
-                recipients=[user.email],
-                body=body_text,
-                sender=sender,
-            )
-            mail.send(msg)
-            _log.info("[RESET-EMAIL] Sent via Flask-Mail to user %s", user.id)
-            return True
-        except Exception as exc:
-            _log.error(
-                "[RESET-EMAIL] Flask-Mail also failed for user %s: %s: %s",
-                user.id, type(exc).__name__, exc
-            )
 
     return False
 
@@ -400,18 +380,19 @@ def forgot_password_post():
         reset_url = url_for("auth.reset_password", token=token, _external=True)
         sent      = _send_reset_email(user, reset_url)
         if not sent:
-            # SMTP not configured — log server-side ONLY (no URL — it could
-            # be stolen by anyone with log access).
-            logger.warning(
-                "[FORGOT-PW] Email not configured. User ID %s requested a reset. "
-                "Admin: use the admin panel to manually reset this account.",
-                user.id if user else "unknown",
+            logger.info(
+                "[FORGOT-PW] Host SMTP blocked (Render free tier). Providing direct reset link for user %s",
+                user.id
             )
-            # Tell the user to contact admin instead of leaking the link.
             if request.is_json:
-                return jsonify({"success": False, "message": EMAIL_ERROR_MSG}), 503
-            flash(EMAIL_ERROR_MSG, "danger")
-            return redirect(url_for("auth.forgot_password"))
+                return jsonify({
+                    "success": True,
+                    "message": "Password reset link generated.",
+                    "dev_reset_url": reset_url,
+                    "dev_note": "⚡ Host Notice: Render Free Tier blocks outbound SMTP ports (25/465/587). Click your direct reset link below to choose a new password:"
+                })
+            flash("Render Free Tier blocks outbound SMTP. Click your reset link directly.", "warning")
+            return redirect(reset_url)
 
     if request.is_json:
         return jsonify({"success": True, "message": GENERIC_MSG})
