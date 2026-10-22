@@ -555,18 +555,18 @@ async function loadActiveAlerts() {
   } catch {}
 }
 
-function showToast(msg, type) {
+function showToast(a, b, c) {
+  const type = (b === 'success' || b === 'danger' || b === 'warning' || b === 'info') ? b : (a === 'success' || a === 'danger' || a === 'warning' || a === 'info' ? a : 'info');
+  const msg  = (b === 'success' || b === 'danger' || b === 'warning' || b === 'info') ? a : (c || b || a);
   const el = document.createElement('div');
   el.className = `alert alert-${type} alert-dismissible fade show`;
-  el.style.cssText = 'position:fixed;top:70px;right:20px;z-index:9999;min-width:300px;font-size:13px';
+  el.style.cssText = 'position:fixed;top:70px;right:20px;z-index:9999;min-width:300px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.3)';
   el.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 4000);
 }
 
-initPush();
-loadLogs();
-loadActiveAlerts();
+
 
 // ── In-App Notifications ────────────────────────────────────────────────────
 let _inappNotifs = [];
