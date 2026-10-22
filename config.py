@@ -88,8 +88,8 @@ class Config:
 
     # ── Email ──────────────────────────────────────────────────────────────
     MAIL_SERVER         = os.environ.get("MAIL_SERVER",   "smtp.gmail.com").strip()
-    MAIL_PORT           = int(os.environ.get("MAIL_PORT", 465 if os.environ.get("MAIL_USE_SSL", "").lower() in ("true", "1") else 587))
-    MAIL_USE_TLS        = os.environ.get("MAIL_USE_TLS", "false" if MAIL_PORT == 465 else "true").lower() in ("true", "1")
+    MAIL_PORT           = int(os.environ.get("MAIL_PORT", 587))
+    MAIL_USE_TLS        = os.environ.get("MAIL_USE_TLS", "true" if MAIL_PORT == 587 else "false").lower() in ("true", "1")
     MAIL_USE_SSL        = os.environ.get("MAIL_USE_SSL", "true" if MAIL_PORT == 465 else "false").lower() in ("true", "1")
     _raw_mail_user      = os.environ.get("MAIL_USERNAME", "")
     MAIL_USERNAME       = _raw_mail_user.strip() if _raw_mail_user else ""

@@ -125,6 +125,23 @@ def _send_reset_email(user, reset_url):
         except Exception as e:
             _log.warning("[RESET-EMAIL] Brevo HTTPS send failed: %s", e)
 
+    # 1. Primary: Flask-Mail
+    try:
+        from extensions import mail, MAIL_AVAILABLE
+        if MAIL_AVAILABLE and mail:
+            from flask_mail import Message
+            msg = Message(
+                subject    = "Reset your EduFusion password",
+                recipients = [user.email],
+                body       = body_text,
+                sender     = sender,
+            )
+            mail.send(msg)
+            _log.info("[RESET-EMAIL] Sent via Flask-Mail to user %s", user.id)
+            return True
+    except Exception as exc:
+        _log.warning("[RESET-EMAIL] Flask-Mail failed for user %s (%s). Trying direct SMTP...", user.id, exc)
+
     from email.header import Header
 
     def _build_reset_mime():
@@ -135,24 +152,10 @@ def _send_reset_email(user, reset_url):
         mime.attach(MIMEText(body_text, "plain", "utf-8"))
         return mime
 
-    # 1. Primary SMTP: Direct SMTPS (Port 465 SSL)
-    try:
-        mime_msg = _build_reset_mime()
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=4) as s:
-            s.login(mail_user, mail_pw)
-            s.send_message(mime_msg)
-        _log.info("[RESET-EMAIL] Sent via direct SMTPS port 465 to user %s", user.id)
-        return True
-    except Exception as exc:
-        _log.warning(
-            "[RESET-EMAIL] SMTPS port 465 send failed for user %s (%s: %s). Trying port 587...",
-            user.id, type(exc).__name__, exc
-        )
-
     # 2. Secondary: Direct STARTTLS (Port 587)
     try:
         mime_msg = _build_reset_mime()
-        with smtplib.SMTP(mail_srv, 587, timeout=4) as s:
+        with smtplib.SMTP(mail_srv, 587, timeout=5) as s:
             s.starttls()
             s.login(mail_user, mail_pw)
             s.send_message(mime_msg)
@@ -160,9 +163,20 @@ def _send_reset_email(user, reset_url):
         return True
     except Exception as exc:
         _log.warning(
-            "[RESET-EMAIL] STARTTLS port 587 failed for user %s (%s: %s).",
+            "[RESET-EMAIL] STARTTLS port 587 failed for user %s (%s: %s). Trying port 465...",
             user.id, type(exc).__name__, exc
         )
+
+    # 3. Tertiary: Direct SMTPS (Port 465 SSL)
+    try:
+        mime_msg = _build_reset_mime()
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=5) as s:
+            s.login(mail_user, mail_pw)
+            s.send_message(mime_msg)
+        _log.info("[RESET-EMAIL] Sent via direct SMTPS port 465 to user %s", user.id)
+        return True
+    except Exception as exc:
+        _log.warning("[RESET-EMAIL] SMTPS port 465 send failed: %s", exc)
 
     return False
 

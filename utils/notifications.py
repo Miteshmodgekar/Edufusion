@@ -91,42 +91,7 @@ def send_email(
         except Exception as e:
             logger.warning(f"[EMAIL] Brevo HTTPS send failed ({type(e).__name__}: {e})")
 
-    from email.header import Header
-
-    def _build_mime():
-        mime = MIMEMultipart("alternative")
-        mime["Subject"] = Header(subject, "utf-8")
-        mime["From"]    = sender
-        mime["To"]      = to
-        mime.attach(MIMEText(plain_text, "plain", "utf-8"))
-        if body_html:
-            mime.attach(MIMEText(body_html, "html", "utf-8"))
-        return mime
-
-    # 1. Primary SMTP: Direct SMTPS (Port 465 SSL)
-    try:
-        mime_msg = _build_mime()
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=8) as s:
-            s.login(mail_user, mail_pw)
-            s.send_message(mime_msg)
-        logger.info(f"[EMAIL] Sent via direct SMTPS port 465 to {to}: {subject}")
-        return {"success": True, "message": f"Email sent to {to}"}
-    except Exception as e:
-        logger.warning(f"[EMAIL] SMTPS port 465 to {to} failed ({type(e).__name__}: {e}). Trying port 587...")
-
-    # 2. Secondary: Direct STARTTLS (Port 587)
-    try:
-        mime_msg = _build_mime()
-        with smtplib.SMTP(mail_srv, 587, timeout=8) as s:
-            s.starttls()
-            s.login(mail_user, mail_pw)
-            s.send_message(mime_msg)
-        logger.info(f"[EMAIL] Sent via direct SMTP port 587 to {to}: {subject}")
-        return {"success": True, "message": f"Email sent to {to}"}
-    except Exception as e:
-        logger.warning(f"[EMAIL] Direct SMTP port 587 failed to {to}: {type(e).__name__}: {e}. Trying Flask-Mail...")
-
-    # 3. Tertiary: Flask-Mail
+    # 1. Primary: Flask-Mail (Configured with Port 587 STARTTLS)
     try:
         from extensions import mail, MAIL_AVAILABLE
         if MAIL_AVAILABLE and mail:
@@ -142,7 +107,42 @@ def send_email(
             logger.info(f"[EMAIL] Sent via Flask-Mail to {to}: {subject}")
             return {"success": True, "message": f"Email sent to {to}"}
     except Exception as e:
-        logger.warning(f"[EMAIL] Flask-Mail also failed to {to}: {type(e).__name__}: {e}")
+        logger.warning(f"[EMAIL] Flask-Mail to {to} failed ({type(e).__name__}: {e}). Trying direct SMTP...")
+
+    from email.header import Header
+
+    def _build_mime():
+        mime = MIMEMultipart("alternative")
+        mime["Subject"] = Header(subject, "utf-8")
+        mime["From"]    = sender
+        mime["To"]      = to
+        mime.attach(MIMEText(plain_text, "plain", "utf-8"))
+        if body_html:
+            mime.attach(MIMEText(body_html, "html", "utf-8"))
+        return mime
+
+    # 2. Secondary: Direct STARTTLS (Port 587)
+    try:
+        mime_msg = _build_mime()
+        with smtplib.SMTP(mail_srv, 587, timeout=8) as s:
+            s.starttls()
+            s.login(mail_user, mail_pw)
+            s.send_message(mime_msg)
+        logger.info(f"[EMAIL] Sent via direct SMTP port 587 to {to}: {subject}")
+        return {"success": True, "message": f"Email sent to {to}"}
+    except Exception as e:
+        logger.warning(f"[EMAIL] Direct SMTP port 587 failed to {to}: {type(e).__name__}: {e}. Trying port 465...")
+
+    # 3. Tertiary: Direct SMTPS (Port 465 SSL)
+    try:
+        mime_msg = _build_mime()
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=8) as s:
+            s.login(mail_user, mail_pw)
+            s.send_message(mime_msg)
+        logger.info(f"[EMAIL] Sent via direct SMTPS port 465 to {to}: {subject}")
+        return {"success": True, "message": f"Email sent to {to}"}
+    except Exception as e:
+        logger.warning(f"[EMAIL] SMTPS port 465 to {to} failed: {type(e).__name__}: {e}")
 
     return {"success": False, "message": "Email delivery failed on all methods."}
 
