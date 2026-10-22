@@ -95,6 +95,7 @@ def upload():
             try:
                 from utils.notifications import notify_low_attendance
                 from sqlalchemy import func as sqlfunc
+                for def_data in result.get("defaulters", []):
                     student = User.query.filter(
                         (sqlfunc.upper(User.roll_number) == def_data["roll_number"].upper()) |
                         (sqlfunc.upper(User.username) == def_data["roll_number"].upper()),
