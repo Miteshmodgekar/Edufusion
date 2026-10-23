@@ -15,15 +15,7 @@ from utils.live_attendance import (
 alert_bp = Blueprint("alert", __name__)
 
 
-@alert_bp.route("/brevo-debug")
-def brevo_debug():
-    from utils.notifications import send_email
-    res = send_email(
-        "scammitya@gmail.com",
-        "EduFusion Notification Test",
-        "<div style='font-family:sans-serif;padding:20px'><h3>EduFusion Test Email</h3><p>This email was delivered directly to your student email inbox via Brevo HTTPS API.</p></div>"
-    )
-    return jsonify({"pipeline_result": res})
+
 
 
 
