@@ -46,31 +46,12 @@ def _verify_reset_token(token, max_age=RESET_TOKEN_MAX_AGE):
 
 def _send_reset_email(user, reset_url):
     """
-    Sends the reset link if SMTP is configured.
-    Returns True if the email was accepted by the SMTP server, False otherwise.
-    Dual-port fallback (Flask-Mail -> SMTPS 465 -> SMTP 587) ensures cloud firewall
-    port restrictions never block reset emails.
+    Sends the password reset email using the centralized send_email dispatcher.
+    Returns True if sent, False otherwise.
     """
+    from utils.notifications import send_email
     import logging as _ml
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
-
     _log = _ml.getLogger(__name__)
-
-    suppress = current_app.config.get("MAIL_SUPPRESS_SEND", False)
-    mail_user = (current_app.config.get("MAIL_USERNAME") or "").strip()
-    mail_pw   = (current_app.config.get("MAIL_PASSWORD") or "").replace(" ", "").strip()
-    mail_srv  = (current_app.config.get("MAIL_SERVER") or "smtp.gmail.com").strip()
-    sender    = (current_app.config.get("MAIL_DEFAULT_SENDER") or mail_user or "noreply@cse.edu").strip()
-
-    if suppress or not mail_user or not mail_pw:
-        _log.warning(
-            "[RESET-EMAIL] Email service not configured or suppressed: "
-            "MAIL_USERNAME=%s, MAIL_PASSWORD set=%s, MAIL_SUPPRESS_SEND=%s",
-            bool(mail_user), bool(mail_pw), suppress
-        )
-        return False
 
     body_text = (
         f"Hi {user.name},\n\n"
@@ -80,113 +61,39 @@ def _send_reset_email(user, reset_url):
         f"If you didn't request this, you can safely ignore this email."
     )
 
-    # 0. HTTPS REST API (Port 443 — works 100% on Render Free Tier where SMTP is blocked)
-    resend_key = (current_app.config.get("RESEND_API_KEY") or os.environ.get("RESEND_API_KEY", "")).strip()
-    if resend_key:
-        try:
-            import urllib.request, json
-            payload = json.dumps({
-                "from": "EduFusion <onboarding@resend.dev>",
-                "to": [user.email],
-                "subject": "Reset your EduFusion password",
-                "html": f"<p>{body_text.replace(chr(10), '<br>')}</p>",
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                "https://api.resend.com/emails",
-                data=payload,
-                headers={
-                    "Authorization": f"Bearer {resend_key}",
-                    "Content-Type": "application/json",
-                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
-                }
-            )
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                if resp.status in (200, 201):
-                    _log.info("[RESET-EMAIL] Sent via Resend HTTPS API to user %s", user.id)
-                    return True
-        except Exception as e:
-            _log.warning("[RESET-EMAIL] Resend HTTPS send failed: %s", e)
-
-    brevo_key = (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip()
-    if brevo_key:
-        try:
-            import urllib.request, json
-            payload = json.dumps({
-                "sender": {"name": "EduFusion", "email": sender if "@" in sender else "admin@cse.edu"},
-                "to": [{"email": user.email}],
-                "subject": "Reset your EduFusion password",
-                "htmlContent": f"<p>{body_text.replace(chr(10), '<br>')}</p>",
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                "https://api.brevo.com/v3/smtp/email",
-                data=payload,
-                headers={
-                    "api-key": brevo_key,
-                    "Content-Type": "application/json",
-                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
-                }
-            )
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                if resp.status in (200, 201):
-                    _log.info("[RESET-EMAIL] Sent via Brevo HTTPS API to user %s", user.id)
-                    return True
-        except Exception as e:
-            _log.warning("[RESET-EMAIL] Brevo HTTPS send failed: %s", e)
-
-    # 1. Primary: Flask-Mail
+    body_html = f"""
+    <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;
+                background:#0d1117;color:#e6edf3;border-radius:12px;overflow:hidden">
+      <div style="background:#238636;padding:24px 32px">
+        <h2 style="margin:0;color:#fff;font-size:20px">Reset Your Password</h2>
+        <p style="margin:4px 0 0;color:rgba(255,255,255,.8);font-size:13px">EduFusion Academic Portal</p>
+      </div>
+      <div style="padding:28px 32px">
+        <p style="font-size:15px;margin-bottom:16px">Hi <strong>{user.name}</strong>,</p>
+        <p style="font-size:14px;color:#8b949e;margin-bottom:20px">
+          We received a request to reset your password. Click the button below to choose a new password:
+        </p>
+        <div style="text-align:center;margin:28px 0">
+          <a href="{reset_url}" style="background:#238636;color:#fff;padding:12px 28px;
+                     text-decoration:none;border-radius:6px;font-weight:600;display:inline-block">
+            Reset Password
+          </a>
+        </div>
+        <p style="font-size:12px;color:#8b949e;line-height:1.5">
+          This link will expire in 30 minutes.<br>
+          If the button doesn't work, copy and paste this URL into your browser:<br>
+          <a href="{reset_url}" style="color:#58a6ff">{reset_url}</a>
+        </p>
+      </div>
+    </div>
+    """
     try:
-        from extensions import mail, MAIL_AVAILABLE
-        if MAIL_AVAILABLE and mail:
-            from flask_mail import Message
-            msg = Message(
-                subject    = "Reset your EduFusion password",
-                recipients = [user.email],
-                body       = body_text,
-                sender     = sender,
-            )
-            mail.send(msg)
-            _log.info("[RESET-EMAIL] Sent via Flask-Mail to user %s", user.id)
-            return True
+        res = send_email(user.email, "Reset your EduFusion password", body_html, body_text)
+        return bool(res.get("success", False))
     except Exception as exc:
-        _log.warning("[RESET-EMAIL] Flask-Mail failed for user %s (%s). Trying direct SMTP...", user.id, exc)
+        _log.error("[RESET-EMAIL] Error sending reset email to user %s: %s", user.id, exc)
+        return False
 
-    from email.header import Header
-
-    def _build_reset_mime():
-        mime = MIMEMultipart("alternative")
-        mime["Subject"] = Header("Reset your EduFusion password", "utf-8")
-        mime["From"]    = sender
-        mime["To"]      = user.email
-        mime.attach(MIMEText(body_text, "plain", "utf-8"))
-        return mime
-
-    # 2. Secondary: Direct STARTTLS (Port 587)
-    try:
-        mime_msg = _build_reset_mime()
-        with smtplib.SMTP(mail_srv, 587, timeout=5) as s:
-            s.starttls()
-            s.login(mail_user, mail_pw)
-            s.send_message(mime_msg)
-        _log.info("[RESET-EMAIL] Sent via direct SMTP port 587 to user %s", user.id)
-        return True
-    except Exception as exc:
-        _log.warning(
-            "[RESET-EMAIL] STARTTLS port 587 failed for user %s (%s: %s). Trying port 465...",
-            user.id, type(exc).__name__, exc
-        )
-
-    # 3. Tertiary: Direct SMTPS (Port 465 SSL)
-    try:
-        mime_msg = _build_reset_mime()
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=5) as s:
-            s.login(mail_user, mail_pw)
-            s.send_message(mime_msg)
-        _log.info("[RESET-EMAIL] Sent via direct SMTPS port 465 to user %s", user.id)
-        return True
-    except Exception as exc:
-        _log.warning("[RESET-EMAIL] SMTPS port 465 send failed: %s", exc)
-
-    return False
 
 def _safe_next(next_url):
     """Only allow redirects to paths on the same host (prevent open redirect)."""
