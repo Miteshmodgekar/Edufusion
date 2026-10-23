@@ -349,12 +349,10 @@ def forgot_password_post():
 
     user = User.query.filter(db.func.lower(User.email) == email).first()
 
-    dev_url = None
     if user:
         import threading
         token     = _make_reset_token(user)
         reset_url = url_for("auth.reset_password", token=token, _external=True)
-        dev_url   = reset_url
 
         app = current_app._get_current_object()
         def _async_reset(u_id, r_url):
@@ -369,10 +367,7 @@ def forgot_password_post():
         threading.Thread(target=_async_reset, args=(user.id, reset_url), daemon=True).start()
 
     if request.is_json:
-        resp = {"success": True, "message": GENERIC_MSG}
-        if dev_url:
-            resp["dev_reset_url"] = dev_url
-        return jsonify(resp)
+        return jsonify({"success": True, "message": GENERIC_MSG})
 
     flash(GENERIC_MSG, "info")
     return redirect(url_for("auth.login"))
