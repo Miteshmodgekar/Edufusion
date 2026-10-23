@@ -56,17 +56,14 @@ def send_email(
     if brevo_key:
         try:
             import urllib.request
-            import re
-            sender_email = mail_user or "miteshmodgekar23@gmail.com"
-            raw_sender = (current_app.config.get("MAIL_DEFAULT_SENDER") or sender or "").strip()
-            match = re.search(r"[\w\.-]+@[\w\.-]+", raw_sender)
-            if match:
-                extracted = match.group(0)
-                if "cse.edu" not in extracted:
-                    sender_email = extracted
+            brevo_sender = (
+                current_app.config.get("BREVO_SENDER_EMAIL") or
+                os.environ.get("BREVO_SENDER_EMAIL") or
+                "scammitya@gmail.com"
+            ).strip()
 
             payload = json.dumps({
-                "sender": {"name": "EduFusion", "email": sender_email},
+                "sender": {"name": "EduFusion Academic Portal", "email": brevo_sender},
                 "to": [{"email": to}],
                 "subject": subject,
                 "htmlContent": body_html or f"<p>{plain_text}</p>",

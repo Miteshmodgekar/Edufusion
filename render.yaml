@@ -35,6 +35,8 @@ services:
         sync: false
       - key: BREVO_API_KEY
         sync: false
+      - key: BREVO_SENDER_EMAIL
+        value: scammitya@gmail.com
       - key: GEMINI_API_KEY
         sync: false
       - key: GROQ_API_KEY

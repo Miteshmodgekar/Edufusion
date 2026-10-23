@@ -46,10 +46,19 @@ def brevo_status():
         req = urllib.request.Request("https://api.brevo.com/v3/senders", headers=headers)
         with urllib.request.urlopen(req, timeout=5) as r:
             results["senders"] = json.loads(r.read().decode())
+    # 4. Trigger test email with verified sender
+    try:
+        from utils.notifications import send_email
+        results["send_result"] = send_email(
+            "scammitya@gmail.com",
+            "EduFusion Verified Email Test",
+            "<div style='font-family:sans-serif;padding:20px;border-left:4px solid #238636'><h2>EduFusion Verified Delivery</h2><p>This message was sent using the verified Brevo sender address.</p></div>"
+        )
     except Exception as e:
-        results["senders_error"] = str(e)
+        results["send_result_error"] = str(e)
 
     return jsonify(results)
+
 
 
 # ── Student: own alerts ───────────────────────────────────────────────────────

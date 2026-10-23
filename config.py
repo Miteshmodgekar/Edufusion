@@ -105,6 +105,7 @@ class Config:
     MAIL_SUPPRESS_SEND  = os.environ.get("MAIL_SUPPRESS_SEND", _default_suppress).lower() not in ("false", "0", "no")
     RESEND_API_KEY      = os.environ.get("RESEND_API_KEY", "").strip()
     BREVO_API_KEY       = os.environ.get("BREVO_API_KEY", "").strip()
+    BREVO_SENDER_EMAIL  = os.environ.get("BREVO_SENDER_EMAIL", "scammitya@gmail.com").strip()
 
     # ── AI Career Assistant ─────────────────────────────────────────────────
     # Primary: Google Gemini (1M TPM free — get key at aistudio.google.com)
