@@ -46,6 +46,9 @@ def brevo_status():
         req = urllib.request.Request("https://api.brevo.com/v3/senders", headers=headers)
         with urllib.request.urlopen(req, timeout=5) as r:
             results["senders"] = json.loads(r.read().decode())
+    except Exception as e:
+        results["senders_error"] = str(e)
+
     # 4. Trigger test email with verified sender
     try:
         from utils.notifications import send_email
