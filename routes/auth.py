@@ -349,27 +349,31 @@ def forgot_password_post():
 
     user = User.query.filter(db.func.lower(User.email) == email).first()
 
+    dev_url = None
     if user:
+        import threading
         token     = _make_reset_token(user)
         reset_url = url_for("auth.reset_password", token=token, _external=True)
-        sent      = _send_reset_email(user, reset_url)
-        if not sent:
-            logger.info(
-                "[FORGOT-PW] Host SMTP blocked (Render free tier). Providing direct reset link for user %s",
-                user.id
-            )
-            if request.is_json:
-                return jsonify({
-                    "success": True,
-                    "message": "Password reset link generated.",
-                    "dev_reset_url": reset_url,
-                    "dev_note": "⚡ Host Notice: Render Free Tier blocks outbound SMTP ports (25/465/587). Click your direct reset link below to choose a new password:"
-                })
-            flash("Render Free Tier blocks outbound SMTP. Click your reset link directly.", "warning")
-            return redirect(reset_url)
+        dev_url   = reset_url
+
+        app = current_app._get_current_object()
+        def _async_reset(u_id, r_url):
+            with app.app_context():
+                target_user = db.session.get(User, u_id)
+                if target_user:
+                    try:
+                        _send_reset_email(target_user, r_url)
+                    except Exception as exc:
+                        logger.warning("[FORGOT-PW] Async send failed for user %s: %s", u_id, exc)
+
+        threading.Thread(target=_async_reset, args=(user.id, reset_url), daemon=True).start()
 
     if request.is_json:
-        return jsonify({"success": True, "message": GENERIC_MSG})
+        resp = {"success": True, "message": GENERIC_MSG}
+        if dev_url:
+            resp["dev_reset_url"] = dev_url
+        return jsonify(resp)
+
     flash(GENERIC_MSG, "info")
     return redirect(url_for("auth.login"))
 
