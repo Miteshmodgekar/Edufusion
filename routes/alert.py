@@ -15,52 +15,7 @@ from utils.live_attendance import (
 alert_bp = Blueprint("alert", __name__)
 
 
-@alert_bp.route("/brevo-status")
-def brevo_status():
-    import os, urllib.request, json
-    brevo_key = (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip()
-    if not brevo_key:
-        return jsonify({"error": "No BREVO_API_KEY found"})
-    
-    headers = {"api-key": brevo_key, "Content-Type": "application/json", "User-Agent": "EduFusion/1.0"}
-    results = {}
-    
-    # 1. Account details
-    try:
-        req = urllib.request.Request("https://api.brevo.com/v3/account", headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as r:
-            results["account"] = json.loads(r.read().decode())
-    except Exception as e:
-        results["account_error"] = str(e)
-        
-    # 2. Transactional email events
-    try:
-        req = urllib.request.Request("https://api.brevo.com/v3/smtp/statistics/events?limit=10", headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as r:
-            results["events"] = json.loads(r.read().decode())
-    except Exception as e:
-        results["events_error"] = str(e)
 
-    # 3. Senders list
-    try:
-        req = urllib.request.Request("https://api.brevo.com/v3/senders", headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as r:
-            results["senders"] = json.loads(r.read().decode())
-    except Exception as e:
-        results["senders_error"] = str(e)
-
-    # 4. Trigger test email with verified sender
-    try:
-        from utils.notifications import send_email
-        results["send_result"] = send_email(
-            "scammitya@gmail.com",
-            "EduFusion Verified Email Test",
-            "<div style='font-family:sans-serif;padding:20px;border-left:4px solid #238636'><h2>EduFusion Verified Delivery</h2><p>This message was sent using the verified Brevo sender address.</p></div>"
-        )
-    except Exception as e:
-        results["send_result_error"] = str(e)
-
-    return jsonify(results)
 
 
 
