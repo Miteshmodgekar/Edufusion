@@ -1050,12 +1050,16 @@ def api_promote_preview():
         "already_promoted":   already_promoted,
         "graduated_skipped":  graduated_skipped,
         "year_back_warning":  year_back,
+        "eligible":           promotable,
+        "ineligible":         detained_list,
         "summary": {
             "promotable_count":      len(promotable),
             "detained_count":        len(detained_list),
             "already_promoted_count": len(already_promoted),
             "graduated_count":       len(graduated_skipped),
             "total_in_source":       len(all_enrollments),
+            "eligible_count":        len(promotable),
+            "ineligible_count":      len(detained_list),
         },
     })
 

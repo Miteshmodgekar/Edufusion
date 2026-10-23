@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from extensions import db
 from models.notification import InAppNotification
+from models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -24,38 +25,43 @@ def send_email(
     body_text: Optional[str] = None,
 ) -> dict:
     """
-    Send an email via Flask-Mail with dual-port fallback (SMTPS 465 / SMTP 587).
-    Requires MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in config/.env
-    Returns {"success": True/False, "message": str}
+    Send an email.  Priority order:
+      1. Brevo HTTPS API   — works on Render Free Tier (port 443), any recipient
+      2. Direct SMTP 587   — fallback if Brevo key missing or fails
+      3. Direct SMTPS 465  — last resort
+    Brevo requires the sender email to be the verified account email
+    (the email address used to register on brevo.com).
     """
     from flask import current_app
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
+    from email.header import Header
 
     mail_user = (current_app.config.get("MAIL_USERNAME") or "").strip()
     mail_pw   = (current_app.config.get("MAIL_PASSWORD") or "").replace(" ", "").strip()
-    mail_srv  = (current_app.config.get("MAIL_SERVER") or "smtp.gmail.com").strip()
-    sender    = (current_app.config.get("MAIL_DEFAULT_SENDER") or mail_user or "noreply@cse.edu").strip()
+    mail_srv  = (current_app.config.get("MAIL_SERVER")   or "smtp.gmail.com").strip()
     suppress  = current_app.config.get("MAIL_SUPPRESS_SEND", False)
 
-    has_api = bool(
-        (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip() or
-        (current_app.config.get("RESEND_API_KEY") or os.environ.get("RESEND_API_KEY", "")).strip()
-    )
-    if suppress or (not has_api and (not mail_user or not mail_pw)):
-        msg = "Email service not configured (missing credentials or suppressed)."
+    brevo_key = (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip()
+
+    # Guard: nothing configured at all
+    has_any = bool(brevo_key or (mail_user and mail_pw))
+    if suppress or not has_any:
+        msg = "Email service not configured (no Brevo key and no SMTP credentials, or suppressed)."
         logger.warning(f"[EMAIL] {msg}")
         return {"success": False, "message": msg}
 
     plain_text = body_text or _html_to_text(body_html)
 
-    # 0. HTTPS REST API (Port 443 — works 100% on Render Free Tier where SMTP is blocked)
-    # A. Brevo HTTPS API (Sends directly to ANY recipient email without domain restriction)
-    brevo_key = (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip()
+    # ── 1. Brevo HTTPS API (Port 443, no firewall issues on Render) ──────────
     if brevo_key:
         try:
             import urllib.request
+
+            # Brevo requires sender.email to exactly match your verified Brevo account email.
+            # Your Brevo account is registered as scammitya@gmail.com — that is the ONLY
+            # verified sender.  We never use miteshmodgekar23@gmail.com as sender here.
             brevo_sender = (
                 current_app.config.get("BREVO_SENDER_EMAIL") or
                 os.environ.get("BREVO_SENDER_EMAIL") or
@@ -64,115 +70,73 @@ def send_email(
 
             payload = json.dumps({
                 "sender": {"name": "EduFusion Academic Portal", "email": brevo_sender},
-                "to": [{"email": to}],
+                "to":     [{"email": to}],
                 "subject": subject,
                 "htmlContent": body_html or f"<p>{plain_text}</p>",
             }).encode("utf-8")
+
             req = urllib.request.Request(
                 "https://api.brevo.com/v3/smtp/email",
                 data=payload,
                 headers={
-                    "api-key": brevo_key,
+                    "api-key":      brevo_key,
                     "Content-Type": "application/json",
-                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
-                }
+                    "Accept":       "application/json",
+                },
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = resp.read().decode("utf-8", errors="ignore")
                 if resp.status in (200, 201):
-                    logger.info(f"[EMAIL] Sent via Brevo HTTPS API to {to}")
-                    return {"success": True, "message": f"Email sent to {to}"}
-        except Exception as e:
-            err_msg = str(e)
-            if hasattr(e, "read"):
+                    logger.info(f"[EMAIL] Brevo delivered to {to} | subject={subject!r}")
+                    return {"success": True, "message": f"Email sent to {to} via Brevo"}
+                logger.warning(f"[EMAIL] Brevo unexpected status {resp.status}: {body}")
+        except Exception as exc:
+            detail = ""
+            if hasattr(exc, "read"):
                 try:
-                    err_msg += f" - {e.read().decode('utf-8', errors='ignore')}"
+                    detail = exc.read().decode("utf-8", errors="ignore")
                 except Exception:
                     pass
-            logger.warning(f"[EMAIL] Brevo HTTPS send failed ({type(e).__name__}: {err_msg})")
+            logger.warning(
+                f"[EMAIL] Brevo failed for {to} — {type(exc).__name__}: {exc} {detail}"
+            )
 
-    # B. Resend HTTPS API (Note: Free test domain only allows sending to verified developer email)
-    resend_key = (current_app.config.get("RESEND_API_KEY") or os.environ.get("RESEND_API_KEY", "")).strip()
-    if resend_key:
+    # ── 2. Direct SMTP STARTTLS port 587 ─────────────────────────────────────
+    if mail_user and mail_pw:
+        def _build_mime():
+            mime = MIMEMultipart("alternative")
+            mime["Subject"] = Header(subject, "utf-8")
+            mime["From"]    = mail_user
+            mime["To"]      = to
+            mime.attach(MIMEText(plain_text, "plain", "utf-8"))
+            if body_html:
+                mime.attach(MIMEText(body_html, "html", "utf-8"))
+            return mime
+
         try:
-            import urllib.request
-            payload = json.dumps({
-                "from": "EduFusion <onboarding@resend.dev>",
-                "to": [to],
-                "subject": subject,
-                "html": body_html or f"<p>{plain_text}</p>",
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                "https://api.resend.com/emails",
-                data=payload,
-                headers={
-                    "Authorization": f"Bearer {resend_key}",
-                    "Content-Type": "application/json",
-                    "User-Agent": "EduFusion/1.0 (Academic Notification System)"
-                }
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status in (200, 201):
-                    logger.info(f"[EMAIL] Sent via Resend HTTPS API to {to}")
-                    return {"success": True, "message": f"Email sent to {to}"}
-        except Exception as e:
-            logger.warning(f"[EMAIL] Resend HTTPS send failed ({type(e).__name__}: {e})")
+            with smtplib.SMTP(mail_srv, 587, timeout=5) as s:
+                s.starttls()
+                s.login(mail_user, mail_pw)
+                s.send_message(_build_mime())
+            logger.info(f"[EMAIL] SMTP-587 delivered to {to}")
+            return {"success": True, "message": f"Email sent to {to} via SMTP"}
+        except Exception as exc:
+            logger.warning(f"[EMAIL] SMTP-587 failed for {to}: {type(exc).__name__}: {exc}")
 
+        # ── 3. Direct SMTPS SSL port 465 ──────────────────────────────────────
+        try:
+            with smtplib.SMTP_SSL(mail_srv, 465, timeout=5) as s:
+                s.login(mail_user, mail_pw)
+                s.send_message(_build_mime())
+            logger.info(f"[EMAIL] SMTPS-465 delivered to {to}")
+            return {"success": True, "message": f"Email sent to {to} via SMTPS"}
+        except Exception as exc:
+            logger.warning(f"[EMAIL] SMTPS-465 failed for {to}: {type(exc).__name__}: {exc}")
 
-    # 1. Primary: Flask-Mail (Configured with Port 587 STARTTLS)
-    try:
-        from extensions import mail, MAIL_AVAILABLE
-        if MAIL_AVAILABLE and mail:
-            from flask_mail import Message
-            msg = Message(
-                subject    = subject,
-                recipients = [to],
-                html       = body_html,
-                body       = plain_text,
-                sender     = sender,
-            )
-            mail.send(msg)
-            logger.info(f"[EMAIL] Sent via Flask-Mail to {to}: {subject}")
-            return {"success": True, "message": f"Email sent to {to}"}
-    except Exception as e:
-        logger.warning(f"[EMAIL] Flask-Mail to {to} failed ({type(e).__name__}: {e}). Trying direct SMTP...")
-
-    from email.header import Header
-
-    def _build_mime():
-        mime = MIMEMultipart("alternative")
-        mime["Subject"] = Header(subject, "utf-8")
-        mime["From"]    = sender
-        mime["To"]      = to
-        mime.attach(MIMEText(plain_text, "plain", "utf-8"))
-        if body_html:
-            mime.attach(MIMEText(body_html, "html", "utf-8"))
-        return mime
-
-    # 2. Secondary: Direct STARTTLS (Port 587)
-    try:
-        mime_msg = _build_mime()
-        with smtplib.SMTP(mail_srv, 587, timeout=3) as s:
-            s.starttls()
-            s.login(mail_user, mail_pw)
-            s.send_message(mime_msg)
-        logger.info(f"[EMAIL] Sent via direct SMTP port 587 to {to}: {subject}")
-        return {"success": True, "message": f"Email sent to {to}"}
-    except Exception as e:
-        logger.warning(f"[EMAIL] Direct SMTP port 587 failed to {to}: {type(e).__name__}: {e}. Trying port 465...")
-
-    # 3. Tertiary: Direct SMTPS (Port 465 SSL)
-    try:
-        mime_msg = _build_mime()
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=3) as s:
-            s.login(mail_user, mail_pw)
-            s.send_message(mime_msg)
-        logger.info(f"[EMAIL] Sent via direct SMTPS port 465 to {to}: {subject}")
-        return {"success": True, "message": f"Email sent to {to}"}
-    except Exception as e:
-        logger.warning(f"[EMAIL] SMTPS port 465 to {to} failed: {type(e).__name__}: {e}")
-
-
+    logger.error(f"[EMAIL] All delivery methods failed for {to} | subject={subject!r}")
     return {"success": False, "message": "Email delivery failed on all methods."}
+
+
 
 
 def send_bulk_email(recipients: List[dict], subject: str, template_fn) -> dict:
@@ -469,8 +433,7 @@ def notify_low_attendance(student, summary):
 
 def notify_leave_decision(leave, action: str, comment: str, role: str):
     """Notify student when leave is approved/rejected."""
-    from models.user import User
-    student = User.query.get(leave.student_id)
+    student = db.session.get(User, leave.student_id)
     if not student:
         return
 
