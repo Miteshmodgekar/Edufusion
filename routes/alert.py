@@ -216,20 +216,28 @@ def send_attendance_alerts():
                 title = f"Low Attendance — {s.subject}"
                 body  = f"{s.subject}: {s.attendance_pct}% — Need {s.required_classes} more classes."
                 NotificationLog.log(student.id, "email", "low_attendance", title, body, status="sent")
-                items_to_notify.append((student.id, s))
+                summary = SimpleNamespace(
+                    subject=str(s.subject or "General"),
+                    attendance_pct=float(s.attendance_pct or 0),
+                    required_classes=int(s.required_classes or 0),
+                )
+                items_to_notify.append((student.id, summary))
                 sent += 1
 
     db.session.commit()
 
     # Dispatch email & push notifications in background thread to respond in <200ms
     def _dispatch_attendance(items):
+        import logging
+        _log = logging.getLogger(__name__)
         for sid, summ in items:
             st = db.session.get(User, sid)
-            if st:
+            # Only attempt email if student has a valid email address with a domain
+            if st and st.email and "@" in st.email and "." in st.email.split("@")[-1]:
                 try:
                     notify_low_attendance(st, summ)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _log.error(f"[ATTENDANCE-NOTIFY] Failed for student {sid} ({st.email}): {exc}")
 
     app = current_app._get_current_object()
     _run_async(app, _dispatch_attendance, items_to_notify)
@@ -282,13 +290,15 @@ def send_risk_alerts():
     db.session.commit()
 
     def _dispatch_risk(items):
+        import logging
+        _log = logging.getLogger(__name__)
         for sid, rlevel, reasons, action in items:
             st = db.session.get(User, sid)
-            if st:
+            if st and st.email and "@" in st.email and "." in st.email.split("@")[-1]:
                 try:
                     notify_risk_detected(st, rlevel, reasons, action)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _log.error(f"[RISK-NOTIFY] Failed for student {sid} ({st.email}): {exc}")
 
     app = current_app._get_current_object()
     _run_async(app, _dispatch_risk, risk_items)
