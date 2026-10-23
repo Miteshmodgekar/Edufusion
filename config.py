@@ -89,6 +89,7 @@ class Config:
     # ── Email ──────────────────────────────────────────────────────────────
     MAIL_SERVER         = os.environ.get("MAIL_SERVER",   "smtp.gmail.com").strip()
     MAIL_PORT           = int(os.environ.get("MAIL_PORT", 587))
+    MAIL_TIMEOUT        = int(os.environ.get("MAIL_TIMEOUT", 3))
     MAIL_USE_TLS        = os.environ.get("MAIL_USE_TLS", "true" if MAIL_PORT == 587 else "false").lower() in ("true", "1")
     MAIL_USE_SSL        = os.environ.get("MAIL_USE_SSL", "true" if MAIL_PORT == 465 else "false").lower() in ("true", "1")
     _raw_mail_user      = os.environ.get("MAIL_USERNAME", "")

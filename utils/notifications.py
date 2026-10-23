@@ -66,7 +66,7 @@ def send_email(
                     "User-Agent": "EduFusion/1.0 (Academic Notification System)"
                 }
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urllib.request.urlopen(req, timeout=3) as resp:
                 if resp.status in (200, 201):
                     logger.info(f"[EMAIL] Sent via Resend HTTPS API to {to}")
                     return {"success": True, "message": f"Email sent to {to}"}
@@ -92,7 +92,7 @@ def send_email(
                     "User-Agent": "EduFusion/1.0 (Academic Notification System)"
                 }
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urllib.request.urlopen(req, timeout=3) as resp:
                 if resp.status in (200, 201):
                     logger.info(f"[EMAIL] Sent via Brevo HTTPS API to {to}")
                     return {"success": True, "message": f"Email sent to {to}"}
@@ -132,7 +132,7 @@ def send_email(
     # 2. Secondary: Direct STARTTLS (Port 587)
     try:
         mime_msg = _build_mime()
-        with smtplib.SMTP(mail_srv, 587, timeout=8) as s:
+        with smtplib.SMTP(mail_srv, 587, timeout=3) as s:
             s.starttls()
             s.login(mail_user, mail_pw)
             s.send_message(mime_msg)
@@ -144,13 +144,14 @@ def send_email(
     # 3. Tertiary: Direct SMTPS (Port 465 SSL)
     try:
         mime_msg = _build_mime()
-        with smtplib.SMTP_SSL(mail_srv, 465, timeout=8) as s:
+        with smtplib.SMTP_SSL(mail_srv, 465, timeout=3) as s:
             s.login(mail_user, mail_pw)
             s.send_message(mime_msg)
         logger.info(f"[EMAIL] Sent via direct SMTPS port 465 to {to}: {subject}")
         return {"success": True, "message": f"Email sent to {to}"}
     except Exception as e:
         logger.warning(f"[EMAIL] SMTPS port 465 to {to} failed: {type(e).__name__}: {e}")
+
 
     return {"success": False, "message": "Email delivery failed on all methods."}
 
