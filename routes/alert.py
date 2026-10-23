@@ -15,6 +15,26 @@ from utils.live_attendance import (
 alert_bp = Blueprint("alert", __name__)
 
 
+@alert_bp.route("/test-live-mail")
+def test_live_mail():
+    import os
+    from utils.notifications import send_email
+    resend_present = bool((current_app.config.get("RESEND_API_KEY") or os.environ.get("RESEND_API_KEY", "")).strip())
+    mail_user = current_app.config.get("MAIL_USERNAME")
+    mail_pw = bool(current_app.config.get("MAIL_PASSWORD"))
+    suppress = current_app.config.get("MAIL_SUPPRESS_SEND")
+    
+    # Try sending an email to miteshmodgekar23@gmail.com
+    res = send_email("miteshmodgekar23@gmail.com", "Render Container Live Mail Test", "<p>Testing live email dispatch directly from Render container.</p>")
+    return jsonify({
+        "resend_key_configured_on_render": resend_present,
+        "mail_user_configured": bool(mail_user),
+        "mail_password_configured": mail_pw,
+        "suppress": suppress,
+        "send_result": res
+    })
+
+
 # ── Student: own alerts ───────────────────────────────────────────────────────
 
 @alert_bp.route("/my")
