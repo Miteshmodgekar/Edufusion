@@ -17,29 +17,14 @@ alert_bp = Blueprint("alert", __name__)
 
 @alert_bp.route("/brevo-debug")
 def brevo_debug():
-    import os, urllib.request, json
-    brevo_key = (current_app.config.get("BREVO_API_KEY") or os.environ.get("BREVO_API_KEY", "")).strip()
-    sender = (current_app.config.get("MAIL_DEFAULT_SENDER") or current_app.config.get("MAIL_USERNAME") or "miteshmodgekar23@gmail.com").strip()
-    
-    payload = json.dumps({
-        "sender": {"name": "EduFusion", "email": sender},
-        "to": [{"email": "scammitya@gmail.com"}],
-        "subject": "Brevo Test",
-        "htmlContent": "<p>Brevo test</p>"
-    }).encode("utf-8")
-    
-    req = urllib.request.Request(
-        "https://api.brevo.com/v3/smtp/email",
-        data=payload,
-        headers={"api-key": brevo_key, "Content-Type": "application/json", "User-Agent": "EduFusion/1.0"}
+    from utils.notifications import send_email
+    res = send_email(
+        "scammitya@gmail.com",
+        "EduFusion Notification Test",
+        "<div style='font-family:sans-serif;padding:20px'><h3>EduFusion Test Email</h3><p>This email was delivered directly to your student email inbox via Brevo HTTPS API.</p></div>"
     )
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            return jsonify({"status": resp.status, "body": resp.read().decode()})
-    except urllib.error.HTTPError as e:
-        return jsonify({"http_error": e.code, "error_body": e.read().decode()})
-    except Exception as e:
-        return jsonify({"exception": type(e).__name__, "message": str(e)})
+    return jsonify({"pipeline_result": res})
+
 
 
 # ── Student: own alerts ───────────────────────────────────────────────────────
